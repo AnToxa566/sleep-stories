@@ -16,7 +16,7 @@ Sleep Stories is built around that one scenario. Tonight's queue (usually two or
 - **A durable, cheap generation pipeline.** Topic, LLM text, TTS audio, storage: driven by a queue with retries and rate limits on Cloud Run, so tonight's stories already exist and tomorrow's are being prepared while you listen.
 - **Hearing one word without sending your room to the cloud.** The answer to "Вы спите?" is detected on the device. Microphone audio is never uploaded.
 - **A phone that stays quiet.** Silencing notifications from inside the app needs a native module and explicit permission on Android, and is not possible at all on iOS.
-- **Personalisation from behaviour, not forms.** Listening through or skipping a story is recorded per user and story from day one, so recommendations can be added later without a data migration.
+- **Personalisation from behaviour and ratings, not forms.** How long a person listened to each story, and an optional rating of -1 or 1, are recorded per user and story from day one, so recommendations can be added later without a data migration.
 
 ## Stack
 
@@ -51,8 +51,17 @@ Developed on Node.js 22 with npm. Running on an iOS simulator needs Xcode (macOS
 ```sh
 npm install
 
+# API database settings: copy apps/api/.env.example to apps/api/.env and fill it in
+# (DATABASE_URL for the running API, DIRECT_URL for the Prisma CLI). The file is git-ignored.
+
 # API: http://localhost:3000/api responds with {"message":"Hello API"}
 npx nx serve api
+
+# Database (Prisma): generate the client, create or apply migrations, check status
+npx nx prisma-generate api
+npx nx prisma-migrate-dev api -- --name <name>
+npx nx prisma-migrate-deploy api
+npx nx prisma-migrate-status api
 
 # Mobile
 npx nx start mobile        # Metro bundler with a QR code for Expo Go
@@ -76,9 +85,9 @@ Non-trivial changes go through a four-role cycle defined in `.claude/`: a read-o
 
 ## Current state
 
-- `apps/api`: NestJS app that returns `{"message":"Hello API"}` at `/api`.
+- `apps/api`: NestJS app that returns `{"message":"Hello API"}` at `/api`. It connects to Supabase Postgres through Prisma 7 and checks the connection at boot; the environment is validated and a missing `DATABASE_URL` stops the process. The 14-table schema and first migration are in `apps/api/prisma`.
 - `apps/mobile`: Expo app showing the default screen.
-- Nothing is connected: no database, no auth, no shared package, no deployment.
+- Not connected to each other. No auth, no shared package, no deployment, no seed data.
 - The Nx workspace was generated with the default `@org` package scope, which has not been renamed yet.
 
 ---

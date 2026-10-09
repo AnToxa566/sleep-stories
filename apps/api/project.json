@@ -62,7 +62,96 @@
     "test": {
       "options": {
         "passWithNoTests": true
+      },
+      "dependsOn": [
+        "prisma-generate"
+      ]
+    },
+    "prisma-generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma generate",
+        "cwd": "apps/api"
+      },
+      "cache": true,
+      "inputs": [
+        "{projectRoot}/prisma/schema.prisma",
+        "{projectRoot}/prisma.config.ts",
+        {
+          "externalDependencies": [
+            "prisma",
+            "@prisma/client"
+          ]
+        }
+      ],
+      "outputs": [
+        "{projectRoot}/src/generated/prisma"
+      ]
+    },
+    "prisma-migrate-dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma migrate dev",
+        "cwd": "apps/api"
       }
+    },
+    "prisma-migrate-deploy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma migrate deploy",
+        "cwd": "apps/api"
+      }
+    },
+    "prisma-migrate-status": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma migrate status",
+        "cwd": "apps/api"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "tsc --noEmit -p tsconfig.app.json",
+          "tsc --noEmit -p tsconfig.config.json",
+          "tsc --noEmit -p tsconfig.spec.json"
+        ],
+        "parallel": false,
+        "cwd": "apps/api"
+      },
+      "cache": true,
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/tsconfig.base.json",
+        {
+          "externalDependencies": [
+            "typescript",
+            "prisma",
+            "@prisma/client",
+            "@prisma/adapter-pg",
+            "pg",
+            "@nestjs/config",
+            "zod",
+            "@types/jest"
+          ]
+        }
+      ],
+      "dependsOn": [
+        "prisma-generate"
+      ]
+    },
+    "build": {
+      "dependsOn": [
+        "^build",
+        "prisma-generate"
+      ]
+    },
+    "lint": {
+      "dependsOn": [
+        "prisma-generate"
+      ]
     }
   }
 }

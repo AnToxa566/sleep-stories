@@ -61,3 +61,8 @@ cache/
 
 # Environment variables
 .env
+.env.*
+!.env.example
+
+# Prisma generated client (rebuilt by the prisma-generate Nx target)
+/apps/api/src/generated/

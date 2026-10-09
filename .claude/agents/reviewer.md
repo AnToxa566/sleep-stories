@@ -33,11 +33,13 @@ Each non-negotiable rule from AGENTS.md, written as something to look for in the
 14. **Correctness against the stated task.** Do the imports, signatures and file paths actually exist, rather than only appearing in a description?
 15. **Verification.** Did the executor run a check with pass or fail output, or describe expected behaviour? Missing verification is itself a finding.
 16. **Error paths and idempotency.** For generation work: does a retried job create a duplicate story, and does a failed job leave partial rows?
+17. **RLS on every new table.** For each table a migration in the diff creates, find its `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` statement in the same migration, and confirm that no `CREATE POLICY` appears anywhere. A new table without that statement, or any policy, is a finding.
 
 ## Severity
 
 - [BLOCKING] — violates a non-negotiable rule, breaks correctness, or contradicts the stated requirements.
 - [nit] — style, naming, readability. Never blocks approval by itself.
+- Statements in docs about components that are not built yet are at most [nit], unless they contradict a non-negotiable rule.
 
 Calibrate to the size of the change. A one-line config fix does not need a paragraph of process feedback. Flag what affects correctness, security or the requirements — not hypothetical future problems.
 

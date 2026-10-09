@@ -15,7 +15,7 @@ You implement an approved plan. You do not re-plan and you do not re-litigate de
 1. Module boundaries: `apps/mobile` and `apps/api` may import only from `packages/contracts`; they never import each other. `packages/contracts` imports only `zod`.
 2. Paid or secret-bearing SDKs (`@anthropic-ai/sdk`, the TTS SDK, the Supabase service-role client) are imported only inside their adapter (`LlmProvider`, `TtsProvider`, the storage service) in `apps/api`. Nothing else calls them.
 3. Prisma Migrate owns the database schema. No manual schema changes. No foreign keys into Supabase's `auth` schema: reference the auth user id as a plain uuid.
-4. Story content is user-independent (no owner column). Per-user state lives in `user_stories`. User intent or progress and system generation health are separate fields or tables and are never combined into one enum.
+4. Story content (`topics`, `stories`, `story_audio`) is user-independent and has no owner column. Per-user state lives in `user_preferences`, `user_interests`, `user_custom_interests`, `user_topics`, `queue_items`, `listens` and `story_ratings`. The listen outcome (finished or skipped) is derived from `listened_sec` and the audio duration and is never stored. User intent and generation health are never combined into one enum.
 5. A story is generated whole: one LLM call, one TTS request, one audio file. No chunking, no ffmpeg, no audio post-processing.
 6. Background work runs only through Cloud Tasks, with Cloud Scheduler for periodic triggers. No fire-and-forget work after the HTTP response, no Redis, no BullMQ.
 7. Only libraries named in `ARCHITECTURE.md` are used. Do not add a dependency, including Sentry, an i18n library or SQLite, without asking the owner.

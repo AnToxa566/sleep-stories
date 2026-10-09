@@ -16,7 +16,7 @@ If a plan conflicts with this file or with `ARCHITECTURE.md`, stop and flag it. 
 1. Module boundaries: `apps/mobile` and `apps/api` may import only from `packages/contracts`; they never import each other. `packages/contracts` imports only `zod`.
 2. Paid or secret-bearing SDKs (`@anthropic-ai/sdk`, the TTS SDK, the Supabase service-role client) are imported only inside their adapter (`LlmProvider`, `TtsProvider`, the storage service) in `apps/api`. Nothing else calls them.
 3. Prisma Migrate owns the database schema. No manual schema changes. No foreign keys into Supabase's `auth` schema: reference the auth user id as a plain uuid.
-4. Story content is user-independent (no owner column). Per-user state lives in `user_stories`. User intent or progress and system generation health are separate fields or tables and are never combined into one enum.
+4. Story content (`topics`, `stories`, `story_audio`) is user-independent and has no owner column. Per-user state lives in `user_preferences`, `user_interests`, `user_custom_interests`, `user_topics`, `queue_items`, `listens` and `story_ratings`. The listen outcome (finished or skipped) is derived from `listened_sec` and the audio duration and is never stored. User intent and generation health are never combined into one enum.
 5. A story is generated whole: one LLM call, one TTS request, one audio file. No chunking, no ffmpeg, no audio post-processing.
 6. Background work runs only through Cloud Tasks, with Cloud Scheduler for periodic triggers. No fire-and-forget work after the HTTP response, no Redis, no BullMQ.
 7. Only libraries named in `ARCHITECTURE.md` are used. Do not add a dependency, including Sentry, an i18n library or SQLite, without asking the owner.
@@ -44,6 +44,7 @@ This is the target layout. Create folders when first needed, not before.
 | Screens, navigation, hooks, stores | `apps/mobile/src` |
 | Nest modules, one per feature | `apps/api/src/app/<feature>` |
 | Prisma schema and migrations | `apps/api/prisma` |
+| Generated Prisma client (git-ignored, never edited by hand) | `apps/api/src/generated/prisma` |
 | LLM, TTS and storage adapters | `apps/api/src/app/providers` |
 | Cloud Tasks and Scheduler handlers | `apps/api/src/app/internal` |
 | Prompts | `apps/api/src/app/generation/prompts` |
@@ -67,7 +68,12 @@ This is the target layout. Create folders when first needed, not before.
 npx nx serve api            # API at http://localhost:3000/api
 npx nx build api
 npx nx lint api
-npx nx typecheck api
+npx nx typecheck api        # build, lint, typecheck and test run prisma-generate first
+npx nx prisma-generate api  # regenerate the Prisma client (git-ignored)
+npx nx prisma-migrate-dev api -- --create-only --name <name>   # create a migration without applying it
+npx nx prisma-migrate-dev api -- --name <name>                 # create and apply a migration
+npx nx prisma-migrate-deploy api
+npx nx prisma-migrate-status api
 npx nx start mobile         # Metro bundler (Expo)
 npx nx lint mobile
 npx nx typecheck mobile
@@ -75,12 +81,15 @@ npx nx run-ios mobile       # needs Xcode
 npx nx run-android mobile   # needs Android Studio
 ```
 
-No unit-test target exists yet for either app.
+Database setup: copy `apps/api/.env.example` to `apps/api/.env` (git-ignored) and fill in `DATABASE_URL` (Supabase transaction pooler, port 6543, used by the running API) and `DIRECT_URL` (Supabase session pooler, port 5432, used only by the Prisma CLI). Never print or commit `.env`. The `prisma-*` targets pass extra arguments after `--`. `build`, `lint`, `typecheck` and `test` of `api` depend on `prisma-generate`, so they need `DIRECT_URL` set even though they do not touch the database. `serve` depends on `build`, so `npx nx serve api` also regenerates the client after a schema change (checked); running `prisma` directly in `apps/api` does not. Never use `prisma db push`; migrations are the only way the schema changes.
+
+`npx nx test api` runs the two scaffold specs; no tests of our own exist yet, and `mobile` has no test target.
 
 ## Current state
 
-- `apps/api` is the NestJS "Hello API" scaffold. `apps/mobile` is the default Expo screen. They are not connected.
-- Not created yet: `packages/contracts`, Prisma schema, authentication, any deployment, the module-boundary lint rule, CI.
+- `apps/api` is the NestJS "Hello API" scaffold plus a global `PrismaModule`/`PrismaService` (Prisma 7 with `@prisma/adapter-pg`) and Zod-validated environment configuration that fails at boot. `apps/mobile` is the default Expo screen. They are not connected.
+- The 14-table schema and its first migration (`init`, with RLS on every table and `_prisma_migrations`, CHECK constraints and a partial unique index) are in `apps/api/prisma`. It is applied to the development Supabase database. No seed data.
+- Not created yet: `packages/contracts`, authentication, any deployment, the module-boundary lint rule, CI.
 - The workspace still uses the default `@org` package scope.
 
 ## The development cycle

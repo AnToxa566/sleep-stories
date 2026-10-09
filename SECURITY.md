@@ -2,7 +2,7 @@
 
 Sleep Stories handles user accounts, a listening history, a microphone permission, and paid third-party API keys (LLM and speech synthesis). This document records the threat model, the rules that follow from it, and what has to be true before launch.
 
-Nothing is deployed yet and there are no secrets in the project. Everything marked "planned" is a requirement for the code that will be written, not a description of existing behaviour.
+Nothing is deployed yet. The only secrets are the development database connection strings in the git-ignored `apps/api/.env`; none are committed. Everything marked "planned" is a requirement for the code that will be written, not a description of existing behaviour.
 
 ## Assets
 
@@ -26,6 +26,7 @@ Nothing is deployed yet and there are no secrets in the project. Everything mark
 | Prompt injection through custom topics | Odd or unsafe story content | Topic text is untrusted data, passed as delimited user content and never mixed into system instructions; no secrets appear in prompts; model output is plain text and is never executed or used to pick tools or URLs | Planned |
 | Microphone audio is uploaded or stored | Severe privacy breach | Detection and recognition are local; nothing on the audio path makes a network call; nothing is recorded to disk beyond what local recognition needs in memory | Planned |
 | Signed URLs leak or are reused | Unauthorised file access | Private bucket; URLs are short-lived and created per request; the database stores object paths only | Planned |
+| Database traffic intercepted or downgraded to plaintext | Credentials and user data exposed to a network attacker | Runtime connection verifies the pooler certificate against a pinned Supabase root CA; `DATABASE_URL` may not carry `ssl*` options that override it; `rejectUnauthorized: false` is never used. The Prisma CLI connection is opportunistic TLS, unverified (open) | Runtime done, CLI open |
 | Account takeover through weak sign-in setup | Access to someone's profile | Supabase Auth settings reviewed, OAuth redirect URIs on an allowlist, email confirmation on | Planned |
 | Secrets or personal data in logs | Leakage through log access | Structured logging with redaction; no tokens, emails or story text in logs | Planned |
 | Vulnerable dependencies | Supply-chain compromise | Lockfile committed, versions pinned, few dependencies, review of audit results before launch | Open: see current state |
@@ -46,7 +47,11 @@ These are non-negotiable and are copied verbatim into the executor agent.
 
 ## Current state
 
-- No deployment, no secrets, no database, no authentication.
+- No deployment and no authentication. A development Supabase database exists and holds the schema from the first migration, with no data. Its connection strings live only in the git-ignored `apps/api/.env`; `apps/api/.env.example` holds placeholders.
+- RLS is enabled with no policies on all 14 tables and on `_prisma_migrations` (verified by querying `pg_class` and `pg_policies` after the migration). The pre-launch check with the publishable key has not been done yet.
+- The environment schema rejects a missing or malformed `DATABASE_URL` at boot without echoing its value, and rejects a `DATABASE_URL` that sets any `ssl*` option, so the connection string cannot weaken TLS.
+- Runtime database traffic uses verified TLS: `PrismaService` checks the pooler certificate against Supabase's root CA pinned in the repository (expires 2031-04-26, rotated by hand). Verified by booting the API with it.
+- Migration traffic (the Prisma CLI over `DIRECT_URL`) uses opportunistic TLS (like `sslmode=prefer`) and the certificate is not verified; an active network attacker could strip TLS or intercept it. This is an open item (ARCHITECTURE.md section 11) and affects development machines and CI only, not the running service.
 - When the workspace was first generated for testing (2026-10-08), `npm install` reported dozens of vulnerabilities in the scaffold's dependency tree (83 in that run). They have not been triaged. Check the current `npm audit` output, and decide what matters, before any launch.
 - The module-boundary lint rule is not configured yet (see ARCHITECTURE.md, section 3).
 
@@ -66,3 +71,4 @@ These are non-negotiable and are copied verbatim into the executor agent.
 - [ ] The Supabase project is not on a plan that pauses for inactivity
 - [ ] `npm audit` results have been reviewed and the remaining findings accepted explicitly
 - [ ] Module-boundary lint rule is on and proven by violating it on purpose
+- [ ] In-app account deletion works end to end (the Supabase auth user and the `users` row with its cascade); the App Store expects it
