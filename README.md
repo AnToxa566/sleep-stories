@@ -1,96 +1,86 @@
-# SleepStories
+# Sleep Stories
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+A bedtime app that plays a queue of short, AI-generated stories and lectures in a calm Russian-language voice, so you can fall asleep to something quietly interesting and never have to pick up the phone to keep it going.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+> **Status: early bootstrap.** The workspace contains a NestJS "Hello API" and the default Expo screen. They are not connected to each other yet. See [Current state](#current-state).
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+## Why it exists
 
-## Run tasks
+Falling asleep is easier with a calm voice talking about something mildly interesting in the background. General-purpose AI voice chats do this badly in Russian: the speech engine is tuned for English and sounds accented, and when a lecture ends you must unlock the phone, pick a new topic and say it aloud, which wakes you up right when you were about to fall asleep.
 
-To run tasks with Nx use:
+Sleep Stories is built around that one scenario. Tonight's queue (usually two or three stories of about three minutes each) is prepared and downloaded in advance, plays without a connection, and at the end the app asks aloud "Вы спите?". One spoken word keeps the night going; silence lets it end.
 
-```sh
-npx nx <target> <project-name>
+## Engineering problems worth solving here
+
+- **Staying alive in the background.** Audio has to keep playing with the screen off, and after the last story the app must open the microphone and listen. Both iOS and Android restrict exactly this. It is the riskiest part of the project and is still an open spike (see [Known open problems](ARCHITECTURE.md#11-known-open-problems)).
+- **A durable, cheap generation pipeline.** Topic, LLM text, TTS audio, storage: driven by a queue with retries and rate limits on Cloud Run, so tonight's stories already exist and tomorrow's are being prepared while you listen.
+- **Hearing one word without sending your room to the cloud.** The answer to "Вы спите?" is detected on the device. Microphone audio is never uploaded.
+- **A phone that stays quiet.** Silencing notifications from inside the app needs a native module and explicit permission on Android, and is not possible at all on iOS.
+- **Personalisation from behaviour, not forms.** Listening through or skipping a story is recorded per user and story from day one, so recommendations can be added later without a data migration.
+
+## Stack
+
+| Area | Choice |
+|---|---|
+| Monorepo | Nx, npm, TypeScript (strict) |
+| Mobile | Expo (React Native), TanStack Query, Zustand + MMKV |
+| API | NestJS on Google Cloud Run |
+| Database | Supabase Postgres, Prisma |
+| Auth | Supabase Auth (email, Google, Apple) |
+| Background jobs | Google Cloud Tasks + Cloud Scheduler |
+| Text generation | Anthropic SDK, behind an `LlmProvider` interface |
+| Speech synthesis | Provider chosen after listening to Russian samples, behind a `TtsProvider` interface |
+| File storage | Supabase Storage (private bucket, signed URLs) |
+| Shared contracts | Zod schemas in `packages/contracts` |
+
+Every choice, with its reasoning and cost, is in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Repository layout
+
+```
+apps/api              NestJS API (deployed to Cloud Run)
+apps/mobile           Expo (React Native) app
+packages/contracts    Planned: Zod schemas shared by both apps
+.claude/              Subagents and the /feature command (see AGENTS.md)
 ```
 
-For example:
+## Getting started
+
+Developed on Node.js 22 with npm. Running on an iOS simulator needs Xcode (macOS); an Android emulator needs Android Studio.
 
 ```sh
-npx nx build myproject
+npm install
+
+# API: http://localhost:3000/api responds with {"message":"Hello API"}
+npx nx serve api
+
+# Mobile
+npx nx start mobile        # Metro bundler with a QR code for Expo Go
+npx nx run-ios mobile      # iOS simulator
+npx nx run-android mobile  # Android emulator
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+Expo Go is enough for the current default screen only. Background audio, MMKV, local speech recognition and the Do Not Disturb module need native code, so a development build (EAS Build) is required as soon as the player work starts.
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## Documentation
 
-## Add new projects
+| File | What it is |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, boundaries, data model, decisions with reasoning, what is deferred, and the open problems |
+| [SECURITY.md](SECURITY.md) | Threat model, security rules, and the pre-launch checklist |
+| [AGENTS.md](AGENTS.md) | Rules and conventions for coding agents (`CLAUDE.md` points to it) |
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
+## Development workflow
 
-To install a new plugin you can use the `nx add` command. Here's an example of adding the React plugin:
-```sh
-npx nx add @nx/react
-```
+Non-trivial changes go through a four-role cycle defined in `.claude/`: a read-only planner, an executor, an adversarial reviewer in a fresh context, and an architect. Run it with `/feature <task>` in Claude Code. The plan is approved by a person before any file is touched, and the commit is made by a person after both verdicts. Details are in [AGENTS.md](AGENTS.md).
 
-Use the plugin's generator to create new projects. For example, to create a new React app or library:
+## Current state
 
-```sh
-# Generate an app
-npx nx g @nx/react:app demo
+- `apps/api`: NestJS app that returns `{"message":"Hello API"}` at `/api`.
+- `apps/mobile`: Expo app showing the default screen.
+- Nothing is connected: no database, no auth, no shared package, no deployment.
+- The Nx workspace was generated with the default `@org` package scope, which has not been renamed yet.
 
-# Generate a library
-npx nx g @nx/react:lib some-lib
-```
+---
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
-
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Set up CI!
-
-### Step 1
-
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
-```
-
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
-
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
-```
-
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Built on [Nx](https://nx.dev).
