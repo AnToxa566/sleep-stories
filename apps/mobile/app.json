@@ -7,23 +7,22 @@
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.antoxa566.mobile"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.antoxa566.mobile"
     },
     "web": {
       "bundler": "metro",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      
       [
         "expo-splash-screen",
         {
