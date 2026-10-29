@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.antoxa566.mobile"
@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#09070F"
       },
       "package": "com.antoxa566.mobile"
     },
@@ -29,9 +29,16 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#09070F"
         }
       ]
-    ]
+    ],
+    "backgroundColor": "#09070F",
+    "extra": {
+      "eas": {
+        "projectId": "a9ad787d-027a-4e03-986a-254f2c1670a4"
+      }
+    },
+    "owner": "antoxa-org"
   }
 }
