@@ -1,6 +1,8 @@
 # Security
 
-Sleep Stories handles user accounts, a listening history, a microphone permission, and paid third-party API keys (LLM and speech synthesis). This document records the threat model, the rules that follow from it, and what has to be true before launch.
+Sleep Stories handles user accounts, a listening history and paid third-party API keys (LLM and speech synthesis). This document records the threat model, the rules that follow from it, and what has to be true before launch.
+
+The app does not use the microphone at present: the owner replaced listening for a spoken answer with a manual touch on 2026-10-29 (ARCHITECTURE.md, sections 7 and 10). The microphone rows below and rule 6 stay in force, unchanged, in case that is ever reopened.
 
 Nothing is deployed yet. The only secrets are the development database connection strings in the git-ignored `apps/api/.env`; none are committed. Everything marked "planned" is a requirement for the code that will be written, not a description of existing behaviour.
 
@@ -11,7 +13,7 @@ Nothing is deployed yet. The only secrets are the development database connectio
 | Provider keys (Anthropic, TTS, Supabase service role, database URL) | Anyone holding them can spend money or read all data |
 | User accounts and sessions | Access to a person's profile and history |
 | Listening history and interests | Personal data about a person's evenings and tastes |
-| Microphone audio | Captured in a bedroom; the most sensitive input the app touches |
+| Microphone audio (not captured at present) | Would be captured in a bedroom; the most sensitive input the app could touch |
 | The generation pipeline | Each run costs money; abuse becomes a bill |
 
 ## Threat model
@@ -24,12 +26,13 @@ Nothing is deployed yet. The only secrets are the development database connectio
 | Forged calls to `/internal/*` endpoints | Free generation at the owner's expense | Every internal endpoint verifies a Google OIDC token (expected audience and service account); a user JWT is not accepted there | Planned |
 | Spamming generation to run up the bill | Cost abuse | Per-user limits checked before any provider call, queue-level rate and concurrency caps, `@nestjs/throttler`, spending caps in the vendor accounts | Open: no quota design yet |
 | Prompt injection through custom topics | Odd or unsafe story content | Topic text is untrusted data, passed as delimited user content and never mixed into system instructions; no secrets appear in prompts; model output is plain text and is never executed or used to pick tools or URLs | Planned |
-| Microphone audio is uploaded or stored | Severe privacy breach | Detection and recognition are local; nothing on the audio path makes a network call; nothing is recorded to disk beyond what local recognition needs in memory | Planned |
+| Microphone audio is uploaded or stored | Severe privacy breach | Detection and recognition are local; nothing on the audio path makes a network call; nothing is recorded to disk beyond what local recognition needs in memory. If the microphone is reopened: `expo-audio` can only meter by recording to a file (the cache directory by default), so that file must be deleted as soon as recording stops and must not be backed up | Not applicable while the microphone is unused |
 | Signed URLs leak or are reused | Unauthorised file access | Private bucket; URLs are short-lived and created per request; the database stores object paths only | Planned |
 | Database traffic intercepted or downgraded to plaintext | Credentials and user data exposed to a network attacker | Runtime connection verifies the pooler certificate against a pinned Supabase root CA; `DATABASE_URL` may not carry `ssl*` options that override it; `rejectUnauthorized: false` is never used. The Prisma CLI connection is opportunistic TLS, unverified (open) | Runtime done, CLI open |
 | Account takeover through weak sign-in setup | Access to someone's profile | Supabase Auth settings reviewed, OAuth redirect URIs on an allowlist, email confirmation on | Planned |
 | Secrets or personal data in logs | Leakage through log access | Structured logging with redaction; no tokens, emails or story text in logs | Planned |
 | Vulnerable dependencies | Supply-chain compromise | Lockfile committed, versions pinned, few dependencies, review of audit results before launch | Open: see current state |
+| Secrets or server code leave with an EAS build archive | EAS uploads the repository root to Expo's servers on every mobile build | Secrets live only in git-ignored files, and EAS is documented to skip what `.gitignore` ignores, so the git-ignored `.env` files should stay out. The archive contents of the first builds were not inspected, so neither that nor whether `apps/api` travels with it is verified; an `.easignore` is the candidate fix and has not been tried (ARCHITECTURE.md section 11, item 22) | Open |
 
 ## Security rules
 
@@ -54,6 +57,7 @@ These are non-negotiable and are copied verbatim into the executor agent.
 - Migration traffic (the Prisma CLI over `DIRECT_URL`) uses opportunistic TLS (like `sslmode=prefer`) and the certificate is not verified; an active network attacker could strip TLS or intercept it. This is an open item (ARCHITECTURE.md section 11) and affects development machines and CI only, not the running service.
 - When the workspace was first generated for testing (2026-10-08), `npm install` reported dozens of vulnerabilities in the scaffold's dependency tree (83 in that run). They have not been triaged. Check the current `npm audit` output, and decide what matters, before any launch.
 - The module-boundary lint rule is not configured yet (see ARCHITECTURE.md, section 3).
+- `apps/mobile` is on Expo SDK 57 and linked to an EAS project (`owner` and `projectId` in `app.json`; neither is a secret). It has no `expo-audio`, no microphone permission and no authentication. The background-audio spike lives only on the branch `spike/background-audio` and is not merged.
 
 ## Pre-launch checklist
 
@@ -65,7 +69,9 @@ These are non-negotiable and are copied verbatim into the executor agent.
 - [ ] The API rejects a request that names another user's id; verified with two test accounts
 - [ ] Missing required configuration crashes the process at boot; verified by starting it without a secret
 - [ ] No provider key appears in the mobile bundle; verified by searching the built bundle
-- [ ] Nothing on the microphone audio path opens a network connection; verified by reading the code path and by watching network traffic during a "Вы спите?" window
+- [ ] The built app declares no microphone permission (no `RECORD_AUDIO` in the Android manifest, no `NSMicrophoneUsageDescription` in `Info.plist`) while the microphone is unused; verified in the built APK and IPA
+- [ ] Only if the microphone is reopened: nothing on the microphone audio path opens a network connection, and no recording file is left on the device; verified by reading the code path, by watching network traffic and by listing the app's files after a night
+- [ ] What an EAS build archive contains has been inspected, and no secret or server-only file is in it
 - [ ] Logs contain no tokens, emails or story text; verified by reading real log output
 - [ ] Sign-in providers are configured with allowlisted redirect URIs; the App Store sign-in expectation is checked
 - [ ] The Supabase project is not on a plan that pauses for inactivity

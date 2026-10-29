@@ -14,7 +14,7 @@ MVP scope:
 - Onboarding: choose a narrator voice, interests and story styles.
 - A queue that is already filled when the app opens. The backend keeps adding stories while the person listens, so there are always unheard ones.
 - Offline playback with background audio, from files downloaded in advance.
-- At the end of the queue the app asks aloud "Вы спите?". A spoken answer continues the night with more stories; silence fades the audio out and stops.
+- At the end of the queue a gentle sound (waves) plays for about 20 seconds and fades out, and the screen shows a visual hint of what to do to continue. A touch anywhere on the screen during that time continues the night with more stories; no touch fades the audio out and stops. The screen stays on during the night and dims itself (section 7, "The screen during a night"). Decided by the owner on 2026-10-29, replacing the earlier plan to ask aloud "Вы спите?" and listen for a spoken answer (section 10).
 - A history of what was listened to.
 - Ratings: a person can rate a story (`story_ratings`, one rating of -1 or 1 per user and story). Moved out of "Deferred" by the owner. Buys the rating data from day one, so the later recommendation algorithm has history to use; costs a rating control in the UI, and where in the app a person rates is not decided (section 11).
 - Russian only. Dark UI only.
@@ -178,7 +178,7 @@ Delivery to the phone: the app asks the API for its queue, receives short-lived 
 
 ## 7. Mobile app
 
-**Expo (React Native).** Buys config plugins for native settings, EAS builds and over-the-air updates; costs that Expo Go cannot run the pieces that need native code (MMKV, local speech recognition, the Do Not Disturb module) or be relied on for background audio, so development builds are required from the player work onwards.
+**Expo (React Native).** Buys config plugins for native settings, EAS builds and over-the-air updates; costs that Expo Go cannot run the pieces that need native code (MMKV, the Do Not Disturb module) or be relied on for background audio, so development builds are required from the player work onwards.
 
 | Concern | Choice |
 |---|---|
@@ -187,8 +187,9 @@ Delivery to the phone: the app asks the API for its queue, receives short-lived 
 | Local state | Zustand, persisted with MMKV |
 | Small local storage | MMKV (`react-native-mmkv`): synchronous key-value storage for voice, speed, queue metadata and the list of downloaded stories, so the queue shows instantly at launch |
 | Audio files | `expo-file-system` |
-| Speech to text (local) | `expo-speech-recognition` |
-| Answer to "Вы спите?" | Start with microphone level detection, no ML model; a local model (Vosk or Whisper) only if level detection proves unreliable |
+| Continue after the last story | A touch anywhere on the waiting screen, with a visual hint. No microphone, no speech recognition (section 10). No lock-screen fallback in the first version (section 10) |
+| Screen on during a night | `expo-keep-awake`, allowed by the owner on 2026-10-29. Used only while the player is on screen, and always released (section 7, "The screen during a night"). Not installed yet |
+| Dimming | The interface goes near-black after a short time without a touch. No brightness library at first: `expo-brightness` is not used (section 10) |
 | Animation | `react-native-reanimated` and `@shopify/react-native-skia` for the voice orb |
 | Fonts and icons | Onest via `@expo-google-fonts/onest`; `lucide-react-native` (thin strokes) |
 | Forms | `react-hook-form` with Zod resolvers |
@@ -198,13 +199,22 @@ Delivery to the phone: the app asks the API for its queue, receives short-lived 
 
 Not chosen yet, and not to be chosen by an agent: the audio library (react-native-track-player or expo-audio) and the styling approach (NativeWind or plain StyleSheet with a tokens file). Both are in Known open problems.
 
-**Microphone privacy.** Microphone audio never leaves the device. Detection and any speech recognition are local. Nothing on that audio path may make a network call.
+**Microphone.** The app does not use the microphone (section 10). If that is ever reopened, microphone audio must never leave the device and nothing on that audio path may make a network call; rule 6 in `AGENTS.md` and `SECURITY.md` stays in force until then.
 
 **The end of the night.**
 1. The last story ends.
-2. A pre-rendered audio prompt «Вы спите?» is played (generated once per voice and cached, not generated at runtime).
-3. The app listens for a fixed window (the length is a setting).
-4. A detected answer continues with further queued stories, which are already downloaded. No answer fades the audio out, stops, and restores whatever the app changed (Do Not Disturb).
+2. A gentle sound (waves) starts and fades out over about 20 seconds (the length is a setting). It is one bundled audio file, the same for every voice: not generated, not per voice, not stored in Supabase. The waiting screen shows a visual hint of what to do to continue.
+3. A touch anywhere on the screen during the fade continues with further queued stories, which are already downloaded. Touches count as "continue" only in this window; during the stories a touch only wakes the player (see below).
+4. No touch: the audio fades out completely, stops, and restores whatever the app changed (Do Not Disturb) and releases the screen (see below).
+
+**The screen during a night.** Decided by the owner on 2026-10-29. Replaces the microphone as the way to tell that the person is still awake, because a person can touch a screen that is on.
+- While stories play, the player screen stays on (`expo-keep-awake`). After a few seconds without a touch, the interface goes near-black, the quietest state of the player (the number of seconds is a setting). A touch during a story brings the player back; it does not skip or continue anything.
+- There is no brightness library at first. Only the interface is darkened; system brightness is not changed (`expo-brightness` is deferred, section 10). An LCD phone is still lit by its backlight when the interface is black, so how dark it really gets is to be judged on real phones.
+- **Releasing the screen must not be forgotten.** The keep-awake lock must be released when the fade ends, when the night is stopped, on any error, when the player leaves the screen and when the app goes to the background, and there should be a hard maximum time as a safety net. A screen left on all night drains the battery and lights the bedroom. When the player is built, check on a real phone that the screen times out normally after a night, including after an error.
+- If the person locks the phone themselves, the queue keeps playing, the end-of-night sound plays and fades, and the audio stops; there is no way to continue from the lock screen in the first version. Adding one is decided after real use (section 10).
+- Not verified: `expo-keep-awake` on iOS in Low Power Mode (its documentation does not cover it), and how the dimmed interface looks on real phones.
+
+**A constraint for anything that happens with the screen off.** This matters less when the screen stays on, but it still applies whenever the person locks the phone. On Android, JavaScript timers (`setTimeout`, `setInterval`) stop firing while the app is in the background, but native player events keep reaching JavaScript (observed in the background-audio spike on one Android 16 phone). Anything that must happen at a given time with the screen off, such as starting the end-of-night sound or the fade, must be driven by native player events, not by timers.
 
 **Quiet phone.** Android: a custom Expo module toggles Do Not Disturb with media allowed, which needs the user to grant notification-policy access once. iOS: there is no public API, so the person sets up a Focus (such as Sleep) once; media playback is not silenced by Focus.
 
@@ -221,7 +231,7 @@ Chosen from three explored directions: "dark minimal night". The designs produce
 - Typography: Onest only. Very light weight (200) for large numerals, regular and medium for titles, small uppercase labels with wide letter-spacing.
 - Structure: no cards or heavy boxes; hairlines separate content. Thin 1.6 px line icons, no emoji.
 - The voice orb: a blurred conic gradient (`#8F7CFF`, `#FF8A6B`, `#FF5E9A`, `#5B6CFF`) shaped into a slowly rotating glowing ring with a dark inner disc and a counter-rotating soft glow behind it, breathing gently. All motion is slow.
-- Screens: onboarding (sign in, voice, interests and styles, permissions), Today, Topics, Player (playing, dimmed, "Вы спите?" listening, falling asleep), Library, Settings. The player is the quietest screen and has no bottom navigation.
+- Screens: onboarding (sign in, voice, interests and styles, permissions), Today, Topics, Player (playing, dimmed, waiting to continue with the waves fading, falling asleep), Library, Settings. The player is the quietest screen and has no bottom navigation. The dimmed state is the near-black interface the player enters after a few seconds without a touch while stories play; a touch brings the player back (section 7, "The screen during a night"). The waiting state has one primary action: a touch anywhere, with a visual hint.
 - The home hero reads «Добрый вечер», «Что послушаем сегодня перед сном?», then «3 истории · около 9 минут».
 
 ## 10. Deferred and rejected
@@ -233,6 +243,8 @@ Chosen from three explored directions: "dark minimal night". The designs produce
 - The recommendation algorithm that uses ratings and listens. Only the recording of ratings and listens is in scope.
 - Other languages and any i18n library. All copy is Russian and lives in one strings module.
 - More than one profile per account.
+- **System brightness control (`expo-brightness`).** Deferred by the owner on 2026-10-29: the first version only darkens the interface. Revisit if it is still too bright on a real phone. Note for later: on iOS the brightness set by an app persists until the device is locked, so the previous value would have to be restored by the app.
+- **A way to continue from the lock screen** (for example a press of the lock-screen media control, when the person has locked the phone themselves). Deferred by the owner on 2026-10-29 until the app has been used in practice. In the spike, an external pause and play reached JavaScript in the background on Android, but who pressed was inferred from the log, and iOS was not tested.
 - **Cleaning up old stories and audio files.** This was discussed because the Supabase Free tier has 1 GB of storage. One possible policy was noted (for example deleting listened, unrated stories after some days). It is not planned and is not being thought about now. Do not design or build it.
 
 **Rejected, with reasons, so nobody re-adds them:**
@@ -242,13 +254,20 @@ Chosen from three explored directions: "dark minimal night". The designs produce
 - **BullMQ, Redis, pg-boss.** Cloud Run throttles background CPU, and Cloud Tasks covers the need without extra infrastructure.
 - **SQLite on the phone.** MMKV plus files cover the offline needs.
 - **Google Cloud Storage for audio.** Not rejected for being worse, only for being less simple here; see section 4.
+- **Listening with the microphone at the end of the night, and the spoken prompt «Вы спите?».** Rejected by the owner on 2026-10-29 after the background-audio spike, in favour of a manual touch (section 7). Reasons, from the spike on one Android 16 phone (iOS was not tested): a recorder started while the app was in the background returned digital silence (97 of 97 samples at -160 dB) although `record()` reported success, so on Android the recorder would have to be started in the foreground at the beginning of the night and kept running all night, which means a persistent "recording" notification, the microphone indicator on all night, battery cost and a trust cost for a sleep app; the cause of the silence is inferred (Android's rule for background microphone use, with `expo-audio` swallowing the error), not observed. Playing a sound during the listening window would also put the app's own audio into the microphone, and any sound (a TV, a partner, a cough) counts as "awake". Dropping it also removes the per-voice prompt audio and its generation. The spike's detector and scheduler code stays in the branch `spike/background-audio` for reference.
 
 ## 11. Known open problems
 
 These are real gaps. Agents must not settle them silently; stop and ask the owner.
 
-1. **Background audio and the microphone (the main risk).** Does audio keep playing with the screen off, and can the app open the microphone in the background after the last story and hear an answer, on both iOS and Android? A spike must answer this before the rest of the player is built. The audio library choice (react-native-track-player or expo-audio) depends on the result, including a gapless queue and lock-screen controls.
-2. **Telling speech from other sounds.** Level-only detection could treat snoring, a TV or a partner's voice as "still awake". It may need a short local recognition step to confirm a spoken word.
+1. **Background audio with the screen off (partly answered; the rest is unverified).** The microphone half of the original question is closed: the microphone is no longer used (section 10). Observed in the spike on one Android 16 phone, with short test stories of about 11 seconds: a chain of separate `AudioPlayer`s keeps playing with the screen off, the next one starts from the background (65 to 140 ms on the JavaScript clock, not audible), lock-screen pause, play and seek reach JavaScript in the background, and a 10-second fade works in the background. `AudioPlaylist` has no lock-screen API in `expo-audio` 56 or 57.0.5. **Not verified:** anything on iOS; a run longer than 6 minutes (the `expo-audio` documentation says Android cuts background playback after about 3 minutes without lock-screen controls; Doze and battery were not measured); gapless playback together with lock-screen controls; the model of the test phone was not recorded. The audio library choice (`expo-audio` or `react-native-track-player`) stays with the owner; `react-native-track-player` was not tested.
+2. **The end of the night: what is still open.** Decided by the owner on 2026-10-29 (section 7): a touch anywhere on the waiting screen continues the night, with a visual hint; the screen stays on and dims itself; no microphone; no lock-screen fallback and no brightness library in the first version (section 10). Still open:
+   - **The visual hint.** What it looks like and says (copy is Russian and lives in the strings module), and how it fits the design language.
+   - **Accidental touches**, for example a phone resting on the chest, against the cost of making the gesture harder for a half-asleep person. If they turn out to be a real problem in use, press and hold is the next candidate (a swipe up collides with the system home gesture and edge swipes with the back gesture).
+   - **The numbers**: how many seconds without a touch before the interface goes near-black, and the length of the waiting window.
+   - **Screen on and dimmed, on real phones:** `expo-keep-awake` on iOS in Low Power Mode, how dark the interface looks on LCD and OLED, and that the keep-awake lock is always released (section 7).
+   - **The waves sound:** source and licence, length, a seamless loop, the fade curve and its level.
+   - **The `voices` table still has a column for the object path of the pre-rendered «Вы спите?» prompt** (section 5). It is unused now and should be dropped by a migration once this is confirmed; the schema is not changed here.
 3. **Expo Router inside the Nx-generated Expo app.** The generated app uses `index.js` and `src/app/App.tsx` rather than the Expo Router structure. Verify it works before committing to it; React Navigation is the fallback.
 4. **Styling approach.** NativeWind or plain StyleSheet with a tokens file. Decide at the first UI task.
 5. **TTS provider.** Pick after listening to Russian samples, and verify its text-length limit against section 4.
@@ -261,7 +280,7 @@ These are real gaps. Agents must not settle them silently; stop and ask the owne
 8. **Cost control.** There is no per-user quota design yet. Every path that reaches a paid provider needs one before launch. Vendor-side spending caps should also be set.
 9. **Sign-in provider setup.** Google and Apple configuration, redirect URIs, and the App Store sign-in expectation noted in section 8.
 10. **Supabase Free tier.** Projects pause after a week of inactivity. Fine for development; not for a launch.
-11. **Workspace naming.** The default `@org` package scope has not been renamed.
+11. **Workspace naming.** The default `@org` package scope has not been renamed. The app's iOS bundle identifier and Android package are not chosen either (the spike used a throwaway id, which was not carried over); they must not change after the first store release. The EAS project is linked under the slug `mobile`.
 12. **Chaining and dedupe keys for generation jobs.** How `render_audio` is enqueued after `write_story` (who enqueues it, with which retries), and the `dedupe_key` format per job kind. `generation_jobs` has no foreign key to topics, so `dedupe_key` is the only link between a queue item and its jobs. Also undefined: who appends to `queue_items` on an automatic or Scheduler top-up. Section 1 promises the backend keeps adding stories while the person listens, but the pipeline itself writes no queue row.
 13. **Stuck jobs.** A `pending` job whose enqueue failed, or a `running` job that dies before marking itself `failed`, holds its dedupe key forever, because the partial unique index only frees the key when the status leaves `pending` or `running`. A staleness rule or a Cloud Scheduler sweep, and the order of "insert the row, then enqueue the task", are undecided.
 14. **Duplicate listens.** `listens` has no client-generated event id or unique key, so a retried offline report of the same listen would create a second row. An idempotency key is undecided.
@@ -272,3 +291,4 @@ These are real gaps. Agents must not settle them silently; stop and ask the owne
 19. **Packaging and caching of the built API.** `generatePackageJson` in `apps/api/webpack.config.js` writes `dist/apps/api/package.json` without `@prisma/client`, although the bundle requires `@prisma/client/runtime/client` and the query-compiler wasm (checked on 2026-10-09 against a fresh build), and `@prisma/adapter-pg` does not depend on `@prisma/client`. A pruned install or the future Docker image would fail at startup. The generated `package.json` also lacks `pg` and `tslib` (the bundle requires `tslib`; checked against `dist/apps/api/package.json` after a build), so a pruned install would resolve `pg` through `@prisma/adapter-pg`'s `^8.16.3` range and the `8.23.1` pin would not reach production. Separately, the cache inputs of the `build` target do not hash `@prisma/client` (the bundle inlines the generated client); it is covered today only because `prisma` is hashed and both are pinned to the same version. Belongs to the Cloud Run deployment task.
 20. **Concurrent double delivery of the same Cloud Task.** Cloud Tasks delivers at least once. Nothing prevents two overlapping runs of the same task: `suggest_topics` has no natural unique key, so overlapping runs can create duplicate topics and `user_topics` rows. To be solved when the generation pipeline is built.
 21. **Rotation of the pinned Supabase root CA.** `apps/api/src/app/prisma/supabase-ca.ts` must be rotated by hand before 2031-04-26, or sooner if Supabase changes its CA. When that happens the service fails closed at boot with a certificate error.
+22. **EAS builds and the monorepo.** An EAS build must be started with `npx nx build mobile ...` from the repository root: the Nx executor temporarily copies the root `package.json` and lockfile into `apps/mobile`, which EAS needs (running `eas build` inside `apps/mobile` fails with "No lockfile found"). Every profile in `apps/mobile/eas.json` pins Node 24.19.0 because the lockfile is written by npm 11 and EAS defaults to npm 10, which rejects it. Still to decide: what the build archive contains. EAS uploads the repository root (about 4 MB for the first build); whether `apps/api` and `apps/api/prisma` travel to Expo's servers with every mobile build was not inspected, and an `.easignore` that leaves them out has not been tried against the Nx setup. The `@nx/expo` executors used here are deprecated and will be removed in Nx 24 (`nx g @nx/expo:convert-to-inferred` migrates them).

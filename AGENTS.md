@@ -79,7 +79,15 @@ npx nx lint mobile
 npx nx typecheck mobile
 npx nx run-ios mobile       # needs Xcode
 npx nx run-android mobile   # needs Android Studio
+npx nx build mobile --platform=android --profile=preview   # EAS cloud build, installable APK; run from the repo root
 ```
+
+EAS builds, learned the hard way (ARCHITECTURE.md section 11, item 22):
+- Start them only through `npx nx build mobile ...` from the repository root. The Nx executor copies the root `package.json` and lockfile into `apps/mobile` for the build; `eas build` run inside `apps/mobile` fails with "No lockfile found". Add `--interactive=false --wait=false` to start a build and return at once; the first build on an account asks to generate a keystore, which needs an interactive terminal.
+- The executor leaves a stray `"devDependencies": {}` and no trailing newline in `apps/mobile/package.json`. Restore it (`git checkout apps/mobile/package.json`, or re-apply your own change) before committing. `npx nx install mobile ...` is worse: it adds a list of unrelated packages to the same file and can create a stray `app.json` in the repository root. Check `git status` after either.
+- Every profile in `apps/mobile/eas.json` pins Node 24.19.0. Without it EAS uses npm 10 and `npm ci` rejects the npm 11 lockfile. EAS logs are Brotli-compressed; decode them with Node's `zlib.brotliDecompressSync`.
+- Native builds cannot be made on the owner's Mac (checked 2026-10-09: only the Command Line Tools, no Xcode app, no JDK); use EAS. `npx nx prebuild mobile --platform=all --install=false` works there and is a quick check of `app.json` and plugins. Generated `apps/mobile/ios` and `apps/mobile/android` are git-ignored.
+- JavaScript timers do not fire while an Android app is in the background; native player events do. Do not time anything for the screen-off case with `setTimeout` (ARCHITECTURE.md section 7).
 
 Database setup: copy `apps/api/.env.example` to `apps/api/.env` (git-ignored) and fill in `DATABASE_URL` (Supabase transaction pooler, port 6543, used by the running API) and `DIRECT_URL` (Supabase session pooler, port 5432, used only by the Prisma CLI). Never print or commit `.env`. The `prisma-*` targets pass extra arguments after `--`. `build`, `lint`, `typecheck` and `test` of `api` depend on `prisma-generate`, so they need `DIRECT_URL` set even though they do not touch the database. `serve` depends on `build`, so `npx nx serve api` also regenerates the client after a schema change (checked); running `prisma` directly in `apps/api` does not. Never use `prisma db push`; migrations are the only way the schema changes.
 
@@ -87,10 +95,11 @@ Database setup: copy `apps/api/.env.example` to `apps/api/.env` (git-ignored) an
 
 ## Current state
 
-- `apps/api` is the NestJS "Hello API" scaffold plus a global `PrismaModule`/`PrismaService` (Prisma 7 with `@prisma/adapter-pg`) and Zod-validated environment configuration that fails at boot. `apps/mobile` is the default Expo screen. They are not connected.
+- `apps/api` is the NestJS "Hello API" scaffold plus a global `PrismaModule`/`PrismaService` (Prisma 7 with `@prisma/adapter-pg`) and Zod-validated environment configuration that fails at boot. `apps/mobile` is the default Expo screen, on Expo SDK 57 (`expo` 57.0.25, React Native 0.86.3) and linked to an EAS project (`owner` `antoxa-org`, slug `mobile`). They are not connected.
 - The 14-table schema and its first migration (`init`, with RLS on every table and `_prisma_migrations`, CHECK constraints and a partial unique index) are in `apps/api/prisma`. It is applied to the development Supabase database. No seed data.
 - Not created yet: `packages/contracts`, authentication, any deployment, the module-boundary lint rule, CI.
-- The workspace still uses the default `@org` package scope.
+- The workspace still uses the default `@org` package scope. The app's iOS bundle identifier and Android package are not chosen.
+- The background-audio spike (open problem 1) was run on one Android phone and stopped early by the owner. Its code is on the branch `spike/background-audio` and is not to be merged. What it found, and the decisions that followed, are recorded in ARCHITECTURE.md sections 7, 10 and 11: no microphone, a touch continues the night, the screen stays on and dims. `expo-audio` is not installed (the audio library is the owner's choice). `expo-keep-awake` is allowed by the owner but not installed yet.
 
 ## The development cycle
 
