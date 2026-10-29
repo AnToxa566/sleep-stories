@@ -224,7 +224,7 @@ Supabase Auth with email and password, Google and Apple. The mobile app holds on
 
 ## 9. Design language
 
-Chosen from three explored directions: "dark minimal night". The designs produced from the Claude Design prompt are the source of truth once they exist. These are the starting values.
+Chosen from three explored directions: "dark minimal night". The designs produced from the Claude Design prompt are the source of truth for every screen. They are in the folder `design/` at the repository root: an export with `index.dc.html` (a canvas of the screens; open it in a browser) and its `support.js`. The folder is git-ignored on purpose: the owner keeps it locally and it is not in the repository or in CI, and EAS is documented to skip git-ignored files (the archive contents were not inspected, section 11, item 22). Anyone building a screen reads the matching design first; if `design/` is missing (a fresh clone), ask the owner rather than inventing a design. The values below were the starting values; the colors used most in the exported file (checked 2026-10-29: `#09070F`, `#E9E3FA`, `#A9A1D2`, `#FF9A7B`, `#F1ECFF`, `#2B1B6B`) match them.
 
 - Dark only. No pure white anywhere. Text contrast at least 4.5:1. Touch targets at least 44 px.
 - Colors: base `#09070F`; top violet glow `#2B1B6B` fading out; bottom coral glow `rgba(255,112,120,0.28)` fading out; text `#F1ECFF` and `#E9E3FA`; muted `#A9A1D2`; accent gradient `#FF9A7B` to `#FF6F9C` for the single primary action, with text `#1B0D1E` on it; hairlines `rgba(233,227,250,0.12)`.
