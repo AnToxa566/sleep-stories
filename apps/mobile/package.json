@@ -10,6 +10,8 @@
     "@expo/metro": "*",
     "@testing-library/react-native": "*",
     "expo": "*",
+    "expo-audio": "*",
+    "expo-file-system": "*",
     "expo-splash-screen": "*",
     "expo-status-bar": "*",
     "expo-system-ui": "*",
