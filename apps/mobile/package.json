@@ -6,19 +6,30 @@
     "eas-build-post-install": "cd ../../ && node tools/scripts/eas-build-post-install.mjs . apps/mobile"
   },
   "dependencies": {
-    "@expo/vector-icons": "*",
     "@expo/metro": "*",
+    "@expo/vector-icons": "*",
+    "@hookform/resolvers": "*",
+    "@supabase/supabase-js": "*",
+    "@tanstack/react-query": "*",
     "@testing-library/react-native": "*",
     "expo": "*",
+    "expo-crypto": "*",
     "expo-file-system": "*",
+    "expo-linking": "*",
+    "expo-router": "*",
+    "expo-secure-store": "*",
     "expo-splash-screen": "*",
     "expo-status-bar": "*",
     "expo-system-ui": "*",
     "jest-expo": "*",
     "react": "*",
+    "react-hook-form": "*",
     "react-native": "*",
+    "react-native-safe-area-context": "*",
+    "react-native-screens": "*",
     "react-native-svg": "*",
     "react-native-svg-transformer": "*",
-    "react-native-web": "*"
+    "react-native-web": "*",
+    "zustand": "*"
   }
 }

@@ -3,7 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/mobile/src",
   "projectType": "application",
-  "tags": [],
+  "tags": ["scope:mobile"],
   "// targets": "to see all targets run: nx show project mobile --web",
   "targets": {
     "typecheck": {
@@ -18,7 +18,7 @@
         "^production",
         "{workspaceRoot}/tsconfig.base.json",
         {
-          "externalDependencies": ["typescript", "expo", "react", "react-native", "@types/react"]
+          "externalDependencies": ["typescript", "expo", "expo-router", "expo-linking", "react", "react-native", "react-native-screens", "react-native-safe-area-context", "react-native-svg", "expo-splash-screen", "expo-crypto", "expo-secure-store", "expo-file-system", "@supabase/supabase-js", "@tanstack/react-query", "@hookform/resolvers", "react-hook-form", "zustand", "zod", "@types/react"]
         }
       ]
     }
