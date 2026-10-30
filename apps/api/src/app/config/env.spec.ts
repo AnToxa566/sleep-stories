@@ -15,6 +15,14 @@ const SECRETS = [PASSWORD, LOCAL_URL, REMOTE_URL, 'db.example.com', 'sentinel-va
 // Every config needs a valid SUPABASE_URL and a service-role key; individual tests override them.
 // The key here is a fake value that exists only in this file.
 const SUPABASE_URL = 'http://127.0.0.1:54321';
+// The only JOB_QUEUE setting that production accepts.
+const AUDIENCE = 'https://api-abc123-ew.a.run.app';
+const SERVICE_ACCOUNT = 'tasks@project-x.iam.gserviceaccount.com';
+const CLOUD_TASKS = {
+  JOB_QUEUE: 'cloud-tasks',
+  INTERNAL_OIDC_AUDIENCE: AUDIENCE,
+  INTERNAL_OIDC_SERVICE_ACCOUNT: SERVICE_ACCOUNT,
+};
 const SERVICE_ROLE_KEY = 'fake-service-role-key-for-unit-tests';
 function validateEnv(config: Record<string, unknown>) {
   return validateEnvRaw({
@@ -253,8 +261,13 @@ describe('validateEnv', () => {
 
       it('does not make the Cloud Run and production checks apply to verify mode', () => {
         expect(
-          validateEnv({ DATABASE_URL: REMOTE_URL, DATABASE_TLS: 'verify', NODE_ENV: 'production', K_SERVICE: 'x' })
-            .DATABASE_TLS,
+          validateEnv({
+            DATABASE_URL: REMOTE_URL,
+            DATABASE_TLS: 'verify',
+            NODE_ENV: 'production',
+            K_SERVICE: 'x',
+            ...CLOUD_TASKS,
+          }).DATABASE_TLS,
         ).toBe('verify');
       });
     });
@@ -459,5 +472,137 @@ describe('postgresUrlSchema', () => {
 
   it('accepts a plain postgres URL', () => {
     expect(postgresUrlSchema('DIRECT_URL').safeParse(REMOTE_URL).success).toBe(true);
+  });
+});
+
+describe('JOB_QUEUE', () => {
+  const base = { DATABASE_URL: REMOTE_URL };
+  const CLOUD_RUN = ['K_SERVICE', 'K_REVISION', 'K_CONFIGURATION', 'CLOUD_RUN_JOB'];
+
+  it('defaults to none', () => {
+    expect(validateEnv(base).JOB_QUEUE).toBe('none');
+  });
+
+  it('accepts none, local and cloud-tasks outside production', () => {
+    expect(validateEnv({ ...base, JOB_QUEUE: 'none' }).JOB_QUEUE).toBe('none');
+    expect(validateEnv({ ...base, JOB_QUEUE: 'local' }).JOB_QUEUE).toBe('local');
+    expect(validateEnv({ ...base, ...CLOUD_TASKS }).JOB_QUEUE).toBe('cloud-tasks');
+    expect(validateEnv({ ...base, NODE_ENV: 'development', JOB_QUEUE: 'local' }).JOB_QUEUE).toBe('local');
+  });
+
+  it.each(['', 'Local', 'redis', 'cloud_tasks'])('rejects the unknown value %j', (value) => {
+    expect(failureMessage({ ...base, JOB_QUEUE: value })).toContain('JOB_QUEUE must be one of');
+  });
+
+  describe('local', () => {
+    const local = { ...base, JOB_QUEUE: 'local' };
+
+    it.each(['production', 'PRODUCTION', ' Production '])('is refused when NODE_ENV is %j', (NODE_ENV) => {
+      const message = failureMessage({ ...local, NODE_ENV });
+      expect(message).toContain('JOB_QUEUE=local is for local development only');
+      expectNoLeak(message);
+    });
+
+    it.each(CLOUD_RUN)('is refused on Cloud Run (%s set)', (name) => {
+      const message = failureMessage({ ...local, [name]: 'sentinel-value' });
+      expect(message).toContain('JOB_QUEUE=local is for local development only');
+      expectNoLeak(message);
+    });
+
+    it('is refused when a Cloud Run variable is set to an empty string', () => {
+      expect(failureMessage({ ...local, K_SERVICE: '' })).toContain('JOB_QUEUE=local is for local development only');
+    });
+
+    it('is refused even when both OIDC variables are set', () => {
+      expect(failureMessage({ ...local, ...CLOUD_TASKS, JOB_QUEUE: 'local', NODE_ENV: 'production' })).toContain(
+        'JOB_QUEUE=local is for local development only',
+      );
+    });
+  });
+
+  describe('none', () => {
+    it.each(['production', 'PRODUCTION', ' Production '])('is refused when NODE_ENV is %j', (NODE_ENV) => {
+      const message = failureMessage({ ...base, JOB_QUEUE: 'none', NODE_ENV });
+      expect(message).toContain('JOB_QUEUE=none dispatches nothing');
+      expectNoLeak(message);
+    });
+
+    it('is refused in production when JOB_QUEUE is unset, because the default is none', () => {
+      expect(failureMessage({ ...base, NODE_ENV: 'production' })).toContain('a real queue');
+    });
+
+    it.each(CLOUD_RUN)('is refused on Cloud Run (%s set), also when unset', (name) => {
+      expect(failureMessage({ ...base, [name]: 'sentinel-value' })).toContain('JOB_QUEUE=none dispatches nothing');
+      expect(failureMessage({ ...base, JOB_QUEUE: 'none', [name]: '' })).toContain('JOB_QUEUE=none dispatches nothing');
+    });
+  });
+
+  describe('cloud-tasks', () => {
+    it('is accepted in production and on Cloud Run when both OIDC variables are set', () => {
+      expect(validateEnv({ ...base, ...CLOUD_TASKS, NODE_ENV: 'production' }).JOB_QUEUE).toBe('cloud-tasks');
+      expect(validateEnv({ ...base, ...CLOUD_TASKS, K_SERVICE: 'api' }).JOB_QUEUE).toBe('cloud-tasks');
+    });
+
+    it('issues one error for each missing OIDC variable', () => {
+      const both = failureMessage({ ...base, JOB_QUEUE: 'cloud-tasks' });
+      expect(both).toContain('INTERNAL_OIDC_AUDIENCE is required when JOB_QUEUE=cloud-tasks');
+      expect(both).toContain('INTERNAL_OIDC_SERVICE_ACCOUNT is required when JOB_QUEUE=cloud-tasks');
+
+      const noAudience = failureMessage({ ...base, ...CLOUD_TASKS, INTERNAL_OIDC_AUDIENCE: undefined });
+      expect(noAudience).toContain('INTERNAL_OIDC_AUDIENCE is required');
+      expect(noAudience).not.toContain('INTERNAL_OIDC_SERVICE_ACCOUNT is required');
+
+      const noAccount = failureMessage({ ...base, ...CLOUD_TASKS, INTERNAL_OIDC_SERVICE_ACCOUNT: undefined });
+      expect(noAccount).toContain('INTERNAL_OIDC_SERVICE_ACCOUNT is required');
+      expect(noAccount).not.toContain('INTERNAL_OIDC_AUDIENCE is required');
+    });
+
+    it('does not require the OIDC variables for none or local', () => {
+      const env = validateEnv({ ...base, JOB_QUEUE: 'local' });
+      expect(env.INTERNAL_OIDC_AUDIENCE).toBeUndefined();
+      expect(env.INTERNAL_OIDC_SERVICE_ACCOUNT).toBeUndefined();
+    });
+  });
+
+  describe('INTERNAL_OIDC_AUDIENCE', () => {
+    it('is optional and kept as written', () => {
+      expect(validateEnv(base).INTERNAL_OIDC_AUDIENCE).toBeUndefined();
+      expect(validateEnv({ ...base, INTERNAL_OIDC_AUDIENCE: `${AUDIENCE}/` }).INTERNAL_OIDC_AUDIENCE).toBe(`${AUDIENCE}/`);
+    });
+
+    it.each([
+      ['', 'must be a URL'],
+      ['not a url', 'must be a URL'],
+      ['http://api.example.test', 'must use https'],
+      ['ftp://api.example.test', 'must use https'],
+      ['https://user:sentinel-value@api.example.test', 'must not contain credentials'],
+      ['https://sentinel-value@api.example.test', 'must not contain credentials'],
+    ])('rejects %j without echoing it', (value, expected) => {
+      const message = failureMessage({ ...base, INTERNAL_OIDC_AUDIENCE: value });
+      expect(message).toContain(`INTERNAL_OIDC_AUDIENCE ${expected}`);
+      expectNoLeak(message);
+      expect(message).not.toContain('api.example.test');
+    });
+  });
+
+  describe('INTERNAL_OIDC_SERVICE_ACCOUNT', () => {
+    it('is optional', () => {
+      expect(validateEnv(base).INTERNAL_OIDC_SERVICE_ACCOUNT).toBeUndefined();
+      expect(validateEnv({ ...base, INTERNAL_OIDC_SERVICE_ACCOUNT: SERVICE_ACCOUNT }).INTERNAL_OIDC_SERVICE_ACCOUNT).toBe(
+        SERVICE_ACCOUNT,
+      );
+    });
+
+    it.each(['', 'not-an-email', 'sentinel-value@', '@project.iam.gserviceaccount.com', 'a b@example.test'])(
+      'rejects %j without echoing it',
+      (value) => {
+        const message = failureMessage({ ...base, INTERNAL_OIDC_SERVICE_ACCOUNT: value });
+        expect(message).toContain('INTERNAL_OIDC_SERVICE_ACCOUNT must be an email address');
+        expectNoLeak(message);
+        if (value !== '') {
+          expect(message).not.toContain(value);
+        }
+      },
+    );
   });
 });

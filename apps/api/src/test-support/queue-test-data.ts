@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { JobKind } from '@sleep-stories/contracts';
 import type { PrismaService } from '../app/prisma/prisma.service';
-import type { JobStatus, StoryStyle, TopicReason } from '../generated/prisma/client';
+import type { JobStatus, Prisma, StoryStyle, TopicReason } from '../generated/prisma/client';
 
 // Builds rows for the queue integration tests and removes them afterwards. Every row uses
 // random slugs and ids, so a test never depends on (or disturbs) seeded or leftover data,
@@ -175,13 +175,17 @@ export class QueueTestData {
   }
 
   // A job row in any state. `hoursAgo` sets finished_at for finished jobs. The dedupe key
-  // is random unless given, so rows never collide with the partial unique index.
+  // is random unless given, so rows never collide with the partial unique index. The
+  // payload is only `{ kind }` unless given (a runnable job needs a full one); a `running`
+  // job starts now; `attempts` sets the claim count.
   async job(options: {
     userId: string;
     kind: JobKind;
     status: JobStatus;
     hoursAgo?: number;
     dedupeKey?: string;
+    payload?: Prisma.InputJsonValue;
+    attempts?: number;
   }): Promise<string> {
     const finished = options.status === 'succeeded' || options.status === 'failed';
     const finishedAt = finished
@@ -190,10 +194,12 @@ export class QueueTestData {
     const row = await this.prisma.generationJob.create({
       data: {
         kind: options.kind,
-        payload: { kind: options.kind },
+        payload: options.payload ?? { kind: options.kind },
         dedupeKey: options.dedupeKey ?? `test:${randomUUID()}`,
         requestedByUserId: options.userId,
         status: options.status,
+        attempts: options.attempts ?? 0,
+        startedAt: options.status === 'running' ? new Date() : null,
         finishedAt,
       },
       select: { id: true },

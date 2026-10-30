@@ -13,6 +13,9 @@ export interface ReadyCandidate {
   storyId: string;
 }
 
+// The dedupe keys used in the failure exclusions below are built by `dedupeKeyOf`
+// (generation-jobs.service.ts); the queue items removed when such a job fails for good are
+// decided in queue-waiters.ts. Change one, check the others.
 const TopicRowSchema = z.object({ topic_id: z.uuid() });
 const TopicStoryRowSchema = z.object({ topic_id: z.uuid(), story_id: z.uuid() });
 
@@ -24,6 +27,10 @@ const TopicStoryRowSchema = z.object({ topic_id: z.uuid(), story_id: z.uuid() })
 // 4. SECURITY.md rule 10: text a person typed, and stories made from it, are never shown to
 //    anyone else, so a topic with a 'requested' user_topics row from ANY person is never a
 //    candidate. A pool-wide existence check that returns no text.
+// 5. Owner decision (2026-10-30): a topic whose write_story job finally failed is not offered
+//    again automatically, to anyone (the topic is unusable, not the person's fault). A
+//    pool-wide existence check on the job's dedupe key; it returns no text. The key format
+//    must match dedupeKeyOf in generation-jobs.service.ts.
 // The interest condition is NOT here: it differs between the pool and the person's own
 // topics (see poolInterestFilter and ownInterestFilter).
 // No SQL comments inside the fragment: they would run into the joined text.
@@ -42,6 +49,10 @@ function topicFilters(userId: string): Prisma.Sql {
     )
     AND NOT EXISTS (
       SELECT 1 FROM user_topics rt WHERE rt.topic_id = t.id AND rt.reason = 'requested'
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM generation_jobs gj
+      WHERE gj.dedupe_key = 'write_story:' || t.id::text AND gj.status = 'failed'
     )
   `;
 }
@@ -116,7 +127,9 @@ export async function findReady(
   }));
 }
 
-// Pool topics that have a story but no audio in the person's voice: need one render.
+// Pool topics that have a story but no audio in the person's voice: need one render. Owner
+// decision (2026-10-30): a story whose render for this voice finally failed is not offered
+// again automatically.
 export async function findRendering(
   tx: Prisma.TransactionClient,
   query: CandidateQuery,
@@ -133,6 +146,11 @@ export async function findRendering(
       AND ${storyFilters(query.userId)}
       AND NOT EXISTS (
         SELECT 1 FROM story_audio sa WHERE sa.story_id = s.id AND sa.voice_id = ${query.voiceId}::uuid
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM generation_jobs gj
+        WHERE gj.dedupe_key = 'render_audio:' || s.id::text || ':' || ${query.voiceId}::uuid::text
+          AND gj.status = 'failed'
       )
     ORDER BY random()
     LIMIT ${query.limit}::int

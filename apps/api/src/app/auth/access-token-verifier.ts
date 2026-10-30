@@ -57,7 +57,8 @@ const ALLOWED_ALGORITHMS = ['ES256', 'RS256'];
 // means the app does not sign out.
 // JWKSNoMatchingKey is the token's fault: jose already refetched the key set
 // when the cooldown allowed it, so the kid is simply unknown.
-const TOKEN_FAULTS = [
+// Exported so the internal (Google OIDC) verifier classifies faults the same way.
+export const TOKEN_FAULTS = [
   errors.JWTExpired,
   errors.JWTClaimValidationFailed,
   errors.JWTInvalid,
@@ -112,7 +113,7 @@ const LOGGABLE_CLAIM_REASONS: readonly unknown[] = ['missing', 'check_failed', '
 // issuer does not match (`iss: check_failed`) without any value. They are checked
 // against fixed lists first, and the claim's value, jose's message and the payload
 // are never read.
-function describeTokenFault(error: Error): string {
+export function describeTokenFault(error: Error): string {
   const name = error.constructor.name;
   if (!(error instanceof errors.JWTClaimValidationFailed)) {
     return name;
@@ -125,7 +126,7 @@ function describeTokenFault(error: Error): string {
 }
 
 // Class name and jose code only, for logs.
-function describeError(error: unknown): string {
+export function describeError(error: unknown): string {
   const name = error instanceof Error ? error.constructor.name : 'Error';
   const code = (error as { code?: unknown } | null)?.code;
   return typeof code === 'string' ? `${name}, ${code}` : name;

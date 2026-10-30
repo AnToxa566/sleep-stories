@@ -1,4 +1,4 @@
-import { Body, Controller, Get, INestApplication, Logger, Put } from '@nestjs/common';
+import { Body, Controller, Get, INestApplication, Logger, Put, SetMetadata, UseGuards } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { ApiErrorResponseSchema, CompleteOnboardingRequestSchema } from '@sleep-stories/contracts';
@@ -15,6 +15,7 @@ import {
 } from './access-token-verifier';
 import { AuthModule } from './auth.module';
 import { CurrentUserId } from './current-user-id.decorator';
+import { INTERNAL_GUARD_MARKER, IS_INTERNAL_KEY } from './internal-route.key';
 import { Public } from './public.decorator';
 
 const USER_ID = '3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f';
@@ -81,6 +82,76 @@ class GuardedController {
   }
 }
 
+// Stand-ins for the two halves of @InternalRoute(): the mark (IS_INTERNAL_KEY) and a guard
+// that carries the marker of the real InternalAuthGuard. The real decorator and guard are
+// tested in internal/internal-auth.http.spec.ts. The user guard may step aside only when
+// both are present.
+class StubInternalGuard {
+  static readonly [INTERNAL_GUARD_MARKER] = true;
+  canActivate(): boolean {
+    return true;
+  }
+}
+
+// Looks like a guard but is not the internal one.
+class OtherGuard {
+  canActivate(): boolean {
+    return true;
+  }
+}
+
+@Controller('marked')
+@UnvalidatedResponse()
+class InternalMarkedController {
+  @SetMetadata(IS_INTERNAL_KEY, true)
+  @UseGuards(StubInternalGuard)
+  @Get('method')
+  markedMethod() {
+    return { marked: true };
+  }
+
+  // A marked route is not public for other purposes: nothing set a user id.
+  @SetMetadata(IS_INTERNAL_KEY, true)
+  @UseGuards(StubInternalGuard)
+  @Get('with-user')
+  markedWithUser(@CurrentUserId() userId: string) {
+    return { userId };
+  }
+
+  // The dangerous case: the mark without the internal guard. The user guard must NOT
+  // step aside here.
+  @SetMetadata(IS_INTERNAL_KEY, true)
+  @Get('mark-only')
+  markOnly() {
+    return { open: true };
+  }
+
+  // The mark with some other guard is the same case.
+  @SetMetadata(IS_INTERNAL_KEY, true)
+  @UseGuards(OtherGuard)
+  @Get('other-guard')
+  markedWithOtherGuard() {
+    return { open: true };
+  }
+
+  @Get('unmarked')
+  unmarked() {
+    return { marked: false };
+  }
+}
+
+// Mark and guard both at class level.
+@SetMetadata(IS_INTERNAL_KEY, true)
+@UseGuards(StubInternalGuard)
+@UnvalidatedResponse()
+@Controller('marked-class')
+class InternalMarkedClassController {
+  @Get()
+  index() {
+    return { marked: true };
+  }
+}
+
 // @Public() on the class covers every route in it.
 @Public()
 @UnvalidatedResponse()
@@ -112,7 +183,7 @@ describe('JwtAuthGuard (registered globally by AuthModule)', () => {
         AuthModule,
         ValidationModule,
       ],
-      controllers: [GuardedController, OpenClassController],
+      controllers: [GuardedController, OpenClassController, InternalMarkedController, InternalMarkedClassController],
     })
       .overrideProvider(AccessTokenVerifier)
       .useValue(verifier)
@@ -227,6 +298,39 @@ describe('JwtAuthGuard (registered globally by AuthModule)', () => {
     const authenticated = await putJson('/guarded/with-body', invalid, `Bearer ${GOOD}`);
     expect(authenticated.status).toBe(400);
     expectErrorBody(authenticated.text, 400, 'validation_failed');
+  });
+
+  it('steps aside for a route marked internal, with or without a token', async () => {
+    expect(await get('/marked/method')).toMatchObject({ status: 200 });
+    expect(await get('/marked/method', 'Bearer garbage')).toMatchObject({ status: 200 });
+    expect(verifier.calls).toEqual([]);
+  });
+
+  it('steps aside for a route with the mark and the internal guard at class level', async () => {
+    expect(await get('/marked-class', 'Bearer garbage')).toMatchObject({ status: 200 });
+    expect(verifier.calls).toEqual([]);
+  });
+
+  it('does NOT step aside for the mark without the internal guard: the user guard answers 401', async () => {
+    for (const path of ['/marked/mark-only', '/marked/other-guard']) {
+      expect((await get(path)).status).toBe(401);
+      expect((await get(path, `Bearer ${BAD}`)).status).toBe(401);
+    }
+    // It is a user route then: a valid user token passes.
+    expect((await get('/marked/mark-only', `Bearer ${GOOD}`)).status).toBe(200);
+  });
+
+  it('still requires a valid token on an unmarked route next to a marked one', async () => {
+    expect((await get('/marked/unmarked')).status).toBe(401);
+    expect((await get('/marked/unmarked', `Bearer ${BAD}`)).status).toBe(401);
+    expect((await get('/marked/unmarked', `Bearer ${GOOD}`)).status).toBe(200);
+  });
+
+  it('does not treat a marked route as public: a handler asking for the user id still gets 401', async () => {
+    const { status, text } = await get('/marked/with-user');
+    expect(status).toBe(401);
+    expectErrorBody(text, 401, 'unauthorized');
+    expect(verifier.calls).toEqual([]);
   });
 
   it('fails closed when a handler asks for the user id on a @Public() route', async () => {

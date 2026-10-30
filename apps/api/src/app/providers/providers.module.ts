@@ -1,5 +1,10 @@
 import { Global, Module } from '@nestjs/common';
-import { JobQueue, NoopJobQueue } from './job-queue/job-queue';
+import { ConfigService } from '@nestjs/config';
+import { HttpAdapterHost } from '@nestjs/core';
+import type { Env } from '../config/env';
+import { JobQueue } from './job-queue/job-queue';
+import { createJobQueue } from './job-queue/job-queue.factory';
+import { LocalDispatchSecret } from './job-queue/local-dispatch-secret';
 import { AnthropicLlmProvider } from './llm/anthropic-llm.provider';
 import { LlmProvider } from './llm/llm.provider';
 import { StorageService } from './storage/storage.service';
@@ -15,9 +20,19 @@ import { TtsProvider } from './tts/tts.provider';
     StorageService,
     { provide: LlmProvider, useClass: AnthropicLlmProvider },
     { provide: TtsProvider, useClass: ElevenLabsTtsProvider },
-    // Nothing dispatches jobs until cycle 3b; see NoopJobQueue.
-    { provide: JobQueue, useClass: NoopJobQueue },
+    // One per process, shared by the local queue (which sends it) and the internal
+    // credential verifier (which accepts it, in local mode only).
+    LocalDispatchSecret,
+    {
+      provide: JobQueue,
+      inject: [ConfigService, LocalDispatchSecret, HttpAdapterHost],
+      useFactory: (
+        config: ConfigService<Env, true>,
+        secret: LocalDispatchSecret,
+        httpAdapterHost: HttpAdapterHost,
+      ) => createJobQueue(config.get('JOB_QUEUE', { infer: true }), secret, httpAdapterHost),
+    },
   ],
-  exports: [StorageService, LlmProvider, TtsProvider, JobQueue],
+  exports: [StorageService, LlmProvider, TtsProvider, JobQueue, LocalDispatchSecret],
 })
 export class ProvidersModule {}

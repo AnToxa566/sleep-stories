@@ -7,10 +7,10 @@ export abstract class JobQueue {
   abstract enqueue(jobId: string): Promise<void>;
 }
 
-// Placeholder bound in ProvidersModule. It buys a compilable top-up flow before the runner
-// exists; it costs that nothing dispatches jobs, so a created job row stays `pending`.
-// Cycle 3b replaces it with a local direct-call queue and a Cloud Tasks one, and makes a
-// production boot without a real queue refuse to start.
+// Bound when JOB_QUEUE=none (the default outside production; see job-queue.factory.ts). It
+// dispatches nothing, so a created job row stays `pending` until something else runs it (the
+// sweep, or a person calling the internal endpoint). env.ts refuses it in production, where
+// a silent no-op queue would lose every job.
 export class NoopJobQueue extends JobQueue {
   async enqueue(jobId: string): Promise<void> {
     void jobId; // Intentionally does nothing.

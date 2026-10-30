@@ -39,6 +39,49 @@ export type DatabaseTlsMode = (typeof DATABASE_TLS_MODES)[number];
 // means "not a laptop".
 const CLOUD_RUN_VARIABLES = ['K_SERVICE', 'K_REVISION', 'K_CONFIGURATION', 'CLOUD_RUN_JOB'] as const;
 
+// True on Cloud Run or when NODE_ENV is production (trimmed, case-insensitive). The
+// shared test for every setting that must never exist outside a developer machine.
+function isCloudRunOrProduction(env: {
+  NODE_ENV?: string | undefined;
+  K_SERVICE?: string | undefined;
+  K_REVISION?: string | undefined;
+  K_CONFIGURATION?: string | undefined;
+  CLOUD_RUN_JOB?: string | undefined;
+}): boolean {
+  return (
+    CLOUD_RUN_VARIABLES.some((name) => env[name] !== undefined) ||
+    env.NODE_ENV?.trim().toLowerCase() === 'production'
+  );
+}
+
+// How a generation job reaches the runner (ARCHITECTURE.md section 6, "How jobs run").
+// - none: nothing is dispatched. The default, so a missing variable never starts
+//   paid work; a job stays pending until a sweep or a later run picks it up.
+// - local: the API posts to its own /internal endpoint with a per-boot secret.
+//   Development only.
+// - cloud-tasks: the production path. Accepted here; the module bootstrap refuses it
+//   until it is implemented.
+// `none` and `local` are refused on Cloud Run and in production: a silent no-op queue
+// there would lose every job, and the local credential must not exist there.
+export const JOB_QUEUE_MODES = ['none', 'local', 'cloud-tasks'] as const;
+export type JobQueueMode = (typeof JOB_QUEUE_MODES)[number];
+
+// INTERNAL_OIDC_AUDIENCE is compared byte for byte with the `aud` of Google's token,
+// so it is not normalised. Only the scheme and the absence of credentials are checked.
+export function internalOidcAudienceProblem(value: string): string | null {
+  if (!URL.canParse(value)) {
+    return 'INTERNAL_OIDC_AUDIENCE must be a URL';
+  }
+  const url = new URL(value);
+  if (url.protocol !== 'https:') {
+    return 'INTERNAL_OIDC_AUDIENCE must use https';
+  }
+  if (url.username !== '' || url.password !== '') {
+    return 'INTERNAL_OIDC_AUDIENCE must not contain credentials';
+  }
+  return null;
+}
+
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
 // True only when the URL parses, has no host or hostaddr query parameter, and its
@@ -208,6 +251,14 @@ export const envSchema = z
       .default('audio'),
     // Optional, local development only. Validated and normalised to a bare origin below.
     STORAGE_PUBLIC_URL: z.string().optional(),
+    JOB_QUEUE: z
+      .enum(JOB_QUEUE_MODES, { error: `JOB_QUEUE must be one of: ${JOB_QUEUE_MODES.join(', ')}` })
+      .default('none'),
+    // For JOB_QUEUE=cloud-tasks and for verifying Google tokens on /internal/*: the
+    // service URL (the token audience) and the service account that Cloud Tasks and
+    // Cloud Scheduler sign as. Neither is secret, but the messages still omit them.
+    INTERNAL_OIDC_AUDIENCE: z.string().optional(),
+    INTERNAL_OIDC_SERVICE_ACCOUNT: z.string().optional(),
     ...databaseTlsShape,
   })
   .superRefine((env, ctx) => {
@@ -221,15 +272,53 @@ export const envSchema = z
       if (storageProblem !== null) {
         ctx.addIssue({ code: 'custom', path: ['STORAGE_PUBLIC_URL'], message: storageProblem });
       }
-      if (
-        CLOUD_RUN_VARIABLES.some((name) => env[name] !== undefined) ||
-        env.NODE_ENV?.trim().toLowerCase() === 'production'
-      ) {
+      if (isCloudRunOrProduction(env)) {
         ctx.addIssue({
           code: 'custom',
           path: ['STORAGE_PUBLIC_URL'],
           message: 'STORAGE_PUBLIC_URL is for local development only and is not allowed on Cloud Run or when NODE_ENV is production',
         });
+      }
+    }
+    if (env.INTERNAL_OIDC_AUDIENCE !== undefined) {
+      const audienceProblem = internalOidcAudienceProblem(env.INTERNAL_OIDC_AUDIENCE);
+      if (audienceProblem !== null) {
+        ctx.addIssue({ code: 'custom', path: ['INTERNAL_OIDC_AUDIENCE'], message: audienceProblem });
+      }
+    }
+    if (
+      env.INTERNAL_OIDC_SERVICE_ACCOUNT !== undefined &&
+      !z.email().safeParse(env.INTERNAL_OIDC_SERVICE_ACCOUNT).success
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['INTERNAL_OIDC_SERVICE_ACCOUNT'],
+        message: 'INTERNAL_OIDC_SERVICE_ACCOUNT must be an email address',
+      });
+    }
+    if (env.JOB_QUEUE === 'local' && isCloudRunOrProduction(env)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['JOB_QUEUE'],
+        message: 'JOB_QUEUE=local is for local development only and is not allowed on Cloud Run or when NODE_ENV is production',
+      });
+    }
+    if (env.JOB_QUEUE === 'none' && isCloudRunOrProduction(env)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['JOB_QUEUE'],
+        message: 'JOB_QUEUE=none dispatches nothing and would lose every job; a real queue (JOB_QUEUE=cloud-tasks) is required on Cloud Run or when NODE_ENV is production',
+      });
+    }
+    if (env.JOB_QUEUE === 'cloud-tasks') {
+      for (const name of ['INTERNAL_OIDC_AUDIENCE', 'INTERNAL_OIDC_SERVICE_ACCOUNT'] as const) {
+        if (env[name] === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [name],
+            message: `${name} is required when JOB_QUEUE=cloud-tasks`,
+          });
+        }
       }
     }
   })

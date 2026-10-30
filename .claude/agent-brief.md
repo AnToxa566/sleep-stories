@@ -39,7 +39,7 @@ Security:
 1. Provider keys only on the server (Secret Manager, or a git-ignored env file locally). Never in the mobile app, contracts, logs, prompts or error responses.
 2. The user id comes only from a verified Supabase JWT, never from body, query or headers. Every user-data query is scoped by it.
 3. Every table has RLS on and no policies. The app never queries tables directly. Buckets are private; the app gets short-lived signed URLs from the API.
-4. Every `/internal/*` endpoint verifies a Google OIDC token (audience and service account). A user JWT is refused.
+4. Every `/internal/*` endpoint verifies a Google OIDC token (audience and service account). A user JWT is refused. (Only exception: `JOB_QUEUE=local` for development, refused in production and on Cloud Run; SECURITY.md rule 4.)
 5. Every boundary crossing (request, response, structured LLM output) goes through a Zod schema from `packages/contracts`. No `any` at a boundary.
 6. Microphone audio never leaves the device.
 7. User topic text is untrusted data, never put into system instructions. LLM output is plain text, never executed or used to pick tools or URLs.
@@ -58,4 +58,4 @@ Security:
 
 ## Open problems today (run the command in step 3 for the current list)
 
-Audio library for the stories player (expo-audio is decided only for the onboarding voice sample), TTS provider, background audio on iOS, the Prisma CLI's unverified TLS, rotation of the pinned Supabase CA, job chaining and dedupe, stuck jobs, concurrent double delivery, duplicate listens, account deletion, shutdown hooks, rating placement, orphaned audio, packaging of the built API, quotas and cost control, sign-in providers, email confirmation and account enumeration, session edge cases (item 27), who refills the queue.
+Audio library for the stories player (expo-audio is decided only for the onboarding voice sample), TTS provider, background audio on iOS, the Prisma CLI's unverified TLS, rotation of the pinned Supabase CA, the Cloud Tasks queue, the Scheduler and the production deployment (job chaining, stuck jobs and double delivery are decided in cycle 3b-1; the handlers and the trigger after onboarding are cycle 3b-2), duplicate listens, account deletion, shutdown hooks, rating placement, orphaned audio, packaging of the built API, quotas and cost control, sign-in providers, email confirmation and account enumeration, session edge cases (item 27), who refills the queue.

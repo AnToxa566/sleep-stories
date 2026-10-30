@@ -16,6 +16,12 @@ describe('ApiErrorResponseSchema', () => {
     ).toBe(true);
   });
 
+  it('accepts the job_retry code of the internal job endpoint', () => {
+    expect(
+      ApiErrorResponseSchema.safeParse({ statusCode: 503, code: 'job_retry', message: 'x' }).success,
+    ).toBe(true);
+  });
+
   it.each([399, 600, 200, 0])('rejects status code %i', (statusCode) => {
     expect(
       ApiErrorResponseSchema.safeParse({ statusCode, code: 'unauthorized', message: 'x' }).success,

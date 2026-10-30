@@ -1,3 +1,5 @@
+import type { JobKind } from '@sleep-stories/contracts';
+
 // Queue top-up and limit numbers. Decided by the owner on 2026-10-30
 // (ARCHITECTURE.md section 6, "Queue top-up and the daily limit").
 
@@ -18,3 +20,28 @@ export const LIMIT_WINDOW_HOURS = 24;
 
 // Most topics one `suggest_topics` job may be asked for (the contract payload allows 1..3).
 export const MAX_SUGGESTED_PER_JOB = 3;
+
+// Most claims one job may have, per kind. Decided by the owner on 2026-10-30. An attempt is
+// counted at each claim, so a crash also uses one. Story writing gets three because the
+// model's output can be unusable by chance; the other two get two because a retry of a paid
+// call can pay again (ARCHITECTURE.md section 6).
+export const MAX_ATTEMPTS = {
+  write_story: 3,
+  render_audio: 2,
+  suggest_topics: 2,
+} as const satisfies Record<JobKind, number>;
+
+// A `running` job older than this is taken over by the next claim. Decided by the owner on
+// 2026-10-30. It must be longer than the worst job (LLM 90 s + TTS 180 s + upload), so a
+// live run is never taken over; it costs that a crashed run waits this long to be retaken.
+export const JOB_LEASE_MINUTES = 10;
+
+// The sweeper re-enqueues a `pending` job older than this (its enqueue failed or its task
+// was lost). Decided by the owner on 2026-10-30. Two minutes is longer than a normal
+// enqueue-to-claim delay, so a healthy job is rarely enqueued twice (the claim makes a
+// double enqueue harmless anyway).
+export const SWEEP_PENDING_AFTER_MINUTES = 2;
+
+// Most jobs one sweep call re-enqueues. Decided by the owner on 2026-10-30. Bounds the work
+// of one scheduler call; the next call takes the rest.
+export const SWEEP_BATCH_SIZE = 50;

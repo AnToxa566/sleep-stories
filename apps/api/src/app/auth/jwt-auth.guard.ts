@@ -6,10 +6,12 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { apiErrorBody } from '../errors/api-error-body';
 import { AccessTokenVerifier, AuthUnavailableError, TokenRejectedError } from './access-token-verifier';
 import type { AuthenticatedRequest } from './authenticated-request';
+import { IS_INTERNAL_KEY, isInternalGuard } from './internal-route.key';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
 // Exactly `Authorization: Bearer <token>`: one space, a single token with no
@@ -42,6 +44,21 @@ export class JwtAuthGuard implements CanActivate {
     if (isPublic === true) {
       return true;
     }
+    // An internal route is authenticated by InternalAuthGuard, not by a user token. The
+    // user guard steps aside only when BOTH are present on the route (handler or class):
+    // the IS_INTERNAL_KEY mark and the internal guard itself. A route with the mark but
+    // without the guard is therefore still authenticated here as a user route (401 for a
+    // bad token), never left open. @InternalRoute() applies both; a test also fails for
+    // any route under `internal` without the mark, and for a mark without the guard.
+    // This is not the public check: a user id is never set here.
+    const targets = [context.getHandler(), context.getClass()];
+    const isInternal = this.reflector.getAllAndOverride<boolean | undefined>(IS_INTERNAL_KEY, targets);
+    if (isInternal === true) {
+      const guards = this.reflector.getAllAndMerge<unknown[]>(GUARDS_METADATA, targets);
+      if (guards.some(isInternalGuard)) {
+        return true;
+      }
+    }
     if (context.getType() !== 'http') {
       throw new UnauthorizedException(apiErrorBody(401, 'unauthorized', 'Unauthorized'));
     }
@@ -70,7 +87,8 @@ export class JwtAuthGuard implements CanActivate {
   }
 }
 
-function extractBearerToken(header: string | string[] | undefined): string | null {
+// Shared with InternalAuthGuard: one strict parser for both Authorization headers.
+export function extractBearerToken(header: string | string[] | undefined): string | null {
   if (typeof header !== 'string') {
     return null;
   }
