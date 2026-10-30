@@ -47,7 +47,10 @@ describe('seed data', () => {
     }
   });
 
-  it('keeps the sample path in its placeholder form', () => {
-    expect(sampleAudioPathFor('maxim')).toBe('voices/maxim/sample.placeholder');
+  it('puts every sample at voices/<slug>/sample.mp3, relative to the bucket', () => {
+    expect(sampleAudioPathFor('maxim')).toBe('voices/maxim/sample.mp3');
+    for (const slug of voiceSlugs) {
+      expect(sampleAudioPathFor(slug)).toBe(`voices/${slug}/sample.mp3`);
+    }
   });
 });

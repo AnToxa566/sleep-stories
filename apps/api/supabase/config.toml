@@ -114,16 +114,17 @@ port = 54324
 # sender_name = "Admin"
 
 [storage]
-enabled = false
+# On since 2026-10-30: voice samples are served from Storage (ARCHITECTURE.md section 11, item 5).
+enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+# The one private bucket for all audio: voices/<slug>/sample.mp3 now, stories/ later. The API
+# reads it with the service-role key and hands out short-lived signed URLs; `public = false`
+# means an unsigned URL is refused. No allowed_mime_types yet: story audio may add formats.
+# No objects_path: the sample files are not in the repository; upload them by hand.
+[storage.buckets.audio]
+public = false
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]

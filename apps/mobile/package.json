@@ -13,6 +13,7 @@
     "@tanstack/react-query": "*",
     "@testing-library/react-native": "*",
     "expo": "*",
+    "expo-audio": "*",
     "expo-crypto": "*",
     "expo-file-system": "*",
     "expo-linking": "*",

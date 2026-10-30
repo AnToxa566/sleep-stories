@@ -8,6 +8,7 @@ import { envFilePaths, validateEnv } from './config/env';
 import { InterestsModule } from './interests/interests.module';
 import { MeModule } from './me/me.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProvidersModule } from './providers/providers.module';
 import { UsersModule } from './users/users.module';
 import { ValidationModule } from './validation/validation.module';
 import { VoicesModule } from './voices/voices.module';
@@ -20,6 +21,7 @@ import { VoicesModule } from './voices/voices.module';
       validate: validateEnv,
     }),
     PrismaModule,
+    ProvidersModule,
     ValidationModule,
     AuthModule,
     UsersModule,

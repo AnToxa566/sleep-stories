@@ -144,10 +144,54 @@ export function supabaseUrlProblem(value: string, tls: DatabaseTlsMode): string 
   return 'SUPABASE_URL must use https unless it is a loopback address (or, with DATABASE_TLS=disabled-local-only, a private-network IPv4 address)';
 }
 
+// STORAGE_PUBLIC_URL replaces the origin of every signed storage URL (see
+// StorageService). Local development only: the local Supabase stack signs URLs with
+// the host of SUPABASE_URL (127.0.0.1), which a phone cannot reach, so the developer
+// sets the Mac's LAN address here. Buys a working voice sample on a real phone with
+// no change to the stack; costs a knob that must never exist in production, where the
+// signed host is already public. Hence it is refused on Cloud Run and in production
+// (see envSchema), the same pattern as DATABASE_TLS=disabled-local-only.
+// Rules, value-free in their messages: http or https, and an origin only (no
+// credentials, path, query or fragment); one trailing slash is tolerated.
+export function storagePublicUrlProblem(value: string): string | null {
+  if (!URL.canParse(value)) {
+    return 'STORAGE_PUBLIC_URL must be a URL';
+  }
+  const url = new URL(value);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return 'STORAGE_PUBLIC_URL must use http or https';
+  }
+  if (
+    url.username !== '' ||
+    url.password !== '' ||
+    url.search !== '' ||
+    url.hash !== '' ||
+    url.pathname !== '/' ||
+    /[?#]/.test(value)
+  ) {
+    return 'STORAGE_PUBLIC_URL must be an origin only (scheme, host and optional port; no credentials, path, query or fragment)';
+  }
+  return null;
+}
+
 export const envSchema = z
   .object({
     DATABASE_URL: postgresUrlSchema('DATABASE_URL'),
     SUPABASE_URL: z.string({ error: 'SUPABASE_URL is required' }).min(1, 'SUPABASE_URL must not be empty'),
+    // The service-role key bypasses RLS: it lives only in the storage adapter (SECURITY.md rule 1).
+    // The message never includes the value. It is not shape-checked: a legacy JWT and a new
+    // sb_secret_ key are both valid, and a wrong key fails at the first signing call.
+    SUPABASE_SERVICE_ROLE_KEY: z
+      .string({ error: 'SUPABASE_SERVICE_ROLE_KEY is required' })
+      .min(1, 'SUPABASE_SERVICE_ROLE_KEY must not be empty'),
+    // The one private bucket for all audio (voice samples now, story audio later under stories/).
+    // Database paths are relative to it, so only this value changes between environments.
+    AUDIO_BUCKET: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9_-]{1,62}$/, 'AUDIO_BUCKET must be 2 to 63 lowercase letters, digits, hyphens or underscores')
+      .default('audio'),
+    // Optional, local development only. Validated and normalised to a bare origin below.
+    STORAGE_PUBLIC_URL: z.string().optional(),
     ...databaseTlsShape,
   })
   .superRefine((env, ctx) => {
@@ -156,7 +200,29 @@ export const envSchema = z
     if (problem !== null) {
       ctx.addIssue({ code: 'custom', path: ['SUPABASE_URL'], message: problem });
     }
-  });
+    if (env.STORAGE_PUBLIC_URL !== undefined) {
+      const storageProblem = storagePublicUrlProblem(env.STORAGE_PUBLIC_URL);
+      if (storageProblem !== null) {
+        ctx.addIssue({ code: 'custom', path: ['STORAGE_PUBLIC_URL'], message: storageProblem });
+      }
+      if (
+        CLOUD_RUN_VARIABLES.some((name) => env[name] !== undefined) ||
+        env.NODE_ENV?.trim().toLowerCase() === 'production'
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['STORAGE_PUBLIC_URL'],
+          message: 'STORAGE_PUBLIC_URL is for local development only and is not allowed on Cloud Run or when NODE_ENV is production',
+        });
+      }
+    }
+  })
+  // Normalise to the bare origin so the trailing slash never reaches the consumer.
+  // Runs only when validation passed, so the value parses.
+  .transform((env) => ({
+    ...env,
+    STORAGE_PUBLIC_URL: env.STORAGE_PUBLIC_URL === undefined ? undefined : new URL(env.STORAGE_PUBLIC_URL).origin,
+  }));
 
 // pg merges parameters from the connection string over the options passed in
 // code, so `?sslmode=disable` in DATABASE_URL would silently turn off the

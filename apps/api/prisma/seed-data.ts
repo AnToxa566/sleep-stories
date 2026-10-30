@@ -39,8 +39,9 @@ export const INTEREST_SEEDS = {
   ocean: { title: 'Океан', sortOrder: 10 },
 } satisfies Record<string, InterestSeed>;
 
-// No recorded sample exists yet (sample upload is deferred), so the path is a placeholder
-// in the final form. The column is NOT NULL, so it cannot be left out.
+// The object path of a voice's sample, relative to the audio bucket (config AUDIO_BUCKET,
+// default "audio"). The bucket name is not stored, so it can differ per environment.
+// The files are uploaded by hand, outside this repository. The column is NOT NULL.
 export function sampleAudioPathFor(slug: string): string {
-  return `voices/${slug}/sample.placeholder`;
+  return `voices/${slug}/sample.mp3`;
 }

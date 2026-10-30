@@ -9,11 +9,15 @@ import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../auth/access-tok
 import { AppModule } from '../app.module';
 import type { Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService, StorageSigningError } from '../providers/storage/storage.service';
 import { assertLocalDatabase } from '../../test-support/assert-local-database';
 
 // Runs against the REAL local database (seeded with `prisma-seed`) with the real
 // AppModule. Only the key source of the access-token verifier is replaced, as in
-// interests.int-spec.ts. The catalogue is not user data, so the tests create no users.
+// interests.int-spec.ts. StorageService is replaced too: the tests must not call real
+// storage, and the fake returns opaque URLs that do not contain the object path, so a
+// path leaking into the response can be told apart from a URL. The catalogue is not user
+// data, so the tests create no users.
 assertLocalDatabase();
 
 const KID = 'int-test-key';
@@ -24,6 +28,9 @@ let prisma: PrismaService;
 let baseUrl: string;
 let issuer: string;
 let signingKey: CryptoKey;
+const signMany = jest.fn<Promise<string[]>, [readonly string[], number]>();
+const opaqueUrls = async (paths: readonly string[]) =>
+  paths.map((_path, index) => `https://signed.example.test/opaque-${index}?token=fake`);
 
 async function tokenFor(userId: string): Promise<string> {
   return new SignJWT({ role: 'authenticated', email: `${userId}@example.test` })
@@ -58,6 +65,8 @@ beforeAll(async () => {
         return new JoseAccessTokenVerifier({ keys: jwks, issuer });
       },
     })
+    .overrideProvider(StorageService)
+    .useValue({ signMany })
     .compile();
   app = moduleRef.createNestApplication();
   app.setGlobalPrefix('api');
@@ -65,6 +74,11 @@ beforeAll(async () => {
   await app.listen(0);
   baseUrl = await app.getUrl();
   prisma = app.get(PrismaService);
+});
+
+beforeEach(() => {
+  signMany.mockReset();
+  signMany.mockImplementation(opaqueUrls);
 });
 
 afterEach(async () => {
@@ -88,7 +102,30 @@ describe('GET /api/voices', () => {
     expect(result.status).toBe(200);
     const body = VoicesResponseSchema.parse(result.json);
     expect(body.voices.map((voice) => voice.slug)).toEqual(SEEDED_ORDER);
-    expect(body.voices[0]).toEqual({ slug: 'maxim', name: 'Максим', description: 'спокойный, размеренный' });
+    expect(body.voices[0]).toEqual({
+      slug: 'maxim',
+      name: 'Максим',
+      description: 'спокойный, размеренный',
+      sampleUrl: 'https://signed.example.test/opaque-0?token=fake',
+    });
+  });
+
+  it('signs the stored paths of exactly the active voices, in one batch, for 10 minutes', async () => {
+    await getVoices(await tokenFor(randomUUID()));
+    const rows = await prisma.voice.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { slug: 'asc' }],
+      select: { sampleAudioPath: true },
+    });
+    expect(signMany).toHaveBeenCalledTimes(1);
+    expect(signMany).toHaveBeenCalledWith(rows.map((row) => row.sampleAudioPath), 600);
+  });
+
+  it('answers 500 with no detail when signing fails', async () => {
+    signMany.mockRejectedValue(new StorageSigningError());
+    const result = await getVoices(await tokenFor(randomUUID()));
+    expect(result.status).toBe(500);
+    expect(result.text).not.toMatch(/Storage signing failed|sample|voices\/|fake-service-role-key/);
   });
 
   it('hides an inactive voice', async () => {
@@ -102,12 +139,13 @@ describe('GET /api/voices', () => {
   it('does not leak the provider, the provider voice ids or the sample path', async () => {
     const result = await getVoices(await tokenFor(randomUUID()));
     expect(result.status).toBe(200);
-    const rows = await prisma.voice.findMany({ select: { providerVoiceId: true } });
+    const rows = await prisma.voice.findMany({ select: { providerVoiceId: true, sampleAudioPath: true } });
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
       expect(result.text).not.toContain(row.providerVoiceId);
+      expect(result.text).not.toContain(row.sampleAudioPath);
     }
     expect(result.text).not.toContain('elevenlabs');
-    expect(result.text).not.toMatch(/sample|ttsProvider|providerVoiceId|sortOrder|isActive|"id"/);
+    expect(result.text).not.toMatch(/sampleAudioPath|sample\.mp3|ttsProvider|providerVoiceId|sortOrder|isActive|"id"/);
   });
 });

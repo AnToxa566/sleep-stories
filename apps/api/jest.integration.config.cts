@@ -8,6 +8,8 @@ module.exports = {
   testMatch: ['**/*.int-spec.ts'],
   // Refuses to run unless DATABASE_URL is a loopback host.
   globalSetup: '<rootDir>/src/test-support/integration-global-setup.ts',
+  // Supplies a fake SUPABASE_SERVICE_ROLE_KEY so the env schema passes without a real key.
+  setupFiles: ['<rootDir>/src/test-support/fake-service-role-key.ts'],
   transform: {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }]
   },

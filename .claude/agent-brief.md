@@ -57,4 +57,4 @@ Security:
 
 ## Open problems today (run the command in step 3 for the current list)
 
-Audio library, TTS provider, background audio on iOS, the Prisma CLI's unverified TLS, rotation of the pinned Supabase CA, job chaining and dedupe, stuck jobs, concurrent double delivery, duplicate listens, account deletion, shutdown hooks, rating placement, orphaned audio, packaging of the built API, quotas and cost control, sign-in providers, email confirmation and account enumeration, session edge cases (item 27), who refills the queue.
+Audio library for the stories player (expo-audio is decided only for the onboarding voice sample), TTS provider, background audio on iOS, the Prisma CLI's unverified TLS, rotation of the pinned Supabase CA, job chaining and dedupe, stuck jobs, concurrent double delivery, duplicate listens, account deletion, shutdown hooks, rating placement, orphaned audio, packaging of the built API, quotas and cost control, sign-in providers, email confirmation and account enumeration, session edge cases (item 27), who refills the queue.

@@ -6,7 +6,7 @@
 // explicit, fail-closed local switch is on. It prints counts only, never a URL.
 //
 // Re-running is safe: rows are upserted by slug. On UPDATE only display fields
-// (name, description, title) and sort order are written. is_active is set only
+// (name, description, title), sort order and a voice's sample path are written. is_active is set only
 // on create, and the provider fields of a voice are never overwritten, so a row an
 // operator deactivated or a manual TTS configuration is not lost. One narrow,
 // deliberate exception: a voice whose tts_provider is still the old placeholder
@@ -76,8 +76,11 @@ async function main(): Promise<void> {
           sampleAudioPath: sampleAudioPathFor(slug),
         },
         // isActive and the provider fields only on create: a deactivated row stays
-        // deactivated, and re-activating it is a manual step.
-        update: { name, description, sortOrder },
+        // deactivated, and re-activating it is a manual step. The sample path is also
+        // written on update: it is derived from the slug, so rows made when the path was a
+        // placeholder (`sample.placeholder`) must be corrected, and the files are uploaded
+        // by hand to exactly this path.
+        update: { name, description, sortOrder, sampleAudioPath: sampleAudioPathFor(slug) },
       });
       // Fill only rows that are still the first seed's placeholder; never overwrite a manual configuration.
       const filled = await prisma.voice.updateMany({

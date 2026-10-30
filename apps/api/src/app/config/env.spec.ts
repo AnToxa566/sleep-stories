@@ -10,10 +10,12 @@ const REMOTE_URL = `postgresql://postgres:${PASSWORD}@db.example.com:5432/postgr
 // the allowed value.
 const SECRETS = [PASSWORD, LOCAL_URL, REMOTE_URL, 'db.example.com', 'sentinel-value'];
 
-// Every config needs a valid SUPABASE_URL; individual tests override it.
+// Every config needs a valid SUPABASE_URL and a service-role key; individual tests override them.
+// The key here is a fake value that exists only in this file.
 const SUPABASE_URL = 'http://127.0.0.1:54321';
+const SERVICE_ROLE_KEY = 'fake-service-role-key-for-unit-tests';
 function validateEnv(config: Record<string, unknown>) {
-  return validateEnvRaw({ SUPABASE_URL, ...config });
+  return validateEnvRaw({ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY, ...config });
 }
 
 function failureMessage(config: Record<string, unknown>): string {
@@ -32,6 +34,37 @@ function expectNoLeak(message: string): void {
 }
 
 describe('validateEnv', () => {
+  describe('SUPABASE_SERVICE_ROLE_KEY', () => {
+    it('accepts a non-empty value', () => {
+      expect(validateEnv({ DATABASE_URL: REMOTE_URL }).SUPABASE_SERVICE_ROLE_KEY).toBe(SERVICE_ROLE_KEY);
+    });
+
+    it('rejects a missing or empty value', () => {
+      expect(failureMessage({ SUPABASE_SERVICE_ROLE_KEY: undefined, DATABASE_URL: REMOTE_URL })).toContain(
+        'SUPABASE_SERVICE_ROLE_KEY is required',
+      );
+      expect(failureMessage({ SUPABASE_SERVICE_ROLE_KEY: '', DATABASE_URL: REMOTE_URL })).toContain('must not be empty');
+    });
+
+    it('never echoes the key when another variable is invalid', () => {
+      expect(failureMessage({ DATABASE_URL: 'nope' })).not.toContain(SERVICE_ROLE_KEY);
+    });
+  });
+
+  describe('AUDIO_BUCKET', () => {
+    it('defaults to audio', () => {
+      expect(validateEnv({ DATABASE_URL: REMOTE_URL }).AUDIO_BUCKET).toBe('audio');
+    });
+
+    it('accepts a valid name', () => {
+      expect(validateEnv({ DATABASE_URL: REMOTE_URL, AUDIO_BUCKET: 'audio-dev_1' }).AUDIO_BUCKET).toBe('audio-dev_1');
+    });
+
+    it.each(['', 'Audio', 'a', 'au dio', 'audio/x', '../audio', '-audio'])('rejects the name %j', (name) => {
+      expect(failureMessage({ DATABASE_URL: REMOTE_URL, AUDIO_BUCKET: name })).toContain('AUDIO_BUCKET must be');
+    });
+  });
+
   describe('DATABASE_URL', () => {
     it('accepts a postgresql URL', () => {
       expect(validateEnv({ DATABASE_URL: REMOTE_URL }).DATABASE_URL).toBe(REMOTE_URL);
@@ -184,6 +217,63 @@ describe('validateEnv', () => {
         ).toBe('verify');
       });
     });
+  });
+});
+
+describe('STORAGE_PUBLIC_URL', () => {
+  const base = { DATABASE_URL: REMOTE_URL };
+
+  it('is optional', () => {
+    expect(validateEnv(base).STORAGE_PUBLIC_URL).toBeUndefined();
+  });
+
+  it.each([
+    ['http://192.168.1.20:54321', 'http://192.168.1.20:54321'],
+    ['http://192.168.1.20:54321/', 'http://192.168.1.20:54321'],
+    ['https://storage.example.test', 'https://storage.example.test'],
+    ['https://storage.example.test/', 'https://storage.example.test'],
+  ])('accepts the origin %s and normalises it to %s', (value, expected) => {
+    expect(validateEnv({ ...base, STORAGE_PUBLIC_URL: value }).STORAGE_PUBLIC_URL).toBe(expected);
+  });
+
+  it.each([
+    '',
+    'not a url',
+    'ftp://192.168.1.20:54321',
+    'http://192.168.1.20:54321/storage',
+    'http://192.168.1.20:54321?x=1',
+    'http://192.168.1.20:54321/?x=1',
+    'http://192.168.1.20:54321/#frag',
+    'http://192.168.1.20:54321#',
+    'http://user:sentinel-value@192.168.1.20:54321',
+    'http://sentinel-value@192.168.1.20:54321',
+  ])('rejects %j without echoing it', (value) => {
+    const message = failureMessage({ ...base, STORAGE_PUBLIC_URL: value });
+    expect(message).toContain('STORAGE_PUBLIC_URL');
+    expectNoLeak(message);
+  });
+
+  it('is rejected when NODE_ENV is production, without echoing the value', () => {
+    const message = failureMessage({
+      ...base,
+      NODE_ENV: 'production',
+      STORAGE_PUBLIC_URL: 'http://sentinel-value.test:54321',
+    });
+    expect(message).toContain('STORAGE_PUBLIC_URL is for local development only');
+    expectNoLeak(message);
+    expect(message).not.toContain('sentinel-value.test');
+  });
+
+  it.each(['K_SERVICE', 'K_REVISION', 'K_CONFIGURATION', 'CLOUD_RUN_JOB'])('is rejected on Cloud Run (%s set)', (name) => {
+    expect(failureMessage({ ...base, [name]: 'x', STORAGE_PUBLIC_URL: 'http://192.168.1.20:54321' })).toContain(
+      'STORAGE_PUBLIC_URL is for local development only',
+    );
+  });
+
+  it('is accepted outside production', () => {
+    expect(
+      validateEnv({ ...base, NODE_ENV: 'development', STORAGE_PUBLIC_URL: 'http://192.168.1.20:54321' }).STORAGE_PUBLIC_URL,
+    ).toBe('http://192.168.1.20:54321');
   });
 });
 
