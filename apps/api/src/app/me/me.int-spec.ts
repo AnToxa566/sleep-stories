@@ -224,12 +224,12 @@ describe('PUT /api/me/onboarding', () => {
   it('replaces the interest set when it changes: the old interests are gone', async () => {
     const userId = newUserId();
     await putOnboarding(userId, BODY_A);
-    const changed = { voiceSlug: 'vera', styles: ['history'], interestSlugs: ['ocean', 'music'] };
+    const changed = { voiceSlug: 'kate', styles: ['history'], interestSlugs: ['ocean', 'music'] };
     const result = await putOnboarding(userId, changed);
     expect(result.status).toBe(200);
     expect(result.json).toEqual({
       onboardingCompleted: true,
-      preferences: { voiceSlug: 'vera', styles: ['history'], interestSlugs: ['music', 'ocean'], customInterests: [] },
+      preferences: { voiceSlug: 'kate', styles: ['history'], interestSlugs: ['music', 'ocean'], customInterests: [] },
     });
     const slugs = (await prisma.userInterest.findMany({ where: { userId }, include: { interest: true } })).map(
       (row) => row.interest.slug,
@@ -255,10 +255,10 @@ describe('PUT /api/me/onboarding', () => {
   it('serialises concurrent PUTs with different bodies: the final state is exactly one of them', async () => {
     const userId = newUserId();
     const token = await tokenFor(userId);
-    const bodyOther = { voiceSlug: 'mikhail', styles: ['facts'], interestSlugs: ['nature', 'science'] };
+    const bodyOther = { voiceSlug: 'maxim', styles: ['facts'], interestSlugs: ['nature', 'science'] };
     const expectedOther = {
       onboardingCompleted: true,
-      preferences: { voiceSlug: 'mikhail', styles: ['facts'], interestSlugs: ['science', 'nature'], customInterests: [] },
+      preferences: { voiceSlug: 'maxim', styles: ['facts'], interestSlugs: ['science', 'nature'], customInterests: [] },
     };
     const results = await Promise.all([
       call('PUT', '/me/onboarding', { token, body: BODY_A }),

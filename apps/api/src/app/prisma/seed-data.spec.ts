@@ -1,12 +1,23 @@
-import { PLACEHOLDER_VOICE_SLUGS, SlugSchema } from '@sleep-stories/contracts';
-import { INTEREST_SEEDS, VOICE_SEEDS, placeholderProviderFields } from '../../../prisma/seed-data';
+import { SlugSchema } from '@sleep-stories/contracts';
+import {
+  INTEREST_SEEDS,
+  TTS_PROVIDER,
+  VOICE_SEEDS,
+  sampleAudioPathFor,
+} from '../../../prisma/seed-data';
 
-// The seed and the mobile app share the voice slug list from packages/contracts. The
-// `satisfies Record<Slug, ...>` in seed-data.ts catches drift at compile time;
-// this compares the runtime lists as well.
-describe('placeholder seed data', () => {
-  it('has exactly one voice seed per placeholder voice slug', () => {
-    expect(Object.keys(VOICE_SEEDS).sort()).toEqual([...PLACEHOLDER_VOICE_SLUGS].sort());
+describe('seed data', () => {
+  const voiceSlugs = Object.keys(VOICE_SEEDS);
+
+  it('has voices with valid, unique slugs and non-empty display fields', () => {
+    expect(voiceSlugs).toEqual(['maxim', 'anna', 'lev', 'kate']);
+    expect(new Set(voiceSlugs).size).toBe(voiceSlugs.length);
+    for (const slug of voiceSlugs) {
+      expect(SlugSchema.safeParse(slug).success).toBe(true);
+      const voice = VOICE_SEEDS[slug as keyof typeof VOICE_SEEDS];
+      expect(voice.name.length).toBeGreaterThan(0);
+      expect(voice.description.length).toBeGreaterThan(0);
+    }
   });
 
   it('has interest seeds with valid, unique slugs and titles', () => {
@@ -26,13 +37,17 @@ describe('placeholder seed data', () => {
     expect(new Set(interestOrders).size).toBe(interestOrders.length);
   });
 
-  it('marks every voice as having no provider and no sample yet', () => {
-    for (const slug of PLACEHOLDER_VOICE_SLUGS) {
-      expect(placeholderProviderFields(slug)).toEqual({
-        ttsProvider: 'none',
-        providerVoiceId: 'unassigned',
-        sampleAudioPath: `voices/${slug}/sample.placeholder`,
-      });
+  it('gives every voice a real provider voice id, never the old placeholder', () => {
+    expect(TTS_PROVIDER).toBe('elevenlabs');
+    const ids = Object.values(VOICE_SEEDS).map((voice) => voice.providerVoiceId);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) {
+      expect(id).not.toBe('unassigned');
+      expect(id).toMatch(/^[A-Za-z0-9]{10,}$/);
     }
+  });
+
+  it('keeps the sample path in its placeholder form', () => {
+    expect(sampleAudioPathFor('maxim')).toBe('voices/maxim/sample.placeholder');
   });
 });

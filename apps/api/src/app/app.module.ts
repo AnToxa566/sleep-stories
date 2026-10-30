@@ -10,6 +10,7 @@ import { MeModule } from './me/me.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { ValidationModule } from './validation/validation.module';
+import { VoicesModule } from './voices/voices.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ValidationModule } from './validation/validation.module';
     UsersModule,
     MeModule,
     InterestsModule,
+    VoicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

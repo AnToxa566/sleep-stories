@@ -1,5 +1,5 @@
-// Idempotent placeholder seed for voices and interests (a script, not a
-// migration: migrations are schema only). Run it with `npx nx prisma-seed api`.
+// Idempotent seed for voices and interests (a script, not a migration: migrations
+// are schema only). Run it with `npx nx prisma-seed api`.
 //
 // It connects through DIRECT_URL, the same connection the Prisma CLI uses, and
 // applies the same TLS rule as the API (DATABASE_TLS): verified TLS unless the
@@ -7,8 +7,13 @@
 //
 // Re-running is safe: rows are upserted by slug. On UPDATE only display fields
 // (name, description, title) and sort order are written. is_active is set only
-// on create, and the provider fields of a voice are never touched, so a row an
-// operator deactivated or a later real TTS configuration is not overwritten.
+// on create, and the provider fields of a voice are never overwritten, so a row an
+// operator deactivated or a manual TTS configuration is not lost. One narrow,
+// deliberate exception: a voice whose tts_provider is still the old placeholder
+// 'none' (a row made by the first seed) gets the real provider and provider voice
+// id. The update is guarded by tts_provider = 'none', so a manually configured row
+// is skipped. Nothing else is written to an existing voice row. Voices are never
+// deleted by the seed (foreign keys are RESTRICT).
 //
 // A DIRECT_URL whose host is not loopback is refused unless SEED_ALLOW_REMOTE=yes.
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -16,7 +21,7 @@ import { z } from 'zod';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { addDatabaseTlsIssues, databaseTlsShape, postgresUrlSchema } from '../src/app/config/env';
 import { resolveDatabaseSsl } from '../src/app/prisma/database-tls';
-import { INTEREST_SEEDS, placeholderProviderFields, VOICE_SEEDS } from './seed-data';
+import { INTEREST_SEEDS, sampleAudioPathFor, TTS_PROVIDER, VOICE_SEEDS } from './seed-data';
 import { decideSeedTarget } from './seed-target';
 
 const seedEnvSchema = z
@@ -55,15 +60,31 @@ async function main(): Promise<void> {
 
   try {
     const voiceSlugs = Object.keys(VOICE_SEEDS) as (keyof typeof VOICE_SEEDS)[];
+    let voicesConfigured = 0;
     for (const slug of voiceSlugs) {
-      const { name, description, sortOrder } = VOICE_SEEDS[slug];
+      const { name, description, sortOrder, providerVoiceId } = VOICE_SEEDS[slug];
       await prisma.voice.upsert({
         where: { slug },
-        create: { slug, name, description, sortOrder, isActive: true, ...placeholderProviderFields(slug) },
-        // isActive only on create: a deactivated row stays deactivated, and
-        // re-activating it is a manual step.
+        create: {
+          slug,
+          name,
+          description,
+          sortOrder,
+          isActive: true,
+          ttsProvider: TTS_PROVIDER,
+          providerVoiceId,
+          sampleAudioPath: sampleAudioPathFor(slug),
+        },
+        // isActive and the provider fields only on create: a deactivated row stays
+        // deactivated, and re-activating it is a manual step.
         update: { name, description, sortOrder },
       });
+      // Fill only rows that are still the first seed's placeholder; never overwrite a manual configuration.
+      const filled = await prisma.voice.updateMany({
+        where: { slug, ttsProvider: 'none' },
+        data: { ttsProvider: TTS_PROVIDER, providerVoiceId },
+      });
+      voicesConfigured += filled.count;
     }
 
     const interestSlugs = Object.keys(INTEREST_SEEDS) as (keyof typeof INTEREST_SEEDS)[];
@@ -76,8 +97,15 @@ async function main(): Promise<void> {
       });
     }
 
-    const [voices, interests] = await Promise.all([prisma.voice.count(), prisma.interest.count()]);
-    console.log(`Seed finished: ${voices} voices, ${interests} interests in the database.`);
+    const [activeVoices, inactiveVoices, interests] = await Promise.all([
+      prisma.voice.count({ where: { isActive: true } }),
+      prisma.voice.count({ where: { isActive: false } }),
+      prisma.interest.count(),
+    ]);
+    console.log(
+      `Seed finished: ${activeVoices} active and ${inactiveVoices} inactive voices, ${interests} interests in the database ` +
+        `(this run: ${voicesConfigured} voices configured).`,
+    );
   } finally {
     await prisma.$disconnect();
   }

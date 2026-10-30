@@ -108,7 +108,7 @@ Generating one story takes tens of seconds: an LLM call, a TTS call and an uploa
 
 **Provider adapters.**
 - `LlmProvider` wraps `@anthropic-ai/sdk` and uses a cheap model. Topic lists and story metadata come back as structured JSON validated with Zod.
-- `TtsProvider` wraps the chosen speech provider, which is not chosen yet: it is selected after listening to Russian samples, because quality in Russian cannot be judged on paper.
+- `TtsProvider` wraps the speech provider, which is ElevenLabs (chosen by the owner on 2026-10-30 after testing it in Russian). The adapter and its SDK are not added yet; when they are, the SDK is imported only inside this adapter and the key lives only on the server. The four narrator voices are catalogued in the `voices` table (provider `elevenlabs`, its voice id in `provider_voice_id`); the voice ids are identifiers, not secrets, and are never sent to the app.
 - Storage is Supabase Storage in a private bucket.
 
 Buys: replaceable vendors and one place where keys and spend are controlled. Costs: one small interface per provider.
@@ -235,7 +235,7 @@ Supabase Auth with email and password, Google and Apple. The mobile app holds on
 - **Error bodies.** 401, 400, 422 and 503 match `ApiErrorResponseSchema`. Nest's own 404 and 500 and body-parser errors do not (`{statusCode, message}`), so the mobile client tolerates a body without a `code`.
 - **Session on the device.** supabase-js stores the session through an encrypted storage (`features/auth/encrypted-storage.ts`): the session JSON is sealed with a fresh AES-256-GCM key (`expo-crypto`), the blob goes to a file and the 32-byte key to `expo-secure-store` (`AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`). Buys a session that survives a restart without keeping tokens in plain text, and a SecureStore value limit that does not matter; costs two writes per save and that any unreadable half means "signed out". A 401 from the API signs the user out locally. A pure function (`resolveGate`) decides which route group is shown; the splash screen stays up until the session is restored and the first `/me` has answered. Learned on a phone: in `expo-crypto` 57.0.4, `AESSealedData.fromCombined` takes bytes on Android although its documentation says a base64 string is fine, so the code decodes the string first (a string made every read fail, and the app signed itself out right after sign-up). The pure storage logic is unit-tested with fakes; the Expo wiring can only be checked on a device.
 - **Email confirmation is off locally**, so sign-up answers an existing address with "account already exists". That is account enumeration, accepted for this iteration and recorded in SECURITY.md; turning confirmation on in the cloud project closes it.
-- **Local testing.** `npx nx test-integration api` runs the `*.int-spec.ts` tests against the local database (25 tests, two users never see each other's data, parallel `PUT`s). `npx nx prisma-seed api` loads four placeholder voices and ten interests (placeholder provider fields; the mobile app hardcodes the same slugs and tests check that both lists match).
+- **Local testing.** `npx nx test-integration api` runs the `*.int-spec.ts` tests against the local database (25 tests, two users never see each other's data, parallel `PUT`s). `npx nx prisma-seed api` loads the four ElevenLabs voices (maxim, anna, lev, kate) and ten placeholder interests. It fills the provider fields only of rows still marked `none`, so manual configuration is not overwritten, and it never deletes a voice (`user_preferences` references voices with `ON DELETE RESTRICT`). The mobile app takes both catalogues from `GET /api/voices` and `GET /api/interests`; it hardcodes no slugs.
 
 ## 9. Design language
 
@@ -285,7 +285,7 @@ These are real gaps. Agents must not settle them silently; stop and ask the owne
    - **The `voices` column for the pre-rendered «Вы спите?» prompt** was dropped by the migration `20261029145346_drop_voice_asleep_prompt_audio_path` (owner decision, 2026-10-29).
 3. **Expo Router inside the Nx-generated Expo app.** Resolved 2026-10-29: it works (section 7).
 4. **Styling approach.** Resolved 2026-10-29: plain StyleSheet with a tokens file (section 7).
-5. **TTS provider.** Pick after listening to Russian samples, and verify its text-length limit against section 4.
+5. **TTS provider (partly answered).** ElevenLabs was chosen by the owner on 2026-10-30; the owner tested the Russian quality and is satisfied. Still to verify before the adapter is built: its text-length limit against section 4. Also open: where the voice sample files (`voices.sample_audio_path`, currently the placeholder `voices/<slug>/sample.placeholder`) come from and how they are uploaded; the planned shape is an object path in a private bucket, turned into a short-lived signed URL per request (section 5, "Paths, not URLs").
 6. **Database connections from Cloud Run.** The pooler setup for Prisma 7 is done (section 4). Still undecided or unverified:
    - The `pg` pool size against Cloud Run concurrency, because each instance has its own pool (default size 10) and the transaction pooler has its own client limit.
    - `prisma generate` requires `DIRECT_URL` to be set, so CI and the Docker build need either a placeholder value or a Prisma config that does not demand it.

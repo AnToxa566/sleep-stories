@@ -1,6 +1,6 @@
 // The ONLY place for user-facing copy (Russian). Screens import from here and never
 // inline a string. Code, comments and identifiers stay in English.
-import type { PlaceholderVoiceSlug, StoryStyle } from '@sleep-stories/contracts';
+import type { StoryStyle } from '@sleep-stories/contracts';
 
 export const strings = {
   common: {
@@ -62,6 +62,8 @@ export const strings = {
       title: 'Выберите голос',
       subtitle: 'Его можно сменить в настройках',
       playSample: 'Послушать голос',
+      loading: 'Загружаем голоса',
+      loadFailed: 'Не удалось загрузить голоса. Проверьте интернет и попробуйте ещё раз',
     },
     interests: {
       title: 'Что вам интересно',
@@ -96,18 +98,6 @@ export const strings = {
     errorBody: 'Проверьте интернет и повторите',
   },
 } as const;
-
-type VoiceCopy = { readonly name: string; readonly description: string };
-
-// Placeholder voice copy. Voices will come from the API later; until then the slugs
-// are the shared PLACEHOLDER_VOICE_SLUGS list from contracts. `satisfies Record`
-// makes a missing slug a compile error.
-export const voiceCopy = {
-  anna: { name: 'Анна', description: 'тёплый, тихий' },
-  mikhail: { name: 'Михаил', description: 'низкий, неторопливый' },
-  vera: { name: 'Вера', description: 'мягкий, почти шёпот' },
-  lev: { name: 'Лев', description: 'ровный, спокойный' },
-} as const satisfies Record<PlaceholderVoiceSlug, VoiceCopy>;
 
 // Labels and descriptions as drawn in the interests-and-styles design.
 export const styleCopy = {

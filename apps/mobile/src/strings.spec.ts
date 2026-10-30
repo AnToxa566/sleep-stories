@@ -1,8 +1,5 @@
-import {
-  PLACEHOLDER_VOICE_SLUGS,
-  StoryStyleSchema,
-} from '@sleep-stories/contracts';
-import { strings, styleCopy, voiceCopy } from './strings';
+import { StoryStyleSchema } from '@sleep-stories/contracts';
+import { strings, styleCopy } from './strings';
 
 function collectStrings(value: unknown, out: string[] = []): string[] {
   if (typeof value === 'string') out.push(value);
@@ -14,19 +11,10 @@ function collectStrings(value: unknown, out: string[] = []): string[] {
 
 const allCopy = [
   ...collectStrings(strings),
-  ...collectStrings(voiceCopy),
   ...collectStrings(styleCopy),
 ];
 
 describe('strings', () => {
-  it('has copy for every placeholder voice slug', () => {
-    for (const slug of PLACEHOLDER_VOICE_SLUGS) {
-      expect(voiceCopy[slug].name.length).toBeGreaterThan(0);
-      expect(voiceCopy[slug].description.length).toBeGreaterThan(0);
-    }
-    expect(Object.keys(voiceCopy).sort()).toEqual([...PLACEHOLDER_VOICE_SLUGS].sort());
-  });
-
   it('has a label and a description for every story style', () => {
     expect(Object.keys(styleCopy).sort()).toEqual([...StoryStyleSchema.options].sort());
     for (const style of StoryStyleSchema.options) {

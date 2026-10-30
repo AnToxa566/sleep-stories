@@ -2,6 +2,7 @@ import {
   CompleteOnboardingRequestSchema,
   InterestsResponseSchema,
   MeResponseSchema,
+  VoicesResponseSchema,
   type CompleteOnboardingRequest,
   type MeResponse,
 } from '@sleep-stories/contracts';
@@ -33,6 +34,20 @@ export function useInterests() {
     queryKey: interestsQueryKey,
     queryFn: () =>
       apiFetch({ method: 'GET', path: '/interests', responseSchema: InterestsResponseSchema }),
+    enabled: status === 'signedIn',
+  });
+}
+
+export const voicesQueryKey = ['voices'] as const;
+
+// GET /voices. Same for every user, so no user id in the key; runs only while signed in
+// because the endpoint needs the JWT.
+export function useVoices() {
+  const status = useSessionStore((state) => state.status);
+  return useQuery({
+    queryKey: voicesQueryKey,
+    queryFn: () =>
+      apiFetch({ method: 'GET', path: '/voices', responseSchema: VoicesResponseSchema }),
     enabled: status === 'signedIn',
   });
 }
