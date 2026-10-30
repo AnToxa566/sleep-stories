@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../../generated/prisma/client';
 import type { Env } from '../config/env';
-import { SUPABASE_ROOT_CA } from './supabase-ca';
+import { resolveDatabaseSsl } from './database-tls';
 
 // The only place that constructs the Prisma client and the pg adapter. Other
 // code injects PrismaService.
@@ -13,8 +13,11 @@ import { SUPABASE_ROOT_CA } from './supabase-ca';
 // - No statementNameGenerator: the adapter does not need named prepared
 //   statements to survive across pooled connections.
 // - TLS is verified against the pinned Supabase root CA (`ssl: { ca }`), never
-//   `rejectUnauthorized: false`. pg merges parameters from the connection string
-//   over these options, so the env schema refuses any ssl* parameter in
+//   `rejectUnauthorized: false`, unless DATABASE_TLS=disabled-local-only. That
+//   mode is accepted by the env schema only for a loopback database host outside
+//   Cloud Run and production (local Supabase stack), and logs a warning. See
+//   resolveDatabaseSsl. pg merges parameters from the connection string over
+//   these options, so the env schema refuses any ssl* parameter in
 //   DATABASE_URL; otherwise `?sslmode=disable` would silently switch TLS off.
 // - connectionTimeoutMillis 10000: fail a stuck connect instead of hanging a
 //   Cloud Run request. Costs a spurious failure if the pooler is slow to answer.
@@ -25,13 +28,18 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private readonly logger = new Logger(PrismaService.name);
 
   constructor(config: ConfigService<Env, true>) {
+    const ssl = resolveDatabaseSsl({ mode: config.get('DATABASE_TLS', { infer: true }) });
     super({
       adapter: new PrismaPg({
         connectionString: config.get('DATABASE_URL', { infer: true }),
-        ssl: { ca: SUPABASE_ROOT_CA },
+        ssl,
         connectionTimeoutMillis: 10_000,
       }),
     });
+    if (ssl === false) {
+      // One warning, without the host or URL.
+      this.logger.warn('Database TLS is disabled (plaintext, local development only)');
+    }
   }
 
   async onModuleInit(): Promise<void> {
