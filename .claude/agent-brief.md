@@ -54,7 +54,7 @@ Security:
 - Check the current documentation before writing setup code for a dependency, and for a native Expo module read the native signature in `node_modules/<pkg>` as well as its types. Pin exact versions.
 - Nothing is done because it looks right. Pass or fail output is the only evidence.
 - Do not commit unless the owner asks. Commit types: chore, feat, docs, build, refactor.
-- The `design/` folder (git-ignored, local) is the source of truth for screens. If it is missing, ask; never invent a design.
+- The `design/` folder (git-ignored, local) is the source of truth for screens. If it is missing, ask; never invent a design. It contains mistakes: there are NO series of stories ("Продолжить серию" is a designer's error; ARCHITECTURE.md section 10). Anything in a design that the architecture lacks is a question for the owner, not a requirement.
 
 ## Open problems today (run the command in step 3 for the current list)
 

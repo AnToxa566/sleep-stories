@@ -10,6 +10,7 @@ import { InterestsModule } from './interests/interests.module';
 import { MeModule } from './me/me.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProvidersModule } from './providers/providers.module';
+import { QueueModule } from './queue/queue.module';
 import { UsersModule } from './users/users.module';
 import { ValidationModule } from './validation/validation.module';
 import { VoicesModule } from './voices/voices.module';
@@ -30,6 +31,7 @@ import { VoicesModule } from './voices/voices.module';
     InterestsModule,
     VoicesModule,
     GenerationModule,
+    QueueModule,
   ],
   controllers: [AppController],
   providers: [AppService],

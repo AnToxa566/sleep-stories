@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { JobQueue, NoopJobQueue } from './job-queue/job-queue';
 import { AnthropicLlmProvider } from './llm/anthropic-llm.provider';
 import { LlmProvider } from './llm/llm.provider';
 import { StorageService } from './storage/storage.service';
@@ -14,7 +15,9 @@ import { TtsProvider } from './tts/tts.provider';
     StorageService,
     { provide: LlmProvider, useClass: AnthropicLlmProvider },
     { provide: TtsProvider, useClass: ElevenLabsTtsProvider },
+    // Nothing dispatches jobs until cycle 3b; see NoopJobQueue.
+    { provide: JobQueue, useClass: NoopJobQueue },
   ],
-  exports: [StorageService, LlmProvider, TtsProvider],
+  exports: [StorageService, LlmProvider, TtsProvider, JobQueue],
 })
 export class ProvidersModule {}
