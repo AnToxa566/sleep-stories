@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CustomInterestsSchema } from './interests';
 import { InterestSlugsSchema, StylesSchema } from './onboarding';
 import { SlugSchema } from './slug';
 
@@ -6,6 +7,7 @@ export const PreferencesSchema = z.strictObject({
   voiceSlug: SlugSchema,
   styles: StylesSchema,
   interestSlugs: InterestSlugsSchema,
+  customInterests: CustomInterestsSchema,
 });
 
 export type Preferences = z.infer<typeof PreferencesSchema>;

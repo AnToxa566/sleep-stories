@@ -4,6 +4,7 @@ const preferences = {
   voiceSlug: 'anna',
   styles: ['facts'],
   interestSlugs: ['history'],
+  customInterests: ['сон на облаке'],
 };
 
 describe('MeResponseSchema', () => {
@@ -50,5 +51,21 @@ describe('MeResponseSchema', () => {
 
   it('rejects a missing discriminator', () => {
     expect(MeResponseSchema.safeParse({ preferences: null }).success).toBe(false);
+  });
+
+  it('rejects preferences without customInterests', () => {
+    const { customInterests: _omitted, ...rest } = preferences;
+    expect(
+      MeResponseSchema.safeParse({ onboardingCompleted: true, preferences: rest }).success,
+    ).toBe(false);
+  });
+
+  it('accepts custom-only preferences', () => {
+    expect(
+      MeResponseSchema.safeParse({
+        onboardingCompleted: true,
+        preferences: { ...preferences, interestSlugs: [] },
+      }).success,
+    ).toBe(true);
   });
 });

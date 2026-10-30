@@ -1,10 +1,11 @@
-// Placeholder reference data for the sign-up and onboarding feature. The slugs
-// come from the shared lists in packages/contracts, which the mobile app also
+// Placeholder reference data for the sign-up and onboarding feature. The voice
+// slugs come from the shared list in packages/contracts, which the mobile app also
 // uses, so the two cannot drift apart: `satisfies Record<Slug, ...>` makes a
 // missing or extra slug a type error here, and a spec compares the runtime lists.
+// Interests are served by the API from the database, so their slugs are free here.
 // `import type` keeps this file free of a runtime path-alias dependency, because
 // the seed runs under ts-node, which does not resolve tsconfig paths.
-import type { PlaceholderInterestSlug, PlaceholderVoiceSlug } from '@sleep-stories/contracts';
+import type { PlaceholderVoiceSlug } from '@sleep-stories/contracts';
 
 export interface VoiceSeed {
   name: string;
@@ -35,7 +36,7 @@ export const INTEREST_SEEDS = {
   music: { title: 'Музыка', sortOrder: 8 },
   art: { title: 'Искусство', sortOrder: 9 },
   ocean: { title: 'Океан', sortOrder: 10 },
-} satisfies Record<PlaceholderInterestSlug, InterestSeed>;
+} satisfies Record<string, InterestSeed>;
 
 // The TTS provider is not chosen yet (ARCHITECTURE.md section 11, open problem 5),
 // so no voice has a real provider voice id or a recorded sample. These values

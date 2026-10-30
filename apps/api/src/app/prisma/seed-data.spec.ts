@@ -1,7 +1,7 @@
-import { PLACEHOLDER_INTEREST_SLUGS, PLACEHOLDER_VOICE_SLUGS } from '@sleep-stories/contracts';
+import { PLACEHOLDER_VOICE_SLUGS, SlugSchema } from '@sleep-stories/contracts';
 import { INTEREST_SEEDS, VOICE_SEEDS, placeholderProviderFields } from '../../../prisma/seed-data';
 
-// The seed and the mobile app share the slug lists from packages/contracts. The
+// The seed and the mobile app share the voice slug list from packages/contracts. The
 // `satisfies Record<Slug, ...>` in seed-data.ts catches drift at compile time;
 // this compares the runtime lists as well.
 describe('placeholder seed data', () => {
@@ -9,8 +9,14 @@ describe('placeholder seed data', () => {
     expect(Object.keys(VOICE_SEEDS).sort()).toEqual([...PLACEHOLDER_VOICE_SLUGS].sort());
   });
 
-  it('has exactly one interest seed per placeholder interest slug', () => {
-    expect(Object.keys(INTEREST_SEEDS).sort()).toEqual([...PLACEHOLDER_INTEREST_SLUGS].sort());
+  it('has interest seeds with valid, unique slugs and titles', () => {
+    const slugs = Object.keys(INTEREST_SEEDS);
+    expect(slugs.length).toBeGreaterThan(0);
+    expect(new Set(slugs).size).toBe(slugs.length);
+    for (const slug of slugs) {
+      expect(SlugSchema.safeParse(slug).success).toBe(true);
+      expect(INTEREST_SEEDS[slug as keyof typeof INTEREST_SEEDS].title.length).toBeGreaterThan(0);
+    }
   });
 
   it('uses distinct sort orders', () => {

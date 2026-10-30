@@ -55,7 +55,7 @@ describe('apiFetch', () => {
   });
 
   it('validates and sends a request body from its schema', async () => {
-    const body = { voiceSlug: 'anna', styles: ['facts' as const], interestSlugs: ['space'] };
+    const body = { voiceSlug: 'anna', styles: ['facts' as const], interestSlugs: ['space'], customInterests: [] };
     const { apiFetch, calls } = setup(() => json(200, notOnboarded));
     await apiFetch({
       method: 'PUT',
@@ -73,7 +73,7 @@ describe('apiFetch', () => {
       apiFetch({
         method: 'PUT',
         path: '/me/onboarding',
-        body: { schema: CompleteOnboardingRequestSchema, value: { voiceSlug: '', styles: [], interestSlugs: [] } },
+        body: { schema: CompleteOnboardingRequestSchema, value: { voiceSlug: '', styles: [], interestSlugs: [], customInterests: [] } },
         responseSchema: MeResponseSchema,
       }),
     ).rejects.toBeDefined();

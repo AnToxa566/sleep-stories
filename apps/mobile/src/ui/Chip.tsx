@@ -4,16 +4,19 @@ import { colors, radii, sizes, typeSizes } from '../theme/tokens';
 type Props = {
   label: string;
   selected: boolean;
+  // Spoken hint for screen readers (what a press does).
+  hint?: string;
   onPress: () => void;
 };
 
 // Selectable pill. It is drawn 40 px tall as in the design; hitSlop brings the touch
 // target to 44 px.
-export function Chip({ label, selected, onPress }: Props) {
+export function Chip({ label, selected, hint, onPress }: Props) {
   return (
     <Pressable
       accessibilityRole="checkbox"
       accessibilityLabel={label}
+      accessibilityHint={hint}
       accessibilityState={{ checked: selected }}
       hitSlop={{ top: 2, bottom: 2 }}
       onPress={onPress}

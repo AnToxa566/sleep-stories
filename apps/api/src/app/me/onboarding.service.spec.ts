@@ -19,6 +19,7 @@ const REQUEST: CompleteOnboardingRequest = {
   voiceSlug: 'anna',
   styles: ['history', 'facts'],
   interestSlugs: ['space', 'history'],
+  customInterests: [],
 };
 
 // The shapes of the recorded write arguments that these tests read.
@@ -37,6 +38,7 @@ interface Call {
 // A fake transaction client that records every call in order. Reads are marked so
 // the tests can tell writes from queries.
 function makeFakeTx(options: { voice?: typeof VOICE | null; interests?: typeof INTERESTS } = {}) {
+  const catalogueTitles = [{ title: 'История' }, { title: 'Космос' }, { title: 'Open Sky' }];
   const calls: Call[] = [];
   const record = (name: string, result: unknown) =>
     jest.fn(async (args: unknown) => {
@@ -51,7 +53,18 @@ function makeFakeTx(options: { voice?: typeof VOICE | null; interests?: typeof I
     $queryRaw: queryRaw,
     user: { createMany: record('user.createMany', { count: 1 }) },
     voice: { findFirst: record('voice.findFirst', options.voice === undefined ? VOICE : options.voice) },
-    interest: { findMany: record('interest.findMany', options.interests ?? INTERESTS) },
+    interest: {
+      // The slug lookup has a `slug` filter; the catalogue-title lookup does not.
+      findMany: jest.fn(async (args: { where: { slug?: unknown } }) => {
+        const isSlugLookup = args.where.slug !== undefined;
+        calls.push({ name: isSlugLookup ? 'interest.findMany' : 'interest.findManyTitles', args });
+        return isSlugLookup ? (options.interests ?? INTERESTS) : catalogueTitles;
+      }),
+    },
+    userCustomInterest: {
+      deleteMany: record('userCustomInterest.deleteMany', { count: 0 }),
+      createMany: record('userCustomInterest.createMany', { count: 0 }),
+    },
     userInterest: {
       deleteMany: record('userInterest.deleteMany', { count: 0 }),
       createMany: record('userInterest.createMany', { count: 2 }),
@@ -66,7 +79,14 @@ function makeFakeTx(options: { voice?: typeof VOICE | null; interests?: typeof I
   return { service, calls };
 }
 
-const WRITES = ['user.createMany', 'userInterest.deleteMany', 'userInterest.createMany', 'userPreference.upsert'];
+const WRITES = [
+  'user.createMany',
+  'userInterest.deleteMany',
+  'userInterest.createMany',
+  'userCustomInterest.deleteMany',
+  'userCustomInterest.createMany',
+  'userPreference.upsert',
+];
 const writeNames = (calls: Call[]) => calls.map((call) => call.name).filter((name) => WRITES.includes(name));
 
 describe('OnboardingService.complete', () => {
@@ -81,6 +101,7 @@ describe('OnboardingService.complete', () => {
       'interest.findMany',
       'userInterest.deleteMany',
       'userInterest.createMany',
+      'userCustomInterest.deleteMany',
       'userPreference.upsert',
     ]);
     expect(writeNames(calls).at(-1)).toBe('userPreference.upsert');
@@ -168,7 +189,12 @@ describe('OnboardingService.complete', () => {
     expect(upsert.create.styles).toEqual(['facts', 'history']);
     expect(result).toEqual({
       onboardingCompleted: true,
-      preferences: { voiceSlug: 'anna', styles: ['facts', 'history'], interestSlugs: ['history', 'space'] },
+      preferences: {
+        voiceSlug: 'anna',
+        styles: ['facts', 'history'],
+        interestSlugs: ['history', 'space'],
+        customInterests: [],
+      },
     });
   });
 
@@ -181,5 +207,79 @@ describe('OnboardingService.complete', () => {
   it('puts no user id or email in the response', async () => {
     const result = await makeFakeTx().service.complete(USER_ID, REQUEST);
     expect(JSON.stringify(result)).not.toContain(USER_ID);
+  });
+
+  describe('custom interests', () => {
+    const WITH_CUSTOM: CompleteOnboardingRequest = { ...REQUEST, customInterests: ['кофе', 'старые поезда'] };
+
+    it('replaces the set after the catalogue interests and before the preferences upsert, in request order', async () => {
+      const { service, calls } = makeFakeTx();
+      const result = await service.complete(USER_ID, WITH_CUSTOM);
+      expect(calls.map((call) => call.name)).toEqual([
+        'user.createMany',
+        'queryRaw',
+        'voice.findFirst',
+        'interest.findMany',
+        'interest.findManyTitles',
+        'userInterest.deleteMany',
+        'userInterest.createMany',
+        'userCustomInterest.deleteMany',
+        'userCustomInterest.createMany',
+        'userPreference.upsert',
+      ]);
+      const create = calls.find((c) => c.name === 'userCustomInterest.createMany')?.args as {
+        data: { userId: string; title: string; createdAt: Date }[];
+      };
+      expect(create.data.map((row) => row.title)).toEqual(['кофе', 'старые поезда']);
+      expect(create.data[0].createdAt.getTime()).toBeLessThan(create.data[1].createdAt.getTime());
+      expect(result.preferences?.customInterests).toEqual(['кофе', 'старые поезда']);
+    });
+
+    it('scopes the delete and the insert by the token user id', async () => {
+      const { service, calls } = makeFakeTx();
+      await service.complete(USER_ID, WITH_CUSTOM);
+      const del = calls.find((c) => c.name === 'userCustomInterest.deleteMany')?.args as { where: unknown };
+      const create = calls.find((c) => c.name === 'userCustomInterest.createMany')?.args as {
+        data: { userId: string }[];
+      };
+      expect(del.where).toEqual({ userId: USER_ID });
+      expect(create.data.every((row) => row.userId === USER_ID)).toBe(true);
+    });
+
+    it('removes the old set when the request has none, and inserts nothing', async () => {
+      const { service, calls } = makeFakeTx();
+      await service.complete(USER_ID, REQUEST);
+      expect(calls.map((c) => c.name)).toContain('userCustomInterest.deleteMany');
+      expect(calls.map((c) => c.name)).not.toContain('userCustomInterest.createMany');
+      expect(calls.map((c) => c.name)).not.toContain('interest.findManyTitles');
+    });
+
+    it('accepts custom interests alone (no catalogue slugs)', async () => {
+      const { service } = makeFakeTx({ interests: [] });
+      const result = await service.complete(USER_ID, { ...REQUEST, interestSlugs: [], customInterests: ['кофе'] });
+      expect(result.preferences).toMatchObject({ interestSlugs: [], customInterests: ['кофе'] });
+    });
+
+    it.each([['космос'], ['история'], ['open sky']])(
+      'refuses with 422 a custom title equal to a catalogue title, ignoring case (%s), before any interest write',
+      async (title) => {
+        const { service, calls } = makeFakeTx();
+        const error = await service
+          .complete(USER_ID, { ...REQUEST, customInterests: ['кофе', title] })
+          .catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(UnprocessableEntityException);
+        const body = ApiErrorResponseSchema.parse((error as UnprocessableEntityException).getResponse());
+        expect(body.statusCode).toBe(422);
+        // The custom text is never echoed back.
+        expect(JSON.stringify(body)).not.toContain(title);
+        expect(writeNames(calls)).toEqual(['user.createMany']);
+      },
+    );
+
+    it('returns the same state for a repeated identical request', async () => {
+      const first = await makeFakeTx().service.complete(USER_ID, WITH_CUSTOM);
+      const second = await makeFakeTx().service.complete(USER_ID, WITH_CUSTOM);
+      expect(second).toEqual(first);
+    });
   });
 });

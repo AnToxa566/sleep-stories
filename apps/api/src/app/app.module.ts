@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { envFilePaths, validateEnv } from './config/env';
+import { InterestsModule } from './interests/interests.module';
 import { MeModule } from './me/me.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
@@ -22,6 +23,7 @@ import { ValidationModule } from './validation/validation.module';
     AuthModule,
     UsersModule,
     MeModule,
+    InterestsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

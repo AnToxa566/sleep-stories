@@ -85,20 +85,21 @@ const BODY_B = { voiceSlug: 'lev', styles: ['fairy_tale'], interestSlugs: ['art'
 // The body as it must read back: styles in canonical order, interests by sort order.
 const EXPECTED_A = {
   onboardingCompleted: true,
-  preferences: { voiceSlug: 'anna', styles: ['facts', 'history'], interestSlugs: ['history', 'space', 'ocean'] },
+  preferences: { voiceSlug: 'anna', styles: ['facts', 'history'], interestSlugs: ['history', 'space', 'ocean'], customInterests: [] },
 };
 const EXPECTED_B = {
   onboardingCompleted: true,
-  preferences: { voiceSlug: 'lev', styles: ['fairy_tale'], interestSlugs: ['music', 'art'] },
+  preferences: { voiceSlug: 'lev', styles: ['fairy_tale'], interestSlugs: ['music', 'art'], customInterests: [] },
 };
 
 async function rowCounts(userId: string) {
-  const [users, preferences, interests] = await Promise.all([
+  const [users, preferences, interests, customInterests] = await Promise.all([
     prisma.user.count({ where: { id: userId } }),
     prisma.userPreference.count({ where: { userId } }),
     prisma.userInterest.count({ where: { userId } }),
+    prisma.userCustomInterest.count({ where: { userId } }),
   ]);
-  return { users, preferences, interests };
+  return { users, preferences, interests, customInterests };
 }
 
 function expectError(result: Result, statusCode: number, code: string) {
@@ -169,14 +170,14 @@ describe('authentication', () => {
 describe('GET /api/me', () => {
   it('creates the users row on first use and reports onboarding as not completed', async () => {
     const userId = newUserId();
-    expect(await rowCounts(userId)).toEqual({ users: 0, preferences: 0, interests: 0 });
+    expect(await rowCounts(userId)).toEqual({ users: 0, preferences: 0, interests: 0, customInterests: 0 });
     const result = await getMe(userId);
     expect(result.status).toBe(200);
     expect(MeResponseSchema.parse(result.json)).toEqual({ onboardingCompleted: false, preferences: null });
-    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 0, interests: 0 });
+    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 0, interests: 0, customInterests: 0 });
     // A second GET changes nothing.
     await getMe(userId);
-    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 0, interests: 0 });
+    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 0, interests: 0, customInterests: 0 });
   });
 
   it('puts no user id or email in the response', async () => {
@@ -198,7 +199,7 @@ describe('PUT /api/me/onboarding', () => {
     const get = await getMe(userId);
     expect(get.status).toBe(200);
     expect(MeResponseSchema.parse(get.json)).toEqual(EXPECTED_A);
-    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 3 });
+    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 3, customInterests: 0 });
   });
 
   it('is idempotent: an identical PUT repeated gives 200 and the same rows', async () => {
@@ -210,7 +211,7 @@ describe('PUT /api/me/onboarding', () => {
     const again = await putOnboarding(userId, BODY_A);
     expect(again.status).toBe(200);
     expect(again.json).toEqual(EXPECTED_A);
-    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 3 });
+    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 3, customInterests: 0 });
     const interestsAfter = await prisma.userInterest.findMany({ where: { userId }, orderBy: { interestId: 'asc' } });
     expect(interestsAfter.map((row) => row.interestId)).toEqual(interestsBefore.map((row) => row.interestId));
     const preferenceAfter = await prisma.userPreference.findUniqueOrThrow({ where: { userId } });
@@ -228,7 +229,7 @@ describe('PUT /api/me/onboarding', () => {
     expect(result.status).toBe(200);
     expect(result.json).toEqual({
       onboardingCompleted: true,
-      preferences: { voiceSlug: 'vera', styles: ['history'], interestSlugs: ['music', 'ocean'] },
+      preferences: { voiceSlug: 'vera', styles: ['history'], interestSlugs: ['music', 'ocean'], customInterests: [] },
     });
     const slugs = (await prisma.userInterest.findMany({ where: { userId }, include: { interest: true } })).map(
       (row) => row.interest.slug,
@@ -248,7 +249,7 @@ describe('PUT /api/me/onboarding', () => {
     expect(first.json).toEqual(EXPECTED_A);
     expect(second.json).toEqual(EXPECTED_A);
     expect((await getMe(userId)).json).toEqual(EXPECTED_A);
-    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 3 });
+    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 3, customInterests: 0 });
   });
 
   it('serialises concurrent PUTs with different bodies: the final state is exactly one of them', async () => {
@@ -257,7 +258,7 @@ describe('PUT /api/me/onboarding', () => {
     const bodyOther = { voiceSlug: 'mikhail', styles: ['facts'], interestSlugs: ['nature', 'science'] };
     const expectedOther = {
       onboardingCompleted: true,
-      preferences: { voiceSlug: 'mikhail', styles: ['facts'], interestSlugs: ['science', 'nature'] },
+      preferences: { voiceSlug: 'mikhail', styles: ['facts'], interestSlugs: ['science', 'nature'], customInterests: [] },
     };
     const results = await Promise.all([
       call('PUT', '/me/onboarding', { token, body: BODY_A }),
@@ -275,7 +276,7 @@ describe('PUT /api/me/onboarding', () => {
     const userId = newUserId();
     const result = await putOnboarding(userId, { ...BODY_A, voiceSlug: 'no-such-voice' });
     expectError(result, 422, 'unknown_voice');
-    expect(await rowCounts(userId)).toEqual({ users: 0, preferences: 0, interests: 0 });
+    expect(await rowCounts(userId)).toEqual({ users: 0, preferences: 0, interests: 0, customInterests: 0 });
   });
 
   it('answers 422 unknown_voice for a deactivated voice', async () => {
@@ -289,7 +290,7 @@ describe('PUT /api/me/onboarding', () => {
     const userId = newUserId();
     const result = await putOnboarding(userId, { ...BODY_A, interestSlugs: ['space', 'no-such-interest'] });
     expectError(result, 422, 'unknown_interest');
-    expect(await rowCounts(userId)).toEqual({ users: 0, preferences: 0, interests: 0 });
+    expect(await rowCounts(userId)).toEqual({ users: 0, preferences: 0, interests: 0, customInterests: 0 });
   });
 
   it('answers 422 for a deactivated interest', async () => {
@@ -305,18 +306,134 @@ describe('PUT /api/me/onboarding', () => {
     expectError(await putOnboarding(userId, { ...BODY_B, interestSlugs: ['art', 'no-such-interest'] }), 422, 'unknown_interest');
     expectError(await putOnboarding(userId, { ...BODY_B, voiceSlug: 'no-such-voice' }), 422, 'unknown_voice');
     expect((await getMe(userId)).json).toEqual(EXPECTED_A);
-    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 3 });
+    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 3, customInterests: 0 });
   });
 
   it.each([
     ['an extra userId key', { ...BODY_A, userId: randomUUID() }],
     ['empty styles', { ...BODY_A, styles: [] }],
     ['empty interests', { ...BODY_A, interestSlugs: [] }],
+    ['no interest of any kind', { ...BODY_A, interestSlugs: [], customInterests: [] }],
+    ['21 custom interests', { ...BODY_A, customInterests: Array.from({ length: 21 }, (_v, i) => `тема ${i}`) }],
+    ['a blank custom interest', { ...BODY_A, customInterests: ['   '] }],
+    ['an over-long custom interest', { ...BODY_A, customInterests: ['я'.repeat(61)] }],
+    ['a custom interest with a newline', { ...BODY_A, customInterests: ['два\nряда'] }],
+    ['duplicate custom interests', { ...BODY_A, customInterests: ['Кофе', ' кофе '] }],
     ['a wrong type', { ...BODY_A, voiceSlug: 42 }],
   ])('answers 400 validation_failed for %s and creates no rows', async (_label, body) => {
     const userId = newUserId();
     expectError(await putOnboarding(userId, body), 400, 'validation_failed');
-    expect(await rowCounts(userId)).toEqual({ users: 0, preferences: 0, interests: 0 });
+    expect(await rowCounts(userId)).toEqual({ users: 0, preferences: 0, interests: 0, customInterests: 0 });
+  });
+});
+
+describe('custom interests', () => {
+  const customRows = async (userId: string) =>
+    (await prisma.userCustomInterest.findMany({ where: { userId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })).map(
+      (row) => row.title,
+    );
+
+  it('saves them trimmed and lowercased, in request order, and GET /me returns them', async () => {
+    const userId = newUserId();
+    const put = await putOnboarding(userId, { ...BODY_A, customInterests: ['  Старые Поезда ', 'кофе', 'Дождь'] });
+    expect(put.status).toBe(200);
+    const expected = {
+      ...EXPECTED_A,
+      preferences: { ...EXPECTED_A.preferences, customInterests: ['старые поезда', 'кофе', 'дождь'] },
+    };
+    expect(MeResponseSchema.parse(put.json)).toEqual(expected);
+    expect((await getMe(userId)).json).toEqual(expected);
+    expect(await customRows(userId)).toEqual(['старые поезда', 'кофе', 'дождь']);
+  });
+
+  it('replaces the set on a later PUT and clears it when the new request has none', async () => {
+    const userId = newUserId();
+    await putOnboarding(userId, { ...BODY_A, customInterests: ['кофе', 'дождь'] });
+    await putOnboarding(userId, { ...BODY_A, customInterests: ['чай'] });
+    expect(await customRows(userId)).toEqual(['чай']);
+    await putOnboarding(userId, BODY_A);
+    expect(await customRows(userId)).toEqual([]);
+    expect((await getMe(userId)).json).toEqual(EXPECTED_A);
+  });
+
+  it('is idempotent: an identical PUT repeated leaves the same titles in the same order', async () => {
+    const userId = newUserId();
+    const body = { ...BODY_A, customInterests: ['кофе', 'дождь', 'чай'] };
+    const first = await putOnboarding(userId, body);
+    const again = await putOnboarding(userId, body);
+    expect(again.status).toBe(200);
+    expect(again.json).toEqual(first.json);
+    expect(await customRows(userId)).toEqual(['кофе', 'дождь', 'чай']);
+    expect((await getMe(userId)).json).toEqual(first.json);
+  });
+
+  it('accepts custom interests alone, with no catalogue interests', async () => {
+    const userId = newUserId();
+    const put = await putOnboarding(userId, { ...BODY_A, interestSlugs: [], customInterests: ['кофе'] });
+    expect(put.status).toBe(200);
+    expect(put.json).toEqual({
+      onboardingCompleted: true,
+      preferences: { voiceSlug: 'anna', styles: ['facts', 'history'], interestSlugs: [], customInterests: ['кофе'] },
+    });
+    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 0, customInterests: 1 });
+  });
+
+  it('accepts exactly 20 custom interests', async () => {
+    const userId = newUserId();
+    const titles = Array.from({ length: 20 }, (_v, i) => `тема ${i}`);
+    expect((await putOnboarding(userId, { ...BODY_A, customInterests: titles })).status).toBe(200);
+    expect(await customRows(userId)).toEqual(titles);
+  });
+
+  it('refuses a custom title equal to a catalogue title (any case) with 422 and writes nothing', async () => {
+    const userId = newUserId();
+    await putOnboarding(userId, { ...BODY_A, customInterests: ['кофе'] });
+    const result = await putOnboarding(userId, { ...BODY_B, customInterests: ['чай', ' КОСМОС '] });
+    expectError(result, 422, 'validation_failed');
+    expect(result.text).not.toContain('космос');
+    // Rolled back: the earlier state is intact.
+    expect(await customRows(userId)).toEqual(['кофе']);
+    expect((await getMe(userId)).json).toMatchObject({ preferences: { voiceSlug: 'anna' } });
+  });
+
+  it('does not treat the title of an inactive catalogue interest as a duplicate', async () => {
+    await prisma.interest.update({ where: { slug: 'space' }, data: { isActive: false } });
+    const userId = newUserId();
+    const put = await putOnboarding(userId, { ...BODY_B, customInterests: ['космос'] });
+    expect(put.status).toBe(200);
+    expect(await customRows(userId)).toEqual(['космос']);
+  });
+
+  it("never shows one user's custom interests to another, and a PUT by one leaves the other's alone", async () => {
+    const a = newUserId();
+    const b = newUserId();
+    await putOnboarding(a, { ...BODY_A, customInterests: ['кофе', 'дождь'] });
+    expect((await getMe(b)).json).toEqual({ onboardingCompleted: false, preferences: null });
+    await putOnboarding(b, { ...BODY_B, customInterests: ['чай'] });
+    expect(await customRows(a)).toEqual(['кофе', 'дождь']);
+    expect(await customRows(b)).toEqual(['чай']);
+    expect((await getMe(a)).json).toMatchObject({ preferences: { customInterests: ['кофе', 'дождь'] } });
+    expect((await getMe(b)).json).toMatchObject({ preferences: { customInterests: ['чай'] } });
+  });
+
+  it('refuses a body that names a user, even with custom interests', async () => {
+    const a = newUserId();
+    const b = newUserId();
+    await putOnboarding(b, { ...BODY_B, customInterests: ['чай'] });
+    expectError(await putOnboarding(a, { ...BODY_A, customInterests: ['кофе'], userId: b }), 400, 'validation_failed');
+    expect(await customRows(a)).toEqual([]);
+    expect(await customRows(b)).toEqual(['чай']);
+  });
+
+  it('leaves the stored set untouched when a later PUT is refused', async () => {
+    const userId = newUserId();
+    await putOnboarding(userId, { ...BODY_A, customInterests: ['кофе'] });
+    expectError(
+      await putOnboarding(userId, { ...BODY_B, interestSlugs: ['no-such-interest'], customInterests: ['чай'] }),
+      422,
+      'unknown_interest',
+    );
+    expect(await customRows(userId)).toEqual(['кофе']);
   });
 });
 
@@ -336,8 +453,8 @@ describe('isolation between users (security rule 2)', () => {
     expect((await getMe(b)).json).toEqual(EXPECTED_B);
     const aInterestsAfter = (await prisma.userInterest.findMany({ where: { userId: a } })).map((r) => r.interestId).sort();
     expect(aInterestsAfter).toEqual(aInterestsBefore);
-    expect(await rowCounts(a)).toEqual({ users: 1, preferences: 1, interests: 3 });
-    expect(await rowCounts(b)).toEqual({ users: 1, preferences: 1, interests: 2 });
+    expect(await rowCounts(a)).toEqual({ users: 1, preferences: 1, interests: 3, customInterests: 0 });
+    expect(await rowCounts(b)).toEqual({ users: 1, preferences: 1, interests: 2, customInterests: 0 });
   });
 
   it('ignores a user id sent in the X-User-Id header or in query parameters', async () => {
@@ -358,7 +475,7 @@ describe('isolation between users (security rule 2)', () => {
       headers: { 'x-user-id': b },
     });
     expect(putWithHeader.json).toEqual(EXPECTED_A);
-    expect(await rowCounts(a)).toEqual({ users: 1, preferences: 1, interests: 3 });
+    expect(await rowCounts(a)).toEqual({ users: 1, preferences: 1, interests: 3, customInterests: 0 });
     expect((await getMe(b)).json).toEqual(EXPECTED_B);
   });
 

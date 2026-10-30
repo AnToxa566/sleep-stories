@@ -75,9 +75,56 @@ describe('CompleteOnboardingRequestSchema', () => {
     expect(CompleteOnboardingRequestSchema.safeParse(body).success).toBe(false);
   });
 
-  it('rejects empty interestSlugs', () => {
+  it('rejects empty interestSlugs when there are no custom interests', () => {
     expect(
       CompleteOnboardingRequestSchema.safeParse({ ...valid, interestSlugs: [] }).success,
+    ).toBe(false);
+    expect(
+      CompleteOnboardingRequestSchema.safeParse({
+        ...valid,
+        interestSlugs: [],
+        customInterests: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('defaults customInterests to an empty list', () => {
+    const result = CompleteOnboardingRequestSchema.safeParse(valid);
+    expect(result.success && result.data.customInterests).toEqual([]);
+  });
+
+  it('accepts custom interests only', () => {
+    const result = CompleteOnboardingRequestSchema.safeParse({
+      ...valid,
+      interestSlugs: [],
+      customInterests: ['  Сны о МОРЕ '],
+    });
+    expect(result.success && result.data.customInterests).toEqual(['сны о море']);
+  });
+
+  it('accepts slugs plus custom interests', () => {
+    expect(
+      CompleteOnboardingRequestSchema.safeParse({ ...valid, customInterests: ['маяки'] }).success,
+    ).toBe(true);
+  });
+
+  it('rejects 21 custom interests', () => {
+    const many = Array.from({ length: 21 }, (_, i) => `тема ${i}`);
+    expect(
+      CompleteOnboardingRequestSchema.safeParse({ ...valid, customInterests: many }).success,
+    ).toBe(false);
+  });
+
+  it('rejects case-insensitive duplicate custom interests', () => {
+    expect(
+      CompleteOnboardingRequestSchema.safeParse({ ...valid, customInterests: ['Маяки', 'маяки '] })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects a blank custom interest', () => {
+    expect(
+      CompleteOnboardingRequestSchema.safeParse({ ...valid, customInterests: ['   '] }).success,
     ).toBe(false);
   });
 

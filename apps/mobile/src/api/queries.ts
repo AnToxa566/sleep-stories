@@ -1,5 +1,6 @@
 import {
   CompleteOnboardingRequestSchema,
+  InterestsResponseSchema,
   MeResponseSchema,
   type CompleteOnboardingRequest,
   type MeResponse,
@@ -19,6 +20,20 @@ export function useMe() {
     queryKey: meQueryKey(userId),
     queryFn: () => apiFetch({ method: 'GET', path: '/me', responseSchema: MeResponseSchema }),
     enabled: status === 'signedIn' && userId !== null,
+  });
+}
+
+export const interestsQueryKey = ['interests'] as const;
+
+// GET /interests. The catalogue is the same for every user, so the key has no user id;
+// it runs only while signed in because the endpoint needs the JWT.
+export function useInterests() {
+  const status = useSessionStore((state) => state.status);
+  return useQuery({
+    queryKey: interestsQueryKey,
+    queryFn: () =>
+      apiFetch({ method: 'GET', path: '/interests', responseSchema: InterestsResponseSchema }),
+    enabled: status === 'signedIn',
   });
 }
 

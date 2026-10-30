@@ -7,6 +7,7 @@ const USER_ID = '3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f';
 function makeService(data: {
   preferences: { styles: string[]; voice: { slug: string } } | null;
   interests: { interest: { slug: string } }[];
+  customInterests?: { title: string }[];
 }) {
   const calls: { name: string; args: unknown }[] = [];
   const tx = {
@@ -20,6 +21,12 @@ function makeService(data: {
       findMany: jest.fn(async (args: unknown) => {
         calls.push({ name: 'userInterest.findMany', args });
         return data.interests;
+      }),
+    },
+    userCustomInterest: {
+      findMany: jest.fn(async (args: unknown) => {
+        calls.push({ name: 'userCustomInterest.findMany', args });
+        return data.customInterests ?? [];
       }),
     },
     user: { createMany: jest.fn(async () => ({ count: 0 })) },
@@ -45,10 +52,13 @@ describe('MeService.getMe', () => {
     const { service } = makeService({
       preferences: { styles: ['history', 'facts'], voice: { slug: 'vera' } },
       interests: [{ interest: { slug: 'history' } }, { interest: { slug: 'space' } }],
+      customInterests: [{ title: 'кофе' }, { title: 'старые поезда' }],
     });
     expect(await service.getMe(USER_ID)).toEqual({
       onboardingCompleted: true,
-      preferences: { voiceSlug: 'vera', styles: ['facts', 'history'], interestSlugs: ['history', 'space'] },
+      preferences: { voiceSlug: 'vera', styles: ['facts', 'history'], interestSlugs: ['history', 'space'],
+        customInterests: ['кофе', 'старые поезда'],
+      },
     });
   });
 
@@ -59,6 +69,10 @@ describe('MeService.getMe', () => {
     const where = (name: string) => (calls.find((call) => call.name === name)?.args as { where: unknown }).where;
     expect(where('userPreference.findUnique')).toEqual({ userId: USER_ID });
     expect(where('userInterest.findMany')).toEqual({ userId: USER_ID });
+    expect(where('userCustomInterest.findMany')).toEqual({ userId: USER_ID });
+    expect(calls.find((c) => c.name === 'userCustomInterest.findMany')?.args).toMatchObject({
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
     expect(calls.find((call) => call.name === '$transaction')?.args).toEqual({ isolationLevel: 'RepeatableRead' });
   });
 

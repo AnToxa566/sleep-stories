@@ -61,6 +61,7 @@ describe('onboarding store', () => {
       voiceSlug: 'mikhail',
       styles: ['history'],
       interestSlugs: ['history'],
+      customInterests: [],
     });
     expect(CompleteOnboardingRequestSchema.safeParse(request).success).toBe(true);
   });
@@ -74,5 +75,59 @@ describe('onboarding store', () => {
     expect(store().styles).toEqual([]);
     expect(store().interestSlugs).toEqual([]);
     expect(store().buildRequest()).toBeNull();
+  });
+
+  describe('custom interests', () => {
+    it('adds a trimmed, lowercased topic and reports it', () => {
+      expect(store().addCustomInterest('  Дирижабли  ')).toBe(true);
+      expect(store().customInterests).toEqual(['дирижабли']);
+    });
+
+    it('ignores a duplicate in a different case', () => {
+      store().addCustomInterest('Дирижабли');
+      expect(store().addCustomInterest('дирижАБЛИ ')).toBe(false);
+      expect(store().customInterests).toEqual(['дирижабли']);
+    });
+
+    it('ignores blank and invalid text', () => {
+      expect(store().addCustomInterest('')).toBe(false);
+      expect(store().addCustomInterest('   ')).toBe(false);
+      expect(store().addCustomInterest('a\nb')).toBe(false);
+      expect(store().addCustomInterest('я'.repeat(61))).toBe(false);
+      expect(store().customInterests).toEqual([]);
+    });
+
+    it('stops at 20 topics', () => {
+      for (let i = 0; i < 20; i += 1) expect(store().addCustomInterest(`тема ${i}`)).toBe(true);
+      expect(store().addCustomInterest('лишняя')).toBe(false);
+      expect(store().customInterests).toHaveLength(20);
+    });
+
+    it('removes a topic', () => {
+      store().addCustomInterest('одна');
+      store().addCustomInterest('другая');
+      store().removeCustomInterest('одна');
+      expect(store().customInterests).toEqual(['другая']);
+    });
+
+    it('goes into the request, and custom topics alone satisfy the interests step', () => {
+      store().selectVoice('anna');
+      store().toggleStyle('facts');
+      store().addCustomInterest('Дирижабли');
+      expect(isInterestsStepValid(store())).toBe(true);
+      const request = store().buildRequest();
+      expect(request).toEqual({
+        voiceSlug: 'anna',
+        styles: ['facts'],
+        interestSlugs: [],
+        customInterests: ['дирижабли'],
+      });
+    });
+
+    it('reset clears them', () => {
+      store().addCustomInterest('одна');
+      store().reset();
+      expect(store().customInterests).toEqual([]);
+    });
   });
 });

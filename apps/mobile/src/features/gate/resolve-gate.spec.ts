@@ -57,7 +57,7 @@ describe('toMeState', () => {
         status: 'success',
         data: {
           onboardingCompleted: true,
-          preferences: { voiceSlug: 'anna', styles: ['facts'], interestSlugs: ['space'] },
+          preferences: { voiceSlug: 'anna', styles: ['facts'], interestSlugs: ['space'], customInterests: [] },
         },
         error: null,
       }),
@@ -77,7 +77,7 @@ describe('toMeState', () => {
     expect(
       toMeState({
         status: 'error',
-        data: { onboardingCompleted: true, preferences: { voiceSlug: 'anna', styles: ['facts'], interestSlugs: ['space'] } },
+        data: { onboardingCompleted: true, preferences: { voiceSlug: 'anna', styles: ['facts'], interestSlugs: ['space'], customInterests: [] } },
         error: new ApiUnavailableError('network'),
       }),
     ).toEqual(onboarded);

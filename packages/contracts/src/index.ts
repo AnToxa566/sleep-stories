@@ -1,5 +1,6 @@
 export * from './auth';
 export * from './errors';
+export * from './interests';
 export * from './me';
 export * from './onboarding';
 export * from './placeholder-catalog';

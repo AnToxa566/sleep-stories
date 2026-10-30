@@ -1,6 +1,6 @@
 // The ONLY place for user-facing copy (Russian). Screens import from here and never
 // inline a string. Code, comments and identifiers stay in English.
-import type { PlaceholderInterestSlug, PlaceholderVoiceSlug, StoryStyle } from '@sleep-stories/contracts';
+import type { PlaceholderVoiceSlug, StoryStyle } from '@sleep-stories/contracts';
 
 export const strings = {
   common: {
@@ -67,6 +67,11 @@ export const strings = {
       title: 'Что вам интересно',
       subtitle: 'Выберите несколько тем и стилей',
       stylesHeading: 'Стили',
+      customPlaceholder: 'Своя тема',
+      addCustomLabel: 'Добавить тему',
+      removeCustomLabel: 'Убрать тему',
+      loading: 'Загружаем темы',
+      loadFailed: 'Не удалось загрузить темы. Проверьте интернет и попробуйте ещё раз',
     },
     permissions: {
       title: 'Разрешения',
@@ -94,8 +99,8 @@ export const strings = {
 
 type VoiceCopy = { readonly name: string; readonly description: string };
 
-// Placeholder catalog copy. Voices and interests will come from the API later; until
-// then the slugs are the shared PLACEHOLDER_* lists from contracts. `satisfies Record`
+// Placeholder voice copy. Voices will come from the API later; until then the slugs
+// are the shared PLACEHOLDER_VOICE_SLUGS list from contracts. `satisfies Record`
 // makes a missing slug a compile error.
 export const voiceCopy = {
   anna: { name: 'Анна', description: 'тёплый, тихий' },
@@ -103,19 +108,6 @@ export const voiceCopy = {
   vera: { name: 'Вера', description: 'мягкий, почти шёпот' },
   lev: { name: 'Лев', description: 'ровный, спокойный' },
 } as const satisfies Record<PlaceholderVoiceSlug, VoiceCopy>;
-
-export const interestCopy = {
-  history: 'История',
-  space: 'Космос',
-  philosophy: 'Философия',
-  science: 'Наука',
-  myths: 'Мифы',
-  nature: 'Природа',
-  technology: 'Технологии',
-  music: 'Музыка',
-  art: 'Искусство',
-  ocean: 'Океан',
-} as const satisfies Record<PlaceholderInterestSlug, string>;
 
 // Labels and descriptions as drawn in the interests-and-styles design.
 export const styleCopy = {

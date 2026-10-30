@@ -76,7 +76,7 @@ class TestController {
   }
 }
 
-const VALID = { voiceSlug: 'anna', styles: ['facts'], interestSlugs: ['space'] };
+const VALID = { voiceSlug: 'anna', styles: ['facts'], interestSlugs: ['space'], customInterests: [] };
 
 describe('request and response validation', () => {
   let app: INestApplication;

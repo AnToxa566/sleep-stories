@@ -20,7 +20,7 @@ export class MeService {
     // Preferences and interests are read in one snapshot (REPEATABLE READ) so a
     // concurrent PUT cannot show a new voice with the old interests. It costs one
     // transaction round trip per GET.
-    const { preferences, interests } = await this.prisma.$transaction(
+    const { preferences, interests, customInterests } = await this.prisma.$transaction(
       async (tx) => ({
         preferences: await tx.userPreference.findUnique({
           where: { userId },
@@ -30,6 +30,11 @@ export class MeService {
           where: { userId },
           select: { interest: { select: { slug: true } } },
           orderBy: [{ interest: { sortOrder: 'asc' } }, { interest: { slug: 'asc' } }],
+        }),
+        customInterests: await tx.userCustomInterest.findMany({
+          where: { userId },
+          select: { title: true },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         }),
       }),
       { isolationLevel: 'RepeatableRead' },
@@ -44,6 +49,7 @@ export class MeService {
         voiceSlug: preferences.voice.slug,
         styles: inCanonicalOrder(preferences.styles),
         interestSlugs: interests.map((row) => row.interest.slug),
+        customInterests: customInterests.map((row) => row.title),
       },
     };
   }
