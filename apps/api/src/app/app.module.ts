@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { envFilePaths, validateEnv } from './config/env';
+import { GenerationModule } from './generation/generation.module';
 import { InterestsModule } from './interests/interests.module';
 import { MeModule } from './me/me.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -28,6 +29,7 @@ import { VoicesModule } from './voices/voices.module';
     MeModule,
     InterestsModule,
     VoicesModule,
+    GenerationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

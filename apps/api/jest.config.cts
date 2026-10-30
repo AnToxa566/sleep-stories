@@ -21,13 +21,29 @@ module.exports = {
   // jest.integration.config.cts. The mismatch stays.
   // (JSON cannot carry this note: no tsconfig in this repo has comments.)
   //
+  // music-metadata 12 (audio-duration.ts) is ESM-only too, and so are these of its
+  // dependencies (checked on 12.2.1): @borewit/text-codec, content-type, file-type,
+  // media-typer, strtok3, token-types, uint8array-extras, win-guid, @tokenizer/inflate.
+  // content-type and media-typer sit in node_modules/music-metadata/node_modules, so the
+  // negative lookahead is applied after every '/node_modules/' occurrence. `debug` and
+  // @tokenizer/token are CommonJS and must stay out of the list. The list must be
+  // revisited when music-metadata is upgraded.
+  //
   // Production does not use this workaround at all: webpack keeps jose external, so
   // Node itself require()s the ESM-only package, which needs Node 22.12 or later
   // (require(esm) is unflagged from that version). Tests do not prove that path.
-  transformIgnorePatterns: ['/node_modules/(?!jose/)'],
+  transformIgnorePatterns: [
+    '/node_modules/(?!(jose|music-metadata|@borewit/text-codec|content-type|file-type|media-typer|strtok3|token-types|uint8array-extras|win-guid|@tokenizer/inflate)/)',
+  ],
   // Integration specs need the local database; they run through
   // `nx test-integration api` (jest.integration.config.cts), never as unit tests.
   testPathIgnorePatterns: ['/node_modules/', '\\.int-spec\\.ts$'],
+  // Jest resolves music-metadata's package exports with the "types" condition and loads
+  // lib/core.d.ts (no parseBuffer), because its "node" entry only has import and
+  // module-sync. Pointing the name at the Node entry file fixes that for tests only.
+  moduleNameMapper: {
+    '^music-metadata$': '<rootDir>/../../node_modules/music-metadata/lib/index.js',
+  },
   moduleFileExtensions: ['ts', 'js', 'html'],
   coverageDirectory: '../../coverage/apps/api'
 };

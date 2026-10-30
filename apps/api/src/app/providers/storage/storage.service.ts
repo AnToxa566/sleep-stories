@@ -15,10 +15,32 @@ export class StorageSigningError extends Error {
   }
 }
 
+// Thrown for every upload failure, with the same fixed-message rule as above: no path,
+// bucket, URL or key, and the storage error string is dropped.
+export class StorageUploadError extends Error {
+  constructor() {
+    super('Storage upload failed');
+    this.name = 'StorageUploadError';
+  }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The object path of one story's audio in one voice, relative to the audio bucket.
+// Deterministic on purpose: a retried render overwrites the same object instead of
+// leaving a duplicate (ARCHITECTURE.md section 11, item 18). Both ids must be UUIDs, so
+// a value from anywhere else can never add a slash or a `..` to the path. The error
+// message is fixed and does not echo the input.
+export function storyAudioPath(storyId: string, voiceId: string): string {
+  if (!UUID.test(storyId) || !UUID.test(voiceId)) {
+    throw new Error('storyAudioPath requires UUID arguments');
+  }
+  return `stories/${storyId.toLowerCase()}/${voiceId.toLowerCase()}.mp3`;
+}
+
 // The only place in the API that holds the Supabase service-role client (AGENTS.md
 // architecture rule 2). The key bypasses RLS, so this class exposes narrow operations
-// instead of the client. Add operations here (upload for story audio, later) rather
-// than passing the client out.
+// instead of the client. Add operations here rather than passing the client out.
 @Injectable()
 export class StorageService {
   private readonly client: SupabaseClient;
@@ -72,6 +94,20 @@ export class StorageService {
       }
       return this.withPublicOrigin(url);
     });
+  }
+
+  // Stores story audio at `path` (relative to the audio bucket). upsert is on so that a
+  // retried render overwrites the same object; it costs that two writers to one path
+  // silently win in turn, which cannot happen here because the path is per story and voice
+  // and a story is rendered by one task at a time. The bytes are held in memory, which
+  // is fine for a single story (a few MB). Any failure becomes a StorageUploadError.
+  async uploadAudio(path: string, bytes: Buffer, mimeType: string): Promise<void> {
+    const { error } = await this.client.storage
+      .from(this.bucket)
+      .upload(path, bytes, { contentType: mimeType, upsert: true });
+    if (error !== null) {
+      throw new StorageUploadError();
+    }
   }
 
   // Replaces protocol, host and port, keeps path and query. A URL that does not parse

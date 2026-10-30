@@ -184,6 +184,22 @@ export const envSchema = z
     SUPABASE_SERVICE_ROLE_KEY: z
       .string({ error: 'SUPABASE_SERVICE_ROLE_KEY is required' })
       .min(1, 'SUPABASE_SERVICE_ROLE_KEY must not be empty'),
+    // Provider keys cost money per call and live only in the adapters (SECURITY.md rule 1).
+    // Required, so a missing key crashes the boot instead of the first paid call; the
+    // messages never include the value, and the key is not shape-checked (formats change).
+    ANTHROPIC_API_KEY: z
+      .string({ error: 'ANTHROPIC_API_KEY is required' })
+      .min(1, 'ANTHROPIC_API_KEY must not be empty'),
+    ELEVENLABS_API_KEY: z
+      .string({ error: 'ELEVENLABS_API_KEY is required' })
+      .min(1, 'ELEVENLABS_API_KEY must not be empty'),
+    // Model ids are configuration, not code: a model is retired or replaced without a
+    // release. Costs a typo only failing at the first call (the adapter maps it to a
+    // non-retryable error). The Anthropic default is a member of the SDK's Model type.
+    // The ElevenLabs default is the owner's choice; the package types do not list it for
+    // text-to-speech, but the paid smoke test passed with it (owner, 2026-10-30).
+    ANTHROPIC_MODEL: z.string().min(1, 'ANTHROPIC_MODEL must not be empty').default('claude-haiku-5-5'),
+    ELEVENLABS_MODEL: z.string().min(1, 'ELEVENLABS_MODEL must not be empty').default('eleven_v4'),
     // The one private bucket for all audio (voice samples now, story audio later under stories/).
     // Database paths are relative to it, so only this value changes between environments.
     AUDIO_BUCKET: z

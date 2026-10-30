@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { createClient } from '@supabase/supabase-js';
 import type { Env } from '../../config/env';
-import { StorageService, StorageSigningError } from './storage.service';
+import { StorageService, StorageSigningError, StorageUploadError, storyAudioPath } from './storage.service';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn() }));
 
@@ -12,16 +12,21 @@ const BUCKET = 'bucket-under-test';
 
 type Item = { error: string | null; path: string | null; signedUrl: string | null };
 
-function makeService(result: { data: Item[] | null; error: unknown }, publicUrl?: string) {
+function makeService(
+  result: { data: Item[] | null; error: unknown },
+  publicUrl?: string,
+  uploadResult: { data: unknown; error: unknown } = { data: { path: 'x' }, error: null },
+) {
   const createSignedUrls = jest.fn(async () => result);
-  const from = jest.fn(() => ({ createSignedUrls }));
+  const upload = jest.fn<Promise<typeof uploadResult>, [string, Buffer, object]>(async () => uploadResult);
+  const from = jest.fn(() => ({ createSignedUrls, upload }));
   (createClient as jest.Mock).mockReturnValue({ storage: { from } });
   const values: Record<string, string> = { SUPABASE_URL: URL_VALUE, SUPABASE_SERVICE_ROLE_KEY: KEY, AUDIO_BUCKET: BUCKET };
   if (publicUrl !== undefined) {
     values['STORAGE_PUBLIC_URL'] = publicUrl;
   }
   const config = { get: (name: string) => values[name] } as unknown as ConfigService<Env, true>;
-  return { service: new StorageService(config), createSignedUrls, from };
+  return { service: new StorageService(config), createSignedUrls, from, upload };
 }
 
 const ok = (path: string): Item => ({ error: null, path, signedUrl: `${URL_VALUE}/storage/v1/object/sign/${BUCKET}/${path}?token=t` });
@@ -112,5 +117,61 @@ describe('StorageService.signMany with STORAGE_PUBLIC_URL', () => {
     expect(failure).toBeInstanceOf(StorageSigningError);
     expect((failure as Error).message).toBe('Storage signing failed');
     expect(`${(failure as Error).message} ${(failure as Error).stack ?? ''}`).not.toContain(KEY);
+  });
+});
+
+describe('StorageService.uploadAudio', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('uploads the bytes to the configured bucket with the content type and upsert on', async () => {
+    const { service, from, upload } = makeService({ data: [], error: null });
+    const bytes = Buffer.from([1, 2, 3]);
+    await expect(service.uploadAudio('stories/a/b.mp3', bytes, 'audio/mpeg')).resolves.toBeUndefined();
+    expect(from).toHaveBeenCalledWith(BUCKET);
+    expect(upload).toHaveBeenCalledWith('stories/a/b.mp3', bytes, { contentType: 'audio/mpeg', upsert: true });
+  });
+
+  it('fails with a generic error that carries no secret, URL, bucket, path or storage text', async () => {
+    const { service } = makeService({ data: [], error: null }, undefined, {
+      data: null,
+      error: { message: `leaks ${KEY} ${URL_VALUE} Bucket not found` },
+    });
+    const failure = await service.uploadAudio('stories/secret-path.mp3', Buffer.from([1]), 'audio/mpeg').then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(StorageUploadError);
+    const text = `${(failure as Error).message} ${(failure as Error).stack ?? ''}`;
+    for (const secret of [KEY, URL_VALUE, BUCKET, 'secret-path', 'Bucket not found']) {
+      expect(text).not.toContain(secret);
+    }
+    expect((failure as Error).message).toBe('Storage upload failed');
+  });
+});
+
+describe('storyAudioPath', () => {
+  const STORY = '3f2b8c1e-5a47-4d9e-9b6a-1c2d3e4f5a6b';
+  const VOICE = 'A1B2C3D4-0000-4000-8000-000000000001';
+
+  it('builds a deterministic path from the two ids, lower-cased', () => {
+    expect(storyAudioPath(STORY, VOICE)).toBe(`stories/${STORY}/a1b2c3d4-0000-4000-8000-000000000001.mp3`);
+    expect(storyAudioPath(STORY, VOICE)).toBe(storyAudioPath(STORY, VOICE));
+  });
+
+  it.each([
+    ['', VOICE],
+    ['not-a-uuid', VOICE],
+    [STORY, ''],
+    [`${STORY}/../x`, VOICE],
+    [STORY, `${VOICE}.mp3`],
+    [`../${STORY.slice(3)}`, VOICE],
+    [`${STORY}\n`, VOICE],
+  ])('throws for the invalid ids (%j, %j) without echoing them', (story, voice) => {
+    expect(() => storyAudioPath(story, voice)).toThrow('storyAudioPath requires UUID arguments');
+    try {
+      storyAudioPath(story, voice);
+    } catch (error) {
+      expect((error as Error).message).not.toContain('..');
+    }
   });
 });

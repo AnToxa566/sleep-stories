@@ -3,19 +3,27 @@ import { isLoopbackDatabaseUrl, postgresUrlSchema, validateEnv as validateEnvRaw
 const PASSWORD = 'distinctive-pw-7f3a9';
 const LOCAL_URL = `postgresql://postgres:${PASSWORD}@127.0.0.1:54322/postgres`;
 const REMOTE_URL = `postgresql://postgres:${PASSWORD}@db.example.com:5432/postgres`;
+const ANTHROPIC_KEY = 'fake-anthropic-key-for-unit-tests';
+const ELEVENLABS_KEY = 'fake-elevenlabs-key-for-unit-tests';
 
 // Everything that must never appear in an error message: the URL, the password,
 // the remote host and the values of the other variables used in these tests. The
 // loopback address itself is not listed because the fixed messages name it as
 // the allowed value.
-const SECRETS = [PASSWORD, LOCAL_URL, REMOTE_URL, 'db.example.com', 'sentinel-value'];
+const SECRETS = [PASSWORD, LOCAL_URL, REMOTE_URL, 'db.example.com', 'sentinel-value', ANTHROPIC_KEY, ELEVENLABS_KEY];
 
 // Every config needs a valid SUPABASE_URL and a service-role key; individual tests override them.
 // The key here is a fake value that exists only in this file.
 const SUPABASE_URL = 'http://127.0.0.1:54321';
 const SERVICE_ROLE_KEY = 'fake-service-role-key-for-unit-tests';
 function validateEnv(config: Record<string, unknown>) {
-  return validateEnvRaw({ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY, ...config });
+  return validateEnvRaw({
+    SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
+    ANTHROPIC_API_KEY: ANTHROPIC_KEY,
+    ELEVENLABS_API_KEY: ELEVENLABS_KEY,
+    ...config,
+  });
 }
 
 function failureMessage(config: Record<string, unknown>): string {
@@ -48,6 +56,39 @@ describe('validateEnv', () => {
 
     it('never echoes the key when another variable is invalid', () => {
       expect(failureMessage({ DATABASE_URL: 'nope' })).not.toContain(SERVICE_ROLE_KEY);
+    });
+  });
+
+  describe.each([
+    ['ANTHROPIC_API_KEY', ANTHROPIC_KEY],
+    ['ELEVENLABS_API_KEY', ELEVENLABS_KEY],
+  ])('%s', (name, key) => {
+    it('accepts a non-empty value', () => {
+      expect(validateEnv({ DATABASE_URL: REMOTE_URL })[name as 'ANTHROPIC_API_KEY' | 'ELEVENLABS_API_KEY']).toBe(key);
+    });
+
+    it('rejects a missing or empty value', () => {
+      expect(failureMessage({ [name]: undefined, DATABASE_URL: REMOTE_URL })).toContain(`${name} is required`);
+      expect(failureMessage({ [name]: '', DATABASE_URL: REMOTE_URL })).toContain(`${name} must not be empty`);
+    });
+
+    it('never echoes the key when another variable is invalid', () => {
+      expect(failureMessage({ DATABASE_URL: 'nope' })).not.toContain(key);
+    });
+  });
+
+  describe('ANTHROPIC_MODEL and ELEVENLABS_MODEL', () => {
+    it('default to the documented ids', () => {
+      const env = validateEnv({ DATABASE_URL: REMOTE_URL });
+      expect(env.ANTHROPIC_MODEL).toBe('claude-haiku-5-5');
+      expect(env.ELEVENLABS_MODEL).toBe('eleven_v4');
+    });
+
+    it('accept an override and reject an empty value', () => {
+      const env = validateEnv({ DATABASE_URL: REMOTE_URL, ANTHROPIC_MODEL: 'm-a', ELEVENLABS_MODEL: 'm-b' });
+      expect([env.ANTHROPIC_MODEL, env.ELEVENLABS_MODEL]).toEqual(['m-a', 'm-b']);
+      expect(failureMessage({ DATABASE_URL: REMOTE_URL, ANTHROPIC_MODEL: '' })).toContain('ANTHROPIC_MODEL must not be empty');
+      expect(failureMessage({ DATABASE_URL: REMOTE_URL, ELEVENLABS_MODEL: '' })).toContain('ELEVENLABS_MODEL must not be empty');
     });
   });
 
