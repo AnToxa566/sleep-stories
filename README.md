@@ -2,7 +2,7 @@
 
 A bedtime app that plays a queue of short, AI-generated stories and lectures in a calm Russian-language voice, so you can fall asleep to something quietly interesting and never have to pick up the phone to keep it going.
 
-> **Status: early bootstrap.** The workspace contains a NestJS "Hello API" and the default Expo screen. They are not connected to each other yet. See [Current state](#current-state).
+> **Status: early development.** Sign-up, sign-in and onboarding work end to end against a local Supabase stack; the player, story generation and deployment do not exist yet. See [Current state](#current-state).
 
 ## Why it exists
 
@@ -40,7 +40,7 @@ Every choice, with its reasoning and cost, is in [ARCHITECTURE.md](ARCHITECTURE.
 ```
 apps/api              NestJS API (deployed to Cloud Run)
 apps/mobile           Expo (React Native) app
-packages/contracts    Planned: Zod schemas shared by both apps
+packages/contracts    Zod schemas shared by both apps (@sleep-stories/contracts)
 .claude/              Subagents and the /feature command (see AGENTS.md)
 ```
 
@@ -51,8 +51,16 @@ Developed on Node.js 22 with npm. Running on an iOS simulator needs Xcode (macOS
 ```sh
 npm install
 
-# API database settings: copy apps/api/.env.example to apps/api/.env and fill it in
-# (DATABASE_URL for the running API, DIRECT_URL for the Prisma CLI). The file is git-ignored.
+# API database settings: copy apps/api/.env.example to apps/api/.env. The local block is active by default;
+# the cloud lines stay commented out. The file is git-ignored.
+
+# Local database: needs Docker. Starts Supabase (Postgres, Auth) in containers, then applies the schema.
+# The Supabase CLI is installed by npm install.
+npx nx supabase-start api
+npx nx prisma-migrate-deploy api
+
+# Placeholder voices and interests (needed by onboarding)
+npx nx prisma-seed api
 
 # API: http://localhost:3000/api responds with {"message":"Hello API"}
 npx nx serve api
@@ -67,9 +75,12 @@ npx nx prisma-migrate-status api
 npx nx start mobile        # Metro bundler with a QR code for Expo Go
 npx nx run-ios mobile      # iOS simulator
 npx nx run-android mobile  # Android emulator
+
+# Last: stop the local stack after work. Its ports (54321 to 54324) are open on all network interfaces.
+npx nx supabase-stop api
 ```
 
-Expo Go is enough for the current default screen only. Background audio, MMKV, local speech recognition and the Do Not Disturb module need native code, so a development build (EAS Build) is required as soon as the player work starts.
+Expo Go (the build for Expo SDK 57, from expo.dev/go) is enough for the current screens (sign-up, sign-in, onboarding, a placeholder Home). Copy apps/mobile/.env.example to apps/mobile/.env first and use the Mac's LAN address for the API and Supabase URLs. Background audio, MMKV, local speech recognition and the Do Not Disturb module need native code, so a development build (EAS Build) is required as soon as the player work starts.
 
 ## Documentation
 
@@ -85,10 +96,10 @@ Non-trivial changes go through a four-role cycle defined in `.claude/`: a read-o
 
 ## Current state
 
-- `apps/api`: NestJS app that returns `{"message":"Hello API"}` at `/api`. It connects to Supabase Postgres through Prisma 7 and checks the connection at boot; the environment is validated and a missing `DATABASE_URL` stops the process. The 14-table schema and first migration are in `apps/api/prisma`.
-- `apps/mobile`: Expo app showing the default screen.
-- Not connected to each other. No auth, no shared package, no deployment, no seed data.
-- The Nx workspace was generated with the default `@org` package scope, which has not been renamed yet.
+- `apps/api`: NestJS app with Supabase JWT verification, `GET /api/me` and `PUT /api/me/onboarding`, on Prisma 7. The 14-table schema, migrations and a placeholder seed are in `apps/api/prisma`.
+- `apps/mobile`: Expo Router app with email sign-up and sign-in (the session survives a restart), a three-step onboarding and a placeholder Home with logout.
+- `packages/contracts`: the shared Zod schemas.
+- Not done: password reset, email confirmation, Apple and Google sign-in, audio, story generation, deployment, CI.
 
 ---
 
