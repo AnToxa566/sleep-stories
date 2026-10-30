@@ -3,7 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/api/src",
   "projectType": "application",
-  "tags": [],
+  "tags": ["scope:api"],
   "targets": {
     "prune-lockfile": {
       "dependsOn": [
@@ -67,6 +67,17 @@
         "prisma-generate"
       ]
     },
+    "test-integration": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "jest --config jest.integration.config.cts",
+        "cwd": "apps/api"
+      },
+      "cache": false,
+      "dependsOn": [
+        "prisma-generate"
+      ]
+    },
     "prisma-generate": {
       "executor": "nx:run-commands",
       "options": {
@@ -109,6 +120,40 @@
         "cwd": "apps/api"
       }
     },
+    "prisma-seed": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma db seed",
+        "cwd": "apps/api"
+      },
+      "dependsOn": [
+        "prisma-generate"
+      ]
+    },
+    "supabase-start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "supabase start",
+        "cwd": "apps/api"
+      },
+      "cache": false
+    },
+    "supabase-stop": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "supabase stop",
+        "cwd": "apps/api"
+      },
+      "cache": false
+    },
+    "supabase-status": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "supabase status",
+        "cwd": "apps/api"
+      },
+      "cache": false
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
@@ -133,6 +178,8 @@
             "@prisma/adapter-pg",
             "pg",
             "@nestjs/config",
+            "nestjs-zod",
+            "jose",
             "zod",
             "@types/jest"
           ]

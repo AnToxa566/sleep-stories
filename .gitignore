@@ -73,3 +73,6 @@ cache/
 
 # Claude Design export: the source of truth for screen designs. Kept locally by the owner, not in the repository.
 /design/
+
+# Local Supabase JWT signing key, if it is ever generated (supabase gen signing-key); never commit it
+/apps/api/supabase/signing_keys.json
