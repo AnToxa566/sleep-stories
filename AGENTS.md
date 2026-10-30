@@ -51,7 +51,7 @@ This is the target layout. Create folders when first needed, not before.
 | Cloud Tasks and Scheduler handlers | `apps/api/src/app/internal` |
 | Prompts | `apps/api/src/app/generation/prompts` |
 | Zod schemas and shared types | `packages/contracts/src` |
-| Subagents and the `/feature` command | `.claude/agents`, `.claude/commands` |
+| Subagents, the `/feature` command and the agent brief | `.claude/agents`, `.claude/commands`, `.claude/agent-brief.md` |
 | Screen designs from Claude Design (git-ignored, local only; the source of truth for every screen) | `design/` |
 
 ## Conventions
@@ -110,14 +110,28 @@ Database setup: local is the default. Start the stack with `npx nx supabase-star
 
 ## The development cycle
 
-Non-trivial work runs through four subagents in `.claude/agents/`, driven by the `/feature` command:
+Non-trivial work runs through subagents in `.claude/agents/`, driven by the `/feature` command. Tokens are scarce (100k tokens is about 10% of the owner's five-hour limit), so the cycle has three modes and hard limits:
 
-1. `planner` (read-only) returns a plan. A person approves it before any file is touched.
-2. `executor` (the only agent that writes) implements one step at a time and runs the verification command after each.
-3. `reviewer` (read-only, fresh context) reviews the diff and ends with `VERDICT: APPROVED` or `VERDICT: CHANGES_REQUESTED`.
-4. `architect` (read-only, fresh context) checks structural fit after the reviewer approves, with the same verdict format.
+- `lite`: `planner`, `executor`, one final check pass. No review. For UI, copy, small screens, config.
+- `standard` (default): the same, plus ONE scoped `reviewer` pass at the end, on the risky files only. For most features.
+- `full`: standard plus an `architect` sign-off. For a new module or table, a new dependency, a boundary change, or work centred on auth, keys or data access. Planner and reviewer run on Opus here, on Sonnet otherwise.
 
-A person makes the commit. Small changes (a typo, a one-line config edit, a rename) skip the cycle.
+How it runs:
+
+1. `planner` (read-only) returns a one-screen plan with a risk tier per step, the checks, the flags and a mode recommendation with a rough token cost. A person approves it before any file is touched.
+2. `executor` (the only agent that writes) implements one step at a time with a fast check after each (typecheck and the unit test of what changed), and runs the full pass (lint, typecheck, test, plus build and integration tests when the API changed) once, at the end. Steps marked independent may run in parallel in the same working tree, in separate directories (no git worktrees: they lack `node_modules` and the git-ignored env files).
+3. `reviewer` (read-only, fresh context) reads the listed files only, runs no `nx`, reports at most 8 findings and ends with `VERDICT: APPROVED` or `VERDICT: CHANGES_REQUESTED`. At most two rounds; the second looks only at the fixes.
+4. `architect` (read-only, full mode only) checks structural fit once, with the same verdict format. No loop.
+5. The final report carries a token table (one row per subagent run) so the cost of the cycle is visible.
+
+Every agent starts from `.claude/agent-brief.md`: the rules in one line each, a map of ARCHITECTURE.md by section, and the output rules below. It replaces reading AGENTS.md, ARCHITECTURE.md and SECURITY.md whole (about 22k tokens). When a rule here changes, change the matching line in the brief. A person makes the commit. Small changes (a typo, a one-line config edit, a rename) skip the cycle.
+
+### Output discipline (for every agent and for the main session)
+
+- Never print a whole file, a long log or a whole diff. Use `grep`, `sed -n`, `head`, `tail`, `git diff --stat`.
+- Filter Nx output to its result lines. Do not add `--skip-nx-cache` unless a cached result is suspect.
+- Run the full check pass once at the end of a feature, not after every step.
+- A native Expo module's behaviour is checked against its native source as well as its types (the `expo-crypto` case, ARCHITECTURE.md section 8).
 
 Many tools write their own managed block into this file. Write above it, never inside it, and never remove the markers.
 
