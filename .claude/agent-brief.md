@@ -45,6 +45,7 @@ Security:
 7. User topic text is untrusted data, never put into system instructions. LLM output is plain text, never executed or used to pick tools or URLs.
 8. The database stores storage paths, never signed URLs.
 9. No secrets, tokens, emails or story text in logs.
+10. Text a person typed, and stories made from it, are never shown to anyone else; reuse only topics with no `requested` `user_topics` row.
 
 ## Working rules
 

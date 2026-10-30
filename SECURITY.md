@@ -25,6 +25,7 @@ Nothing is deployed yet. The only secrets are the cloud development database con
 | The client talks to the database directly with its publishable key | Data exposure | RLS is enabled on every table with no policies, so client roles get nothing; all data goes through the API | Planned |
 | Forged calls to `/internal/*` endpoints | Free generation at the owner's expense | Every internal endpoint verifies a Google OIDC token (expected audience and service account); a user JWT is not accepted there | Planned |
 | Spamming generation to run up the bill | Cost abuse | Per-user limits checked before any provider call, queue-level rate and concurrency caps, `@nestjs/throttler`, spending caps in the vendor accounts | Open: no quota design yet |
+| A story made from one person's typed text is shown to another person | Leak of personal text, or of anything hostile that was typed | Reuse of stories between people (ARCHITECTURE.md, section 6) takes only topics proposed by the system, never one with a `requested` `user_topics` row (rule 10); a custom interest is used only for its own person's topic list | Planned: no code yet |
 | Prompt injection through custom topics | Odd or unsafe story content | Topic text is untrusted data, passed as delimited user content and never mixed into system instructions; no secrets appear in prompts; model output is plain text and is never executed or used to pick tools or URLs | Planned |
 | Microphone audio is uploaded or stored | Severe privacy breach | Detection and recognition are local; nothing on the audio path makes a network call; nothing is recorded to disk beyond what local recognition needs in memory. If the microphone is reopened: `expo-audio` can only meter by recording to a file (the cache directory by default), so that file must be deleted as soon as recording stops and must not be backed up | Not applicable while the microphone is unused |
 | Signed URLs leak or are reused | Unauthorised file access | Private bucket; URLs are short-lived and created per request; the database stores object paths only | Planned |
@@ -49,6 +50,7 @@ These are non-negotiable and are copied verbatim into the executor agent.
 7. User-written topic text is untrusted data. It is never concatenated into system instructions. LLM output is treated as plain text and is never executed or used to choose tools, URLs or code paths.
 8. The database stores storage object paths, never signed URLs. Signed URLs are short-lived and created per request.
 9. No secrets, tokens, email addresses or story text in logs.
+10. Text a person typed (a requested topic, a custom interest) and everything generated from it is never shown to anyone else. Stories are reused between people only when their topic was proposed by the system: no `user_topics` row for it has the reason `requested`. A custom interest is never put into another person's prompt.
 
 ## Current state
 
