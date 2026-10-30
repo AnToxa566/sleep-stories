@@ -25,11 +25,30 @@ export default [
                     allow: [
                         "^.*/eslint(\\.base)?\\.config\\.[cm]?[jt]s$"
                     ],
+                    // ARCHITECTURE.md section 3. The apps import only the shared
+                    // contracts and never each other (tag constraints).
+                    // allowedExternalImports whitelists the npm packages that
+                    // scope:shared may import (zod). It does not see Node
+                    // built-ins such as "fs" or "node:crypto"; those are blocked
+                    // by no-restricted-imports in packages/contracts/eslint.config.mjs.
                     depConstraints: [
                         {
-                            sourceTag: "*",
+                            sourceTag: "scope:mobile",
                             onlyDependOnLibsWithTags: [
-                                "*"
+                                "scope:shared"
+                            ]
+                        },
+                        {
+                            sourceTag: "scope:api",
+                            onlyDependOnLibsWithTags: [
+                                "scope:shared"
+                            ]
+                        },
+                        {
+                            sourceTag: "scope:shared",
+                            onlyDependOnLibsWithTags: [],
+                            allowedExternalImports: [
+                                "zod"
                             ]
                         }
                     ]
