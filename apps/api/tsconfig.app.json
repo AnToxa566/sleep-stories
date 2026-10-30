@@ -17,7 +17,10 @@
   "exclude": [
     "jest.config.ts",
     "jest.config.cts",
+    "jest.integration.config.cts",
     "src/**/*.spec.ts",
-    "src/**/*.test.ts"
+    "src/**/*.int-spec.ts",
+    "src/**/*.test.ts",
+    "src/test-support/**/*.ts"
   ]
 }

@@ -3,13 +3,19 @@
   "compilerOptions": {
     "outDir": "../../dist/out-tsc",
     "module": "commonjs",
-    "moduleResolution": "bundler","types": ["jest", "node"]
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "target": "es2022",
+    "types": ["jest", "node"]
   },
   "include": [
     "jest.config.ts",
     "jest.config.cts",
+    "jest.integration.config.cts",
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
+    "src/**/*.int-spec.ts",
+    "src/test-support/**/*.ts",
     "src/**/*.d.ts"
   ]
 }
