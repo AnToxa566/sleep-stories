@@ -1,14 +1,15 @@
+import { useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useInterests, useMe } from '../../api/queries';
-import { EmptyQueue } from '../../features/today/EmptyQueue';
-import { HintSheet } from '../../features/today/HintSheet';
-import { ItemMenuSheet } from '../../features/today/ItemMenuSheet';
-import { captionInterests } from '../../features/today/interest-caption';
-import { deriveMainButton } from '../../features/today/main-button';
-import { isNothingToCollect } from '../../features/today/queue-cache';
-import { titleOf } from '../../features/today/queue-edit';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useInterests, useMe } from '../../../api/queries';
+import { EmptyQueue } from '../../../features/today/EmptyQueue';
+import { HintSheet } from '../../../features/today/HintSheet';
+import { ItemMenuSheet } from '../../../features/today/ItemMenuSheet';
+import { captionInterests } from '../../../features/today/interest-caption';
+import { deriveMainButton } from '../../../features/today/main-button';
+import { isNothingToCollect } from '../../../features/today/queue-cache';
+import { titleOf } from '../../../features/today/queue-edit';
 import {
   useAnotherStory,
   useCollectQueue,
@@ -17,24 +18,25 @@ import {
   useQueue,
   useRemoveQueueItem,
   useReorderQueue,
-} from '../../features/today/queue-queries';
-import { QueueList } from '../../features/today/QueueList';
-import { deriveHintText, deriveMenu, type MenuView } from '../../features/today/rows';
-import { TodayMainButton } from '../../features/today/TodayMainButton';
-import { useCollectingProgress } from '../../features/today/use-collecting-progress';
-import { useCreatingProgress } from '../../features/today/use-creating-progress';
-import { strings } from '../../strings';
-import { colors, spacing, typeSizes } from '../../theme/tokens';
-import { BOTTOM_NAV_HEIGHT, BottomNav } from '../../ui/BottomNav';
-import { Icon } from '../../ui/icons';
-import { NightBackground } from '../../ui/NightBackground';
-import { SecondaryButton } from '../../ui/SecondaryButton';
-import { showToast } from '../../ui/toast-store';
-import { ToastHost } from '../../ui/ToastHost';
+} from '../../../features/today/queue-queries';
+import { QueueList } from '../../../features/today/QueueList';
+import { deriveHintText, deriveMenu, type MenuView } from '../../../features/today/rows';
+import { TodayMainButton } from '../../../features/today/TodayMainButton';
+import { useCollectingProgress } from '../../../features/today/use-collecting-progress';
+import { useCreatingProgress } from '../../../features/today/use-creating-progress';
+import { strings } from '../../../strings';
+import { colors, spacing, typeSizes } from '../../../theme/tokens';
+import { Icon } from '../../../ui/icons';
+import { NightBackground } from '../../../ui/NightBackground';
+import { SecondaryButton } from '../../../ui/SecondaryButton';
+import { SkeletonRows } from '../../../ui/SkeletonRows';
+import { showToast } from '../../../ui/toast-store';
+import { ToastHost } from '../../../ui/ToastHost';
 
 // The screen «Сегодня» (design frames 2a to 2a·14): greeting, the main button with its caption,
-// the night queue (reorder by handle, swipe to remove, item menu), the empty states, toasts and
-// the bottom bar.
+// the night queue (reorder by handle, swipe to remove, item menu), the empty states and toasts.
+// A tab of the tabs navigator: the bottom bar belongs to the layout, not to this screen, and the
+// screen stays mounted while «Темы» is open (so its toasts show only while it is focused).
 //
 // MONEY (AGENTS.md architecture rule 10): `generateAll` and `generateOne` are called only from
 // press handlers below: the main button («Создать и начать»), «Создать сейчас» in the item menu
@@ -42,10 +44,14 @@ import { ToastHost } from '../../ui/ToastHost';
 
 const showErrorToast = (message: string) => showToast({ label: message });
 
+// Distance from the bottom edge of a toast to the bottom bar.
+const TOAST_GAP = 16;
+
 type MenuSnapshot = { readonly itemId: string; readonly view: MenuView };
 
 export default function Home() {
-  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const focused = useIsFocused();
   const queue = useQueue();
   const data = queue.data;
   const items = data?.items;
@@ -150,6 +156,15 @@ export default function Home() {
   const removeById = useCallback((itemId: string) => removeMutate(itemId), [removeMutate]);
   const reorderIds = useCallback((ids: string[]) => reorderMutate(ids), [reorderMutate]);
 
+  // Navigation only: none of these creates a story or spends a generation.
+  // `navigate`, not `push`: «Темы» is a tab, so it is switched to, never stacked. «Добавить»
+  // leaves the filter of «Темы» as it was; «готовые истории» asks for «Готовые» through `ready`.
+  const openTopics = useCallback(() => router.navigate('/topics'), [router]);
+  const openReadyTopics = useCallback(
+    () => router.navigate({ pathname: '/topics', params: { ready: '1' } }),
+    [router],
+  );
+
   const menuItemId = menuSnapshot?.itemId ?? null;
   const onMenuCreateNow = () => {
     setMenuOpen(false);
@@ -158,6 +173,10 @@ export default function Home() {
   const onMenuAnother = () => {
     setMenuOpen(false);
     if (menuItemId !== null) anotherMutate(menuItemId);
+  };
+  const onMenuChooseFromTopics = () => {
+    setMenuOpen(false);
+    if (menuItemId !== null) router.push({ pathname: '/replace', params: { itemId: menuItemId } });
   };
   const onMenuRemove = () => {
     setMenuOpen(false);
@@ -173,7 +192,6 @@ export default function Home() {
     });
   };
 
-  const bottomInset = BOTTOM_NAV_HEIGHT + insets.bottom;
   const hasItems = (items?.length ?? 0) > 0;
 
   const header = (
@@ -185,9 +203,10 @@ export default function Home() {
           progress={progress}
           busy={generateAll.isPending}
           onPress={onMainPress}
+          onOpenReady={openReadyTopics}
         />
       ) : null}
-      {hasItems ? <QueueTitle /> : null}
+      {hasItems ? <QueueTitle onAdd={openTopics} /> : null}
     </View>
   );
 
@@ -206,10 +225,11 @@ export default function Home() {
                 caption={emptyCaption}
                 collectBusy={collect.isPending}
                 onCollect={onCollectPress}
+                onChoose={openTopics}
               />
             }
             footer={null}
-            bottomPadding={bottomInset + spacing.lg}
+            bottomPadding={spacing.lg}
             onReorder={reorderIds}
             onOpenMenu={openMenu}
             onOpenHint={openHint}
@@ -217,23 +237,25 @@ export default function Home() {
             onRemove={removeById}
           />
         ) : (
-          <View style={[styles.plain, { paddingBottom: bottomInset + spacing.lg }]}>
+          <View style={styles.plain}>
             <Greeting />
             {queue.isError ? (
               <LoadFailed onRetry={() => void queue.refetch()} />
             ) : (
-              <ActivityIndicator color={colors.muted} style={styles.spinner} />
+              <View style={styles.skeletons}>
+                <SkeletonRows count={3} />
+              </View>
             )}
           </View>
         )}
       </SafeAreaView>
-      <BottomNav />
       <ItemMenuSheet
         visible={menuOpen}
         onClose={closeMenu}
         menu={menuView}
         onCreateNow={onMenuCreateNow}
         onAnother={onMenuAnother}
+        onChooseFromTopics={onMenuChooseFromTopics}
         onRemove={onMenuRemove}
       />
       <HintSheet
@@ -241,7 +263,7 @@ export default function Home() {
         onClose={closeHint}
         text={data ? deriveHintText(data.generations) : ''}
       />
-      <ToastHost bottomOffset={bottomInset + 16} />
+      {focused ? <ToastHost bottomOffset={TOAST_GAP} /> : null}
     </View>
   );
 }
@@ -257,9 +279,8 @@ function Greeting() {
   );
 }
 
-// «Очередь на ночь» and «Добавить». Adding is not built (the topics screen), so the control is
-// drawn dimmed and cannot be pressed, as the inactive tabs of the bottom bar are.
-function QueueTitle() {
+// «Очередь на ночь» and «Добавить», which opens the topics screen.
+function QueueTitle({ onAdd }: { onAdd: () => void }) {
   return (
     <View style={styles.queueTitleWrap}>
       <View style={styles.queueTitle}>
@@ -267,8 +288,7 @@ function QueueTitle() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={strings.today.queue.add}
-          accessibilityState={{ disabled: true }}
-          disabled
+          onPress={onAdd}
           style={styles.add}
         >
           <Icon name="plus" size={16} color={colors.accent} />
@@ -294,7 +314,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   safe: { flex: 1 },
   plain: { flex: 1, paddingHorizontal: spacing.xxl },
-  spinner: { marginTop: spacing.huge },
+  skeletons: { marginTop: 34 },
   eyebrow: {
     marginTop: 34,
     color: colors.accent,
@@ -324,7 +344,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontWeight: '500',
   },
-  add: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, opacity: 0.45 },
+  add: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 6 },
   addLabel: { color: colors.textSoft, fontSize: typeSizes.small },
   rule: { height: 1, backgroundColor: colors.hairline },
   failed: { marginTop: 34, gap: 12 },

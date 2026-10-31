@@ -94,7 +94,7 @@ export interface MenuView {
   // осталось», when none are left. Active only starts ONE explicit generation (rule 10).
   readonly createNow: MenuEntry | null;
   readonly another: MenuEntry;
-  // Inert for now: the topic picker is not built.
+  // Opens the replace screen for the item.
   readonly chooseFromTopics: MenuEntry;
   readonly remove: MenuEntry;
 }
@@ -118,7 +118,7 @@ export function deriveMenu(item: QueueItem, index: number, generations: Generati
     meta: `${row.styleLabel} · ${row.statusText}`,
     createNow,
     another: { label: copy.another, detail: copy.anotherHint, enabled: true },
-    chooseFromTopics: { label: copy.chooseFromTopics, detail: null, enabled: false },
+    chooseFromTopics: { label: copy.chooseFromTopics, detail: null, enabled: true },
     remove: { label: copy.remove, detail: null, enabled: true },
   };
 }

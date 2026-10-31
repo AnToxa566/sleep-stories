@@ -5,7 +5,7 @@ import { Icon, type IconName } from './icons';
 import { TOAST_DURATION_MS, useToastStore, type Toast, type ToastKind } from './toast-store';
 
 type Props = {
-  // Distance from the bottom edge of the host to the toast: the height of the bottom bar.
+  // Distance from the bottom edge of the host (the screen, which ends at the bottom bar) to the toast.
   bottomOffset: number;
 };
 

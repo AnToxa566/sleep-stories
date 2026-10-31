@@ -5,7 +5,7 @@ import { colors, radii, sizes, typeSizes } from '../../theme/tokens';
 import { Icon } from '../../ui/icons';
 import { PrimaryButton } from '../../ui/PrimaryButton';
 import { SecondaryButton } from '../../ui/SecondaryButton';
-import { formatPosition } from './plural';
+import { SkeletonRows } from '../../ui/SkeletonRows';
 
 type Props = {
   // The server says a topic suggestion is running (`collecting` in the queue answer).
@@ -17,19 +17,23 @@ type Props = {
   // True while the request of «Собрать подборку» is in flight.
   collectBusy: boolean;
   onCollect: () => void;
+  // «Выбрать истории»: opens the topics screen.
+  onChoose: () => void;
 };
 
 const SKELETON_ROW_COUNT = 3;
-const SKELETON_WIDTHS = ['72%', '58%', '66%'] as const;
-
-// Does nothing: the topics screen behind «Выбрать истории» is not built. Like the other add
-// buttons of «Сегодня» it is drawn and stays inert.
-const noop = () => undefined;
 
 // The empty queue (design frames 2a·12 to 2a·14). Idle: «Собрать подборку» (the one primary
-// action; it asks the server for a topic suggestion, no story is generated) and the inert
-// «Выбрать истории». Collecting: skeleton rows and an inactive «Собираем…» pill with a fill.
-export function EmptyQueue({ collecting, progress, caption, collectBusy, onCollect }: Props) {
+// action; it asks the server for a topic suggestion, no story is generated) and «Выбрать
+// истории», which opens the topics screen. Collecting: skeleton rows and an inactive «Собираем…» pill with a fill.
+export function EmptyQueue({
+  collecting,
+  progress,
+  caption,
+  collectBusy,
+  onCollect,
+  onChoose,
+}: Props) {
   const copy = strings.today.empty;
   return (
     <View>
@@ -41,16 +45,8 @@ export function EmptyQueue({ collecting, progress, caption, collectBusy, onColle
       </View>
       {collecting ? (
         <>
-          <View style={styles.skeletons} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
-              <View key={index} style={styles.skeletonRow}>
-                <Text style={styles.skeletonNumber}>{formatPosition(index)}</Text>
-                <View style={styles.skeletonLines}>
-                  <View style={[styles.lineTitle, { width: SKELETON_WIDTHS[index % SKELETON_WIDTHS.length] }]} />
-                  <View style={styles.lineMeta} />
-                </View>
-              </View>
-            ))}
+          <View style={styles.skeletons}>
+            <SkeletonRows count={SKELETON_ROW_COUNT} />
           </View>
           <View
             accessibilityRole="button"
@@ -75,7 +71,7 @@ export function EmptyQueue({ collecting, progress, caption, collectBusy, onColle
       ) : (
         <View style={styles.actions}>
           <PrimaryButton label={copy.collectButton} icon="sparkle" loading={collectBusy} onPress={onCollect} />
-          <SecondaryButton label={copy.chooseButton} icon="plus" onPress={noop} />
+          <SecondaryButton label={copy.chooseButton} icon="plus" onPress={onChoose} />
           {caption !== null ? <Text style={styles.caption}>{caption}</Text> : null}
         </View>
       )}
@@ -101,15 +97,7 @@ const styles = StyleSheet.create({
   },
   title: { color: colors.text, fontSize: 21, fontWeight: '500' },
   body: { color: colors.muted, fontSize: typeSizes.body, lineHeight: 22 },
-  skeletons: { marginTop: 24, borderTopWidth: 1, borderTopColor: colors.hairline },
-  skeletonRow: {
-    height: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.hairline,
-  },
+  skeletons: { marginTop: 24 },
   pill: {
     marginTop: 24,
     height: sizes.buttonHeight,
@@ -129,13 +117,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
-  skeletonNumber: {
-    width: 28,
-    color: colors.accentOutline,
-    fontSize: typeSizes.body,
-    fontVariant: ['tabular-nums'],
-  },
-  skeletonLines: { flex: 1, gap: 9 },
-  lineTitle: { height: 12, borderRadius: 6, backgroundColor: colors.skeleton },
-  lineMeta: { height: 10, width: '30%', borderRadius: 5, backgroundColor: colors.skeletonSoft },
 });

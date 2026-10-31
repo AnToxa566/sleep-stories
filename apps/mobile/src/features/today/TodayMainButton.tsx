@@ -12,13 +12,15 @@ type Props = {
   // True while the request of the main button is in flight.
   busy: boolean;
   onPress: () => void;
+  // The caption's «готовые истории» link: opens «Темы» with «Готовые» on.
+  onOpenReady: () => void;
 };
 
 // The main button of «Сегодня» and the sentence under it. The look follows the state
 // (design frames 2a to 2a·4): the gradient pill when there is something to press, an outlined
 // pill with a growing fill while creating, a dim outlined pill when the allowance is short.
-// The caption's «готовые истории» link does nothing yet (the topics screen is not built).
-export function TodayMainButton({ view, progress, busy, onPress }: Props) {
+// The caption's «готовые истории» link opens the topics screen on the ready filter.
+export function TodayMainButton({ view, progress, busy, onPress, onOpenReady }: Props) {
   const active = view.kind === 'start' || view.kind === 'create-and-start';
   return (
     <View style={styles.wrap}>
@@ -60,8 +62,7 @@ export function TodayMainButton({ view, progress, busy, onPress }: Props) {
         {view.caption.link ? (
           <>
             {' '}
-            {/* Inert for now: the topics screen is not built. */}
-            <Text accessibilityRole="link" style={styles.link}>
+            <Text accessibilityRole="link" onPress={onOpenReady} style={styles.link}>
               {view.caption.link.label}
             </Text>
             {view.caption.link.tail}

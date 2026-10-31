@@ -6,7 +6,7 @@ type Generations = QueueResponse['generations'];
 
 export type MainButtonKind = 'creating' | 'start' | 'create-and-start' | 'create-blocked';
 
-// The sentence under the button. `link` is the inert «готовые истории» link that follows
+// The sentence under the button. `link` is the «готовые истории» link that follows
 // `text` in the shortage captions, and `link.tail` is the full stop after it.
 export interface MainButtonCaption {
   readonly text: string;

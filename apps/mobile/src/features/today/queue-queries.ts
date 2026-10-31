@@ -1,7 +1,10 @@
 import {
+  AddToQueueRequestSchema,
   QueueResponseSchema,
   ReorderQueueRequestSchema,
+  ReplaceQueueItemRequestSchema,
   type QueueResponse,
+  type TopicsResponse,
 } from '@sleep-stories/contracts';
 import {
   useMutation,
@@ -12,6 +15,14 @@ import {
 } from '@tanstack/react-query';
 import { apiFetch } from '../../api/api-fetch';
 import { useSessionStore } from '../auth/session-store';
+import {
+  applyOptimisticAdd,
+  restoreTopics,
+  toastForTopicError,
+  topicsUserKey,
+  withQueueMembership,
+  type TopicsSnapshot,
+} from '../topics/topic-cache';
 import {
   QUEUE_MUTATION_KEY,
   queueQueryKey,
@@ -32,6 +43,10 @@ import { replacedTitle, titleOf } from './queue-edit';
 // tap on the main button, «Создать сейчас» or «Повторить», and only there.
 // `queue-rule-10.spec.ts` fails if the two names or the path appear in any other file.
 //
+// The list «Темы» follows the queue: every queue answer, optimistic change and queue read also
+// sets `inQueue` on the cached topic lists (syncTopics), so a ✓ never disagrees with the queue.
+// `useAddToQueue` and `useReplaceQueueItem` create no job and spend no generation (rule 10).
+//
 // Toasts belong to the screen: the hooks return messages through `onError`, and the titles
 // for «Убрали …» / «Заменили на …» through `onRemoved` / `onReplaced`.
 
@@ -48,10 +63,18 @@ export type QueueMutationCallbacks = {
 export function useQueue() {
   const status = useSessionStore((state) => state.status);
   const userId = useSessionStore((state) => state.userId);
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: queueQueryKey(userId),
-    queryFn: () =>
-      apiFetch({ method: 'GET', path: '/queue', responseSchema: QueueResponseSchema }),
+    queryFn: async () => {
+      const response = await apiFetch({
+        method: 'GET',
+        path: '/queue',
+        responseSchema: QueueResponseSchema,
+      });
+      syncTopics(queryClient, response);
+      return response;
+    },
     enabled: status === 'signedIn' && userId !== null,
     refetchInterval: (query) => queueRefetchInterval(query.state.data),
   });
@@ -70,6 +93,16 @@ function useQueueKey(): QueryKey {
 function commit(queryClient: QueryClient, key: QueryKey, response: QueueResponse): void {
   if (queryClient.isMutating({ mutationKey: QUEUE_MUTATION_KEY }) > 1) return;
   queryClient.setQueryData(key, response);
+  syncTopics(queryClient, response);
+}
+
+// Sets `inQueue` on every cached topic list of this person from the queue. A list that is not
+// cached is left alone (it is read fresh when its screen mounts).
+function syncTopics(queryClient: QueryClient, queue: QueueResponse): void {
+  const userId = useSessionStore.getState().userId;
+  queryClient.setQueriesData<TopicsResponse>({ queryKey: topicsUserKey(userId) }, (old) =>
+    old === undefined ? old : withQueueMembership(old, queue.items),
+  );
 }
 
 // Called from onSettled of every queue edit. When it is the last one in flight, a read of
@@ -110,7 +143,11 @@ export function useRemoveQueueItem(
     onMutate: async (itemId) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = readQueue(queryClient, key);
-      if (previous !== undefined) queryClient.setQueryData(key, withoutItem(previous, itemId));
+      if (previous !== undefined) {
+        const next = withoutItem(previous, itemId);
+        queryClient.setQueryData(key, next);
+        syncTopics(queryClient, next);
+      }
       return { previous, title: previous ? titleOf(previous.items, itemId) : null };
     },
     onSuccess: (response, _itemId, context) => {
@@ -118,7 +155,10 @@ export function useRemoveQueueItem(
       if (context?.title) callbacks.onRemoved?.(context.title);
     },
     onError: (error, _itemId, context) => {
-      if (context?.previous !== undefined) queryClient.setQueryData(key, context.previous);
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(key, context.previous);
+        syncTopics(queryClient, context.previous);
+      }
       refetch(queryClient, key);
       callbacks.onError?.(toastForError(error));
     },
@@ -238,6 +278,81 @@ export function useAnotherStory(
       if (title !== null) callbacks.onReplaced?.(title);
     },
     onError: onErrorRefetch(queryClient, key, callbacks),
+    onSettled: () => settle(queryClient, key),
+  });
+}
+
+// POST /queue/items: «+» in «Темы». Appends the topics to the end of the queue. Creates no job
+// and spends no generation (rule 10). The ✓ appears at once (the cached lists are patched) and
+// goes back if the request fails: onMutate keeps a snapshot of the lists and onError puts it
+// back, so it does not depend on the refetch (which fails too when the network is down). The server skips a topic that is already queued and refuses
+// the whole request (404 topic_unavailable) when one topic may not be queued by this person.
+export function useAddToQueue(callbacks: QueueMutationCallbacks = {}) {
+  const queryClient = useQueryClient();
+  const key = useQueueKey();
+  const userId = useSessionStore((state) => state.userId);
+  return useMutation<
+    QueueResponse,
+    unknown,
+    readonly string[],
+    SnapshotContext & { readonly topics: TopicsSnapshot }
+  >({
+    mutationKey: QUEUE_MUTATION_KEY,
+    mutationFn: (topicIds) =>
+      apiFetch({
+        method: 'POST',
+        path: '/queue/items',
+        body: { schema: AddToQueueRequestSchema, value: { topicIds: [...topicIds] } },
+        responseSchema: QueueResponseSchema,
+      }),
+    onMutate: async (topicIds) => {
+      const topics = await applyOptimisticAdd(queryClient, userId, topicIds);
+      return { ...(await onMutateSnapshot(queryClient, key)()), topics };
+    },
+    onSuccess: (response) => commit(queryClient, key, response),
+    onError: (error, _topicIds, context) => {
+      if (context !== undefined) restoreTopics(queryClient, context.topics);
+      refetch(queryClient, key);
+      void queryClient.invalidateQueries({ queryKey: topicsUserKey(userId) });
+      callbacks.onError?.(toastForTopicError(error));
+    },
+    onSettled: () => settle(queryClient, key),
+  });
+}
+
+// POST /queue/items/:itemId/replace: «Заменить» on the screen «Замена». The item keeps its
+// place and gets the chosen topic. Creates no job and spends no generation (rule 10). Not
+// optimistic: the screen shows the server's answer. `onReplaced(title)` is for the toast
+// «Заменили на …». A 404 (the item is gone, or the topic may not be queued) is reported through
+// onError and the queue is read again.
+export type ReplaceQueueItemInput = { readonly itemId: string; readonly topicId: string };
+
+export function useReplaceQueueItem(
+  callbacks: QueueMutationCallbacks & { onReplaced?: (title: string) => void } = {},
+) {
+  const queryClient = useQueryClient();
+  const key = useQueueKey();
+  const userId = useSessionStore((state) => state.userId);
+  return useMutation<QueueResponse, unknown, ReplaceQueueItemInput, SnapshotContext>({
+    mutationKey: QUEUE_MUTATION_KEY,
+    mutationFn: ({ itemId, topicId }) =>
+      apiFetch({
+        method: 'POST',
+        path: `/queue/items/${encodeURIComponent(itemId)}/replace`,
+        body: { schema: ReplaceQueueItemRequestSchema, value: { topicId } },
+        responseSchema: QueueResponseSchema,
+      }),
+    onMutate: onMutateSnapshot(queryClient, key),
+    onSuccess: (response, { itemId }, context) => {
+      commit(queryClient, key, response);
+      const title = replacedTitle(context?.previous?.items ?? [], response.items, itemId);
+      if (title !== null) callbacks.onReplaced?.(title);
+    },
+    onError: (error) => {
+      refetch(queryClient, key);
+      void queryClient.invalidateQueries({ queryKey: topicsUserKey(userId) });
+      callbacks.onError?.(toastForTopicError(error));
+    },
     onSettled: () => settle(queryClient, key),
   });
 }

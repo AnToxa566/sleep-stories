@@ -19,7 +19,7 @@ const DEFINITION = 'features/today/queue-queries.ts';
 
 // A user action may call the mutations: the screen and the components under features/today.
 function isScreenOrComponent(path: string): boolean {
-  return path === 'app/(app)/home.tsx' || (path.startsWith('features/today/') && path.endsWith('.tsx'));
+  return path === 'app/(app)/(tabs)/home.tsx' || (path.startsWith('features/today/') && path.endsWith('.tsx'));
 }
 
 function listSources(dir: string): string[] {
@@ -81,5 +81,19 @@ describe('rule 10 in the mobile app: generate is a tap, never automatic', () => 
     expect(text).toContain("path: '/queue/collect'");
     // From the hook to the end of the module: no story job route may be named there.
     expect(text.slice(start)).not.toMatch(GENERATE);
+  });
+
+  it('keeps «Темы» and «Замена» free of any generate or collect mutation', () => {
+    const own = sources.filter(
+      (source) =>
+        source.path.startsWith('features/topics/') ||
+        source.path === 'app/(app)/(tabs)/topics.tsx' ||
+        source.path === 'app/(app)/replace.tsx',
+    );
+    expect(own.length).toBeGreaterThan(0);
+    const offenders = own
+      .filter((source) => GENERATE.test(source.text) || COLLECT.test(source.text))
+      .map((source) => source.path);
+    expect(offenders).toEqual([]);
   });
 });

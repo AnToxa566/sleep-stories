@@ -12,6 +12,8 @@ type Props = {
   // «Создать сейчас»: starts ONE explicit generation (rule 10). A tap only.
   onCreateNow: () => void;
   onAnother: () => void;
+  // «Выбрать из тем»: opens the replace screen for this item.
+  onChooseFromTopics: () => void;
   onRemove: () => void;
 };
 
@@ -50,8 +52,16 @@ function Entry({ icon, entry, onPress, tone = 'normal', chevron = false }: Entry
 
 // The menu of one queue item (design frame 2a·8): header with number, title and status, then
 // «Создать сейчас» (only for items that need a generation), «Другая история», «Выбрать из
-// тем» (inert: the topics screen is not built) and «Убрать».
-export function ItemMenuSheet({ visible, onClose, menu, onCreateNow, onAnother, onRemove }: Props) {
+// тем» (opens the replace screen) and «Убрать».
+export function ItemMenuSheet({
+  visible,
+  onClose,
+  menu,
+  onCreateNow,
+  onAnother,
+  onChooseFromTopics,
+  onRemove,
+}: Props) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       {menu ? (
@@ -67,7 +77,7 @@ export function ItemMenuSheet({ visible, onClose, menu, onCreateNow, onAnother, 
             <Entry icon="circleDashed" entry={menu.createNow} onPress={onCreateNow} />
           ) : null}
           <Entry icon="refresh" entry={menu.another} onPress={onAnother} />
-          <Entry icon="compass" entry={menu.chooseFromTopics} chevron />
+          <Entry icon="compass" entry={menu.chooseFromTopics} onPress={onChooseFromTopics} chevron />
           <Entry icon="close" entry={menu.remove} onPress={onRemove} tone="accent" />
         </View>
       ) : null}

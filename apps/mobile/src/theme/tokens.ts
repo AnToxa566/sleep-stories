@@ -44,9 +44,12 @@ export const colors = {
   // Skeleton rows of the collecting state (frame 2a·14).
   skeleton: 'rgba(233,227,250,0.1)',
   skeletonSoft: 'rgba(233,227,250,0.06)',
-  // Bottom bar. The design blurs the page behind it; this is a near-opaque base instead,
-  // because expo-blur is not an approved dependency.
-  navBar: 'rgba(9,7,15,0.94)',
+  // Bottom bar and the footer of «Замена». The design draws them translucent over a blurred page;
+  // here they are fully opaque, so a list scrolling under them never shows through (the owner
+  // wants them filled), and because expo-blur is not an approved dependency.
+  navBar: '#09070F',
+  // The «В очереди: N» plate of «Темы» (design: rgba(18,14,31,0.92) over a blur), opaque for the same reason.
+  plate: '#120E1F',
 } as const;
 
 export const spacing = {

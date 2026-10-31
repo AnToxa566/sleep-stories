@@ -78,11 +78,11 @@ describe('deriveMenu', () => {
     });
   });
 
-  it('keeps «Другая история» and «Убрать» live and the topic picker inert', () => {
+  it('keeps «Другая история», «Выбрать из тем» and «Убрать» live', () => {
     const menu = deriveMenu(notReady, 1, gens(0));
     expect(menu.another).toMatchObject({ label: 'Другая история', enabled: true });
     expect(menu.remove).toMatchObject({ label: 'Убрать', enabled: true });
-    expect(menu.chooseFromTopics).toMatchObject({ label: 'Выбрать из тем', enabled: false });
+    expect(menu.chooseFromTopics).toMatchObject({ label: 'Выбрать из тем', enabled: true });
   });
 
   it('writes the header as in the design', () => {

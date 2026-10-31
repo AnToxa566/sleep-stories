@@ -18,6 +18,8 @@ const PATHS = {
   close: 'M6 6l12 12M18 6L6 18',
   refresh: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4',
   chevronRight: 'M9 6l6 6-6 6',
+  // «К очереди» on the plate of «Темы» (frame s-topics).
+  arrowRight: 'M5 12h14M13 6l6 6-6 6',
   // Drag handle of a queue row (frame 2a): two lines.
   reorder: 'M5 9h14M5 15h14',
   // «Создать и начать» and the empty-state actions (frames 2a, 2a·3, 2a·4): a four-point spark.

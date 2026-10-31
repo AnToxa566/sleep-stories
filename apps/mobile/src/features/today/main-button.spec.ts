@@ -81,7 +81,7 @@ describe('deriveMainButton', () => {
     expect(view?.caption.text).toBe('Займёт ~2 мин · 1 генерация из 1 оставшейся');
   });
 
-  it('is inactive with a shortage caption and an inert link when left < need', () => {
+  it('is inactive with a shortage caption and a «готовые истории» link when left < need', () => {
     const view = deriveMainButton([item('ready'), item('not_ready'), item('not_ready')], gens(1));
     expect(view).toMatchObject({
       kind: 'create-blocked',

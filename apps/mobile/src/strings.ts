@@ -209,6 +209,46 @@ export const strings = {
     },
   },
 
+  // The screens «Темы» and «Замена» (design frames s-topics and s-replace). The «Расскажи про…»
+  // field of the designs is not built yet, so it has no copy here.
+  topics: {
+    title: 'Темы',
+    chips: {
+      all: 'Все',
+      ready: 'Готовые',
+    },
+    empty: 'Под этот фильтр пока ничего нет',
+    row: {
+      notReady: 'Не готова',
+      creating: 'Создаётся',
+      creatingEstimate: '~2 мин',
+      failed: 'Не удалось',
+    },
+    // The plate above the bottom bar: «В очереди: 3» and the link to «Сегодня».
+    plate: {
+      inQueue: (count: number) => `В очереди: ${count}`,
+      toQueue: 'К очереди',
+    },
+    errors: {
+      loadFailed: 'Не удалось загрузить темы',
+      loadFailedBody: 'Проверьте интернет и повторите',
+      retry: 'Повторить',
+      unavailable: 'Эта тема сейчас недоступна',
+    },
+    a11y: {
+      addToQueue: (title: string) => `Добавить «${title}» в очередь`,
+      removeFromQueue: (title: string) => `Убрать «${title}» из очереди`,
+      filters: 'Фильтры',
+      selectTopic: (title: string) => `Выбрать «${title}»`,
+    },
+  },
+
+  replace: {
+    title: 'Замена',
+    instead: 'Вместо',
+    confirm: 'Заменить',
+  },
+
   gate: {
     errorTitle: 'Не удалось загрузить данные',
     errorBody: 'Проверьте интернет и повторите',
