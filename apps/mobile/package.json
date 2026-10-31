@@ -26,11 +26,15 @@
     "react": "*",
     "react-hook-form": "*",
     "react-native": "*",
+    "react-native-gesture-handler": "*",
+    "react-native-reanimated": "*",
+    "react-native-reorderable-list": "*",
     "react-native-safe-area-context": "*",
     "react-native-screens": "*",
     "react-native-svg": "*",
     "react-native-svg-transformer": "*",
     "react-native-web": "*",
+    "react-native-worklets": "*",
     "zustand": "*"
   }
 }
