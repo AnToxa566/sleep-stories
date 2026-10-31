@@ -32,6 +32,21 @@ export const colors = {
   placeholder: 'rgba(169,161,210,0.7)',
   disabledFill: 'rgba(233,227,250,0.14)',
   disabledText: 'rgba(233,227,250,0.4)',
+  // Bottom sheet surface, its dimming layer and its grabber (design frames 2a·6, 2a·8).
+  sheet: '#120E1F',
+  scrim: 'rgba(5,4,9,0.66)',
+  grabber: 'rgba(233,227,250,0.2)',
+  // Toast surface (frames 2a·9 to 2a·11) and the tinted circles behind its icon.
+  toast: 'rgba(24,19,40,0.96)',
+  toastIconSoft: 'rgba(233,227,250,0.12)',
+  toastIconMuted: 'rgba(169,161,210,0.16)',
+  toastIconAccent: 'rgba(255,154,123,0.16)',
+  // Skeleton rows of the collecting state (frame 2a·14).
+  skeleton: 'rgba(233,227,250,0.1)',
+  skeletonSoft: 'rgba(233,227,250,0.06)',
+  // Bottom bar. The design blurs the page behind it; this is a near-opaque base instead,
+  // because expo-blur is not an approved dependency.
+  navBar: 'rgba(9,7,15,0.94)',
 } as const;
 
 export const spacing = {

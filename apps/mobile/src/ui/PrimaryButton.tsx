@@ -1,17 +1,22 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { colors, radii, sizes, typeSizes } from '../theme/tokens';
+import { Icon, type IconName } from './icons';
+
+const ICON_SIZE = 18;
 
 type Props = {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
+  // An optional icon before the label (18 px, the label's colour), as in the designs.
+  icon?: IconName;
 };
 
 // The one primary action of a screen: a coral-to-rose gradient pill with dark text.
 // The gradient is an SVG fill (no expo-linear-gradient). While loading the press is ignored.
-export function PrimaryButton({ label, onPress, disabled = false, loading = false }: Props) {
+export function PrimaryButton({ label, onPress, disabled = false, loading = false, icon }: Props) {
   const inactive = disabled || loading;
   return (
     <Pressable
@@ -40,7 +45,17 @@ export function PrimaryButton({ label, onPress, disabled = false, loading = fals
       {loading ? (
         <ActivityIndicator color={colors.onAccent} />
       ) : (
-        <Text style={[styles.label, disabled && styles.labelDisabled]}>{label}</Text>
+        <View style={styles.content}>
+          {icon ? (
+            <Icon
+              name={icon}
+              size={ICON_SIZE}
+              color={disabled ? colors.disabledText : colors.onAccent}
+              strokeWidth={1.8}
+            />
+          ) : null}
+          <Text style={[styles.label, disabled && styles.labelDisabled]}>{label}</Text>
+        </View>
       )}
     </Pressable>
   );
@@ -54,6 +69,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   disabledFill: { backgroundColor: colors.disabledFill },
   pressed: { opacity: 0.85 },
   label: {
