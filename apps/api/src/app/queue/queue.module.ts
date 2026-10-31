@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { GenerationJobsService } from './generation-jobs.service';
 import { GenerationLimitsService } from './generation-limits.service';
+import { GenerationStartService } from './generation-start.service';
 import { QueueEditService } from './queue-edit.service';
 import { QueueReadService } from './queue-read.service';
 import { QueueTopUpService } from './queue-top-up.service';
@@ -16,6 +17,7 @@ import { QueueController } from './queue.controller';
     QueueTopUpService,
     QueueReadService,
     QueueEditService,
+    GenerationStartService,
   ],
   exports: [QueueTopUpService, GenerationJobsService, GenerationLimitsService],
 })

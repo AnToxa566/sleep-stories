@@ -29,6 +29,16 @@ describe('ApiErrorResponseSchema', () => {
     expect(ApiErrorResponseSchema.safeParse({ statusCode, code, message: 'x' }).success).toBe(true);
   });
 
+  it('parses the generation limit body', () => {
+    expect(
+      ApiErrorResponseSchema.safeParse({
+        statusCode: 429,
+        code: 'generation_limit_reached',
+        message: 'Generation limit reached',
+      }).success,
+    ).toBe(true);
+  });
+
   it.each([399, 600, 200, 0])('rejects status code %i', (statusCode) => {
     expect(
       ApiErrorResponseSchema.safeParse({ statusCode, code: 'unauthorized', message: 'x' }).success,

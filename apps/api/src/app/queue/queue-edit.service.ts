@@ -1,8 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import type { QueueResponse } from '@sleep-stories/contracts';
 import { z } from 'zod';
 import { apiErrorBody } from '../errors/api-error-body';
 import { PrismaService } from '../prisma/prisma.service';
+import { queueItemNotFound } from './queue-item-not-found';
 import { isSameSet } from './queue-order';
 import { QueueReadService } from './queue-read.service';
 
@@ -39,7 +40,7 @@ export class QueueEditService {
         `,
       );
       if (deleted.length === 0) {
-        throw new NotFoundException(apiErrorBody(404, 'queue_item_not_found', 'Queue item not found'));
+        throw queueItemNotFound();
       }
       await tx.$executeRaw`
         UPDATE queue_items q SET position = r.rn::int

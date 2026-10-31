@@ -11,7 +11,7 @@ export const QUEUE_TOP_UP_THRESHOLD = 2;
 
 // Generations one person may use per window. One generation is bringing one story to ready:
 // a `write_story` and the `render_audio` that follows it, or a `render_audio` alone, count as
-// one. Only an explicit start spends one (nothing built yet creates them).
+// one. Only an explicit start (GenerationStartService) spends one.
 export const MAX_GENERATIONS_PER_WINDOW = 5;
 
 // `suggest_topics` runs one person may use per window.

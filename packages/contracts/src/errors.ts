@@ -12,6 +12,8 @@ export const ApiErrorCodeSchema = z.enum([
   'queue_item_not_found',
   // PUT /queue/order: the sent ids are not exactly the ids in the person's queue.
   'queue_order_mismatch',
+  // POST /queue/generate and /queue/items/:itemId/generate: fewer generations left than items to start.
+  'generation_limit_reached',
 ]);
 
 export type ApiErrorCode = z.infer<typeof ApiErrorCodeSchema>;

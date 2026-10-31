@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { RunJobResponseSchema } from '@sleep-stories/contracts';
+import { QueueResponseSchema, RunJobResponseSchema } from '@sleep-stories/contracts';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose';
 import type { CryptoKey } from 'jose';
 import type { z } from 'zod';
@@ -24,8 +24,6 @@ import {
 } from '../providers/llm/llm.provider';
 import { StorageService } from '../providers/storage/storage.service';
 import { TtsProvider, type SynthesizeInput, type SynthesizeResult } from '../providers/tts/tts.provider';
-import { JobQueue } from '../providers/job-queue/job-queue';
-import { GenerationJobsService } from '../queue/generation-jobs.service';
 import { GenerationLimitsService } from '../queue/generation-limits.service';
 import { QueueTopUpService } from '../queue/queue-top-up.service';
 
@@ -41,9 +39,9 @@ import { QueueTopUpService } from '../queue/queue-top-up.service';
 // one does, so the real factories run.
 //
 // Nothing here starts a story on its own (AGENTS.md architecture rule 10): onboarding and the
-// top-up run the suggestion only. A test-only helper (`startExplicitly`) creates the
-// `write_story` job the way the future explicit start will, through GenerationJobsService
-// inside a transaction, to show that the chain write then render still works.
+// top-up run the suggestion only. `startExplicitly` is the person's tap: it calls
+// POST /api/queue/items/:itemId/generate through HTTP, which creates the `write_story` job and
+// hands it to the local queue, and the chain write then render runs from there.
 //
 // Everything is made with random ids, and the topics the handlers create carry a per-run
 // title prefix (the fake model writes it), which is how cleanup finds them.
@@ -64,6 +62,8 @@ class FakeLlm extends LlmProvider {
   textCalls: { system: string; user: string }[] = [];
   // When true every story write fails with a retryable provider error.
   failWrites = false;
+  // When set, a story write waits for it, so a test can look at the queue while the job runs.
+  holdWrites: Promise<void> | null = null;
   // The catalogue slug that the fake answers in call B topics (the "bad" model answer).
   catalogueSlugForB: string | null = null;
   // Titles that call B answered with a catalogue slug.
@@ -74,6 +74,7 @@ class FakeLlm extends LlmProvider {
     this.structuredCalls = [];
     this.textCalls = [];
     this.failWrites = false;
+    this.holdWrites = null;
     this.catalogueSlugForB = null;
     this.slugAnswered = [];
   }
@@ -111,6 +112,9 @@ class FakeLlm extends LlmProvider {
 
   async generateText(input: GenerateTextInput): Promise<GenerateTextResult> {
     this.textCalls.push({ system: input.system, user: input.user });
+    if (this.holdWrites !== null) {
+      await this.holdWrites;
+    }
     if (this.failWrites) {
       throw new LlmProviderError(true, 529);
     }
@@ -145,6 +149,9 @@ const fakeStorage = {
   uploadAudio: async (path: string): Promise<void> => {
     uploaded.push(path);
   },
+  // The queue read signs the paths of ready items; the URLs are opaque.
+  signMany: async (paths: readonly string[]): Promise<string[]> =>
+    paths.map((_path, index) => `https://signed.example.test/opaque-${index}`),
 };
 
 let app: INestApplication;
@@ -153,8 +160,6 @@ let prisma: PrismaService;
 let data: QueueTestData;
 let topUp: QueueTopUpService;
 let limits: GenerationLimitsService;
-let jobsService: GenerationJobsService;
-let jobQueue: JobQueue;
 let secret: string;
 let userKey: CryptoKey;
 let issuer: string;
@@ -218,16 +223,34 @@ async function settled(userId: string, expectedTotal?: number): Promise<boolean>
   return ok;
 }
 
-// Test-only stand-in for the future explicit start (AGENTS.md architecture rule 10): creates
-// the `write_story` job for one topic in a transaction and hands it to the queue after the
-// commit, as the top-up does for a suggestion.
-async function startExplicitly(userId: string, topicId: string, voiceId: string): Promise<string> {
-  const jobId = await prisma.$transaction((tx) =>
-    jobsService.create(tx, { userId, payload: { kind: 'write_story', topicId, voiceId } }),
-  );
-  expect(jobId).not.toBeNull();
-  await jobQueue.enqueue(jobId as string);
-  return jobId as string;
+// The person's tap on one queue item: POST /api/queue/items/:itemId/generate through HTTP.
+// The service creates the `write_story` job in its transaction and hands it to the local queue
+// after the commit. Returns the id of the job that now exists for the topic.
+async function startExplicitly(userId: string, topicId: string): Promise<string> {
+  const item = await prisma.queueItem.findFirstOrThrow({
+    where: { userId, topicId },
+    select: { id: true },
+  });
+  const response = await fetch(`${baseUrl}/api/queue/items/${item.id}/generate`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${await userToken(userId)}` },
+  });
+  expect(response.status).toBe(200);
+  const job = await prisma.generationJob.findFirstOrThrow({
+    where: { requestedByUserId: userId, dedupeKey: `write_story:${topicId}` },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+  });
+  return job.id;
+}
+
+// GET /api/queue through HTTP, parsed with the contract schema.
+async function queueView(userId: string) {
+  const response = await fetch(`${baseUrl}/api/queue`, {
+    headers: { authorization: `Bearer ${await userToken(userId)}` },
+  });
+  expect(response.status).toBe(200);
+  return QueueResponseSchema.parse(await response.json());
 }
 
 // The count of rows of the two kinds that cost money.
@@ -349,8 +372,6 @@ beforeAll(async () => {
   prisma = app.get(PrismaService);
   topUp = app.get(QueueTopUpService);
   limits = app.get(GenerationLimitsService);
-  jobsService = app.get(GenerationJobsService);
-  jobQueue = app.get(JobQueue);
   secret = app.get(LocalDispatchSecret).value;
   data = new QueueTestData(prisma);
 });
@@ -426,9 +447,30 @@ describe('the whole pipeline over real HTTP', () => {
     expectNoneReady(before);
     expect(await storyJobCount(userId)).toBe(0);
 
-    await startExplicitly(userId, before[0].topicId, voiceId);
+    // The app's view before the tap: three items, none ready, all five generations left.
+    const idle = await queueView(userId);
+    expect(idle.items.map((item) => item.state)).toEqual(['not_ready', 'not_ready', 'not_ready']);
+    expect(idle.generations.left).toBe(5);
+
+    // The model call is held, so the write is still running while the app looks.
+    let releaseWrite!: () => void;
+    llm.holdWrites = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    await startExplicitly(userId, before[0].topicId);
+    // The slot is held from the start: the first item is `creating` and one generation is gone.
+    const during = await queueView(userId);
+    expect(during.items.map((item) => item.state)).toEqual(['creating', 'not_ready', 'not_ready']);
+    expect(during.generations.left).toBe(4);
+    releaseWrite();
+
     // suggestion + write + render
     expect(await settled(userId, 3)).toBe(true);
+
+    // After success: the first item is ready, the others are not, and the spent slot stays spent.
+    const done = await queueView(userId);
+    expect(done.items.map((item) => item.state)).toEqual(['ready', 'not_ready', 'not_ready']);
+    expect(done.generations.left).toBe(4);
 
     const jobs = await prisma.generationJob.findMany({ where: { requestedByUserId: userId } });
     expect(jobs.map((job) => job.kind).sort()).toEqual(['render_audio', 'suggest_topics', 'write_story']);
@@ -568,7 +610,7 @@ describe('the whole pipeline over real HTTP', () => {
     const failedTopicId = queued[0].topicId;
     llm.failWrites = true;
 
-    const jobId = await startExplicitly(userId, failedTopicId, voiceId);
+    const jobId = await startExplicitly(userId, failedTopicId);
     // The local queue retries after a pause of seconds; delivering again at once is what the
     // queue would do, and a delivery that finds a live run answers "try again later" and
     // changes nothing.
@@ -608,7 +650,7 @@ describe('the whole pipeline over real HTTP', () => {
     const userId = await person({ voiceId, interestIds: [interestId] });
     await topUp.run(userId);
     expect(await settled(userId)).toBe(true);
-    await startExplicitly(userId, (await queueOf(userId))[0].topicId, voiceId);
+    await startExplicitly(userId, (await queueOf(userId))[0].topicId);
     expect(await settled(userId, 3)).toBe(true);
 
     const storiesBefore = await prisma.story.count({ where: { topic: { title: { startsWith: PREFIX } } } });
