@@ -7,6 +7,7 @@ import { GenerationStartService } from './generation-start.service';
 import { QueueEditService } from './queue-edit.service';
 import { QueueReadService } from './queue-read.service';
 import { QueuePickService } from './queue-pick.service';
+import { QueueTopUpService } from './queue-top-up.service';
 import {
   AddToQueueRequestDto,
   QueueItemParamsDto,
@@ -24,11 +25,25 @@ export class QueueController {
     private readonly editor: QueueEditService,
     private readonly starter: GenerationStartService,
     private readonly picker: QueuePickService,
+    private readonly topUp: QueueTopUpService,
   ) {}
 
   @Get()
   @ZodSerializerDto(QueueResponseSchema)
   read(@CurrentUserId() userId: string): Promise<QueueResponse> {
+    return this.reader.read(userId);
+  }
+
+  // «Собрать темы» on an empty queue: fills it from the pool and, when the pool is not
+  // enough, asks for new topic suggestions (at most 3 per rolling 24 hours). Creates NO story
+  // or audio job and spends no generation (architecture rule 10). When the suggestion cap is
+  // used up the answer is still 200, with an empty queue and `collecting: false`. No body:
+  // the person is the token.
+  @Post('collect')
+  @HttpCode(200)
+  @ZodSerializerDto(QueueResponseSchema)
+  async collect(@CurrentUserId() userId: string): Promise<QueueResponse> {
+    await this.topUp.run(userId);
     return this.reader.read(userId);
   }
 

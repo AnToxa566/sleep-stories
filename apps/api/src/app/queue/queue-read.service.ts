@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../providers/storage/storage.service';
 import { GenerationLimitsService, remaining } from './generation-limits.service';
 import { MAX_GENERATIONS_PER_WINDOW, QUEUE_AUDIO_URL_TTL_SECONDS } from './queue-policy';
+import { isCollecting } from './suggestion-state';
 import { readStoryStates } from './story-state';
 
 // Reads one person's queue for the app (ARCHITECTURE.md section 6, step 6). Every query is
@@ -29,6 +30,7 @@ export class QueueReadService {
       return {
         items: [],
         generations: { left: MAX_GENERATIONS_PER_WINDOW, limit: MAX_GENERATIONS_PER_WINDOW },
+        collecting: false,
       };
     }
 
@@ -95,9 +97,13 @@ export class QueueReadService {
     // For display only. The limit is enforced when a generation starts, under the lock on
     // the person's `users` row (the explicit-start cycle); this unlocked count can be stale.
     const { generationsLeft } = remaining(await this.limits.usage(this.prisma, userId));
+    // "Collecting" only means something for an empty queue: a person with items has something
+    // to show, whatever a suggestion job is doing.
+    const collecting = items.length === 0 && (await isCollecting(this.prisma, userId));
     return {
       items,
       generations: { left: generationsLeft, limit: MAX_GENERATIONS_PER_WINDOW },
+      collecting,
     };
   }
 }

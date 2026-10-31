@@ -1,6 +1,7 @@
 import { QueueReadService } from './queue-read.service';
 import { QUEUE_AUDIO_URL_TTL_SECONDS } from './queue-policy';
 import * as storyState from './story-state';
+import * as suggestionState from './suggestion-state';
 import type { StoryState } from './story-state';
 
 jest.mock('./story-state', () => ({
@@ -9,7 +10,10 @@ jest.mock('./story-state', () => ({
 }));
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+jest.mock('./suggestion-state', () => ({ isCollecting: jest.fn() }));
+
 const readStates = storyState.readStoryStates as jest.Mock;
+const collectingMock = suggestionState.isCollecting as jest.Mock;
 
 function row(n: number) {
   return { id: id(n), topicId: id(100 + n), topic: { title: `Тема ${n}`, style: 'facts' as const } };
@@ -46,7 +50,11 @@ function build(options: { preferences?: { voiceId: string } | null; rows?: Retur
   return { service, prisma, limits, signMany };
 }
 
-beforeEach(() => readStates.mockReset());
+beforeEach(() => {
+  readStates.mockReset();
+  collectingMock.mockReset();
+  collectingMock.mockResolvedValue(false);
+});
 
 describe('QueueReadService.read', () => {
   it('returns an empty queue and the full allowance when there are no preferences', async () => {
@@ -54,7 +62,9 @@ describe('QueueReadService.read', () => {
     await expect(service.read(id(1))).resolves.toEqual({
       items: [],
       generations: { left: 5, limit: 5 },
+      collecting: false,
     });
+    expect(collectingMock).not.toHaveBeenCalled();
     expect(prisma.queueItem.findMany).not.toHaveBeenCalled();
     expect(limits.usage).not.toHaveBeenCalled();
     expect(signMany).not.toHaveBeenCalled();
@@ -133,5 +143,18 @@ describe('QueueReadService.read', () => {
     readStates.mockResolvedValue(new Map([[id(101), ready(1)]]));
     signMany.mockResolvedValue([]);
     await expect(service.read(id(1))).rejects.toThrow();
+  });
+
+  it('asks whether it is collecting only for an empty queue, scoped by the user id', async () => {
+    collectingMock.mockResolvedValue(true);
+    const empty = build({ rows: [] });
+    await expect(empty.service.read(id(1))).resolves.toMatchObject({ items: [], collecting: true });
+    expect(collectingMock).toHaveBeenCalledWith(empty.prisma, id(1));
+
+    collectingMock.mockClear();
+    const full = build({ rows: [row(1)] });
+    readStates.mockResolvedValue(new Map([[id(101), plain('not_ready')]]));
+    await expect(full.service.read(id(1))).resolves.toMatchObject({ collecting: false });
+    expect(collectingMock).not.toHaveBeenCalled();
   });
 });

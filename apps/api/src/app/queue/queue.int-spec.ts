@@ -11,6 +11,7 @@ import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../auth/access-tok
 import { AppModule } from '../app.module';
 import type { Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
+import { JobQueue } from '../providers/job-queue/job-queue';
 import { StorageService } from '../providers/storage/storage.service';
 
 // Runs against the REAL local database with the real AppModule. Only the key source of the
@@ -21,6 +22,16 @@ import { StorageService } from '../providers/storage/storage.service';
 assertLocalDatabase();
 
 const KID = 'int-test-key';
+
+// A recording fake: the real queue (JOB_QUEUE=local) would run a suggestion job with the paid
+// providers. It also lets a test see that nothing was enqueued.
+class RecordingQueue extends JobQueue {
+  enqueued: string[] = [];
+  async enqueue(jobId: string): Promise<void> {
+    this.enqueued.push(jobId);
+  }
+}
+const jobQueue = new RecordingQueue();
 
 let app: INestApplication;
 let prisma: PrismaService;
@@ -76,6 +87,8 @@ beforeAll(async () => {
     })
     .overrideProvider(StorageService)
     .useValue({ signMany })
+    .overrideProvider(JobQueue)
+    .useValue(jobQueue)
     .compile();
   app = moduleRef.createNestApplication();
   app.setGlobalPrefix('api');
@@ -87,6 +100,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  jobQueue.enqueued = [];
   signMany.mockReset();
   signMany.mockImplementation(opaqueUrls);
 });
@@ -328,6 +342,7 @@ describe('GET /api/queue', () => {
     expect(QueueResponseSchema.parse(result.json)).toEqual({
       items: [],
       generations: { left: 5, limit: 5 },
+      collecting: false,
     });
     expect(signMany).not.toHaveBeenCalled();
   });
@@ -525,5 +540,116 @@ describe('PUT /api/queue/order', () => {
     expect(ApiErrorResponseSchema.parse(response.json)).toMatchObject({ code: 'queue_order_mismatch' });
     expect(await itemIdsOf(w.userId)).toEqual([a, b, c, insertedId]);
     expect(await positionsOf(w.userId)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('POST /api/queue/collect and the collecting flag', () => {
+  // A person with one chosen interest, so the pool offers the topics of that interest.
+  async function pooled() {
+    const voiceId = await data.voice();
+    const interestId = await data.interest();
+    const userId = await data.user({ voiceId, interestIds: [interestId] });
+    return { voiceId, interestId, userId };
+  }
+  const collect = (userId?: string) => call('POST', '/queue/collect', userId);
+  const jobsOf = (userId: string) =>
+    prisma.generationJob.findMany({
+      where: { requestedByUserId: userId },
+      select: { id: true, kind: true, status: true },
+    });
+  const storyJobsOf = async (userId: string) =>
+    (await jobsOf(userId)).filter((j) => j.kind !== 'suggest_topics');
+
+  it('requires a token', async () => {
+    expect((await collect()).status).toBe(401);
+  });
+
+  it('fills the queue from the pool and creates no job', async () => {
+    const w = await pooled();
+    // Three ready topics fill the queue to its target, so nothing is left to suggest.
+    const topics = [];
+    for (let i = 0; i < 3; i++) {
+      topics.push(await data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] }));
+    }
+    const result = await collect(w.userId);
+    expect(result.status).toBe(200);
+    const body = QueueResponseSchema.parse(result.json);
+    expect(body.items.map((item) => item.topicId).sort()).toEqual(topics.map((t) => t.topicId).sort());
+    expect(body.items.every((item) => item.state === 'ready')).toBe(true);
+    expect(body.collecting).toBe(false);
+    expect(await jobsOf(w.userId)).toEqual([]);
+    expect(jobQueue.enqueued).toEqual([]);
+  });
+
+  it('with an empty pool creates exactly one suggest_topics job and answers collecting', async () => {
+    const w = await pooled();
+    const result = await collect(w.userId);
+    expect(result.status).toBe(200);
+    const body = QueueResponseSchema.parse(result.json);
+    expect(body.items).toEqual([]);
+    expect(body.collecting).toBe(true);
+    const jobs = await jobsOf(w.userId);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({ kind: 'suggest_topics', status: 'pending' });
+    expect(jobQueue.enqueued).toEqual([jobs[0].id]);
+    expect(await storyJobsOf(w.userId)).toEqual([]);
+  });
+
+  it('a second collect creates no second job', async () => {
+    const w = await pooled();
+    await collect(w.userId);
+    const second = QueueResponseSchema.parse((await collect(w.userId)).json);
+    expect(second.collecting).toBe(true);
+    expect(await jobsOf(w.userId)).toHaveLength(1);
+  });
+
+  it('with the suggestion cap used up creates no job and is not collecting', async () => {
+    const w = await pooled();
+    for (let i = 0; i < 3; i++) {
+      await data.job({ userId: w.userId, kind: 'suggest_topics', status: 'succeeded', hoursAgo: 1 });
+    }
+    const result = await collect(w.userId);
+    expect(result.status).toBe(200);
+    const body = QueueResponseSchema.parse(result.json);
+    expect(body.items).toEqual([]);
+    expect(body.collecting).toBe(false);
+    expect(await jobsOf(w.userId)).toHaveLength(3);
+    expect(jobQueue.enqueued).toEqual([]);
+  });
+
+  it('collecting is false when the job failed, when it is older than 5 minutes, and when the queue has items', async () => {
+    const failed = await pooled();
+    await data.job({ userId: failed.userId, kind: 'suggest_topics', status: 'failed' });
+    expect(QueueResponseSchema.parse((await getQueue(failed.userId)).json).collecting).toBe(false);
+
+    const old = await pooled();
+    const oldJob = await data.job({ userId: old.userId, kind: 'suggest_topics', status: 'pending' });
+    expect(QueueResponseSchema.parse((await getQueue(old.userId)).json).collecting).toBe(true);
+    await prisma.generationJob.update({
+      where: { id: oldJob },
+      data: { createdAt: new Date(Date.now() - 6 * 60_000) },
+    });
+    expect(QueueResponseSchema.parse((await getQueue(old.userId)).json).collecting).toBe(false);
+
+    const running = await pooled();
+    await data.job({ userId: running.userId, kind: 'suggest_topics', status: 'running' });
+    expect(QueueResponseSchema.parse((await getQueue(running.userId)).json).collecting).toBe(true);
+    const topic = await data.topic({ interestId: running.interestId });
+    await data.queueItem(running.userId, topic.topicId, 1);
+    expect(QueueResponseSchema.parse((await getQueue(running.userId)).json).collecting).toBe(false);
+  });
+
+  it('another person\'s active job does not count', async () => {
+    const mine = await pooled();
+    const other = await pooled();
+    await data.job({ userId: other.userId, kind: 'suggest_topics', status: 'pending' });
+    expect(QueueResponseSchema.parse((await getQueue(mine.userId)).json).collecting).toBe(false);
+    expect(QueueResponseSchema.parse((await getQueue(other.userId)).json).collecting).toBe(true);
+  });
+
+  it('a write_story job does not make the queue collecting', async () => {
+    const w = await pooled();
+    await data.job({ userId: w.userId, kind: 'write_story', status: 'pending' });
+    expect(QueueResponseSchema.parse((await getQueue(w.userId)).json).collecting).toBe(false);
   });
 });

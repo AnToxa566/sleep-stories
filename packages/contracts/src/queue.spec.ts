@@ -55,15 +55,16 @@ describe('QueueResponseSchema', () => {
   const generations = { left: 5, limit: 5 };
 
   it('accepts a list, including an empty one', () => {
-    expect(QueueResponseSchema.safeParse({ items: [ready], generations }).success).toBe(true);
-    expect(QueueResponseSchema.safeParse({ items: [], generations }).success).toBe(true);
+    expect(QueueResponseSchema.safeParse({ items: [ready], generations, collecting: false }).success).toBe(true);
+    expect(QueueResponseSchema.safeParse({ items: [], generations, collecting: false }).success).toBe(true);
   });
 
   it('rejects a negative left, a zero limit, a missing block and an extra key', () => {
-    expect(QueueResponseSchema.safeParse({ items: [], generations: { left: -1, limit: 5 } }).success).toBe(false);
-    expect(QueueResponseSchema.safeParse({ items: [], generations: { left: 0, limit: 0 } }).success).toBe(false);
-    expect(QueueResponseSchema.safeParse({ items: [] }).success).toBe(false);
-    expect(QueueResponseSchema.safeParse({ items: [], generations, extra: 1 }).success).toBe(false);
+    expect(QueueResponseSchema.safeParse({ items: [], generations: { left: -1, limit: 5 }, collecting: false }).success).toBe(false);
+    expect(QueueResponseSchema.safeParse({ items: [], generations: { left: 0, limit: 0 }, collecting: false }).success).toBe(false);
+    expect(QueueResponseSchema.safeParse({ items: [], collecting: false }).success).toBe(false);
+    expect(QueueResponseSchema.safeParse({ items: [], generations }).success).toBe(false);
+    expect(QueueResponseSchema.safeParse({ items: [], generations, collecting: false, extra: 1 }).success).toBe(false);
   });
 });
 

@@ -41,12 +41,16 @@ export const QueueItemStateSchema = z.enum([
 // `generations` tells the app how many generations the person has left in the rolling
 // window, so the number is not hardcoded in the app (ARCHITECTURE.md section 11, item 32).
 // It is for display; the server enforces the limit when a generation starts.
+//
+// `collecting` is true only while the queue is empty and a topic-suggestion job of this person
+// is in progress and recent, so the app can show "collecting topics" instead of an empty list.
 export const QueueResponseSchema = z.strictObject({
   items: z.array(QueueItemSchema),
   generations: z.strictObject({
     left: z.number().int().min(0),
     limit: z.number().int().min(1),
   }),
+  collecting: z.boolean(),
 });
 
 // The most items one person's queue can hold. A reorder names every item, so it is bounded by

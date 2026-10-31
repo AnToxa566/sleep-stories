@@ -54,3 +54,12 @@ export const SWEEP_BATCH_SIZE = 50;
 // open longer than this holds a dead URL and must read the queue again (owner default,
 // 2026-10-31).
 export const QUEUE_AUDIO_URL_TTL_SECONDS = 30 * 60;
+
+// How long an active `suggest_topics` job keeps the queue shown as "collecting" (owner,
+// 2026-10-31: 5 minutes). Only a `pending` or `running` job counts, so a failed job never
+// shows it. The time bound exists because a job can stay active for good: a `pending` job
+// lost locally with no sweep running, or a `running` job whose process crashed. Without it
+// the app would wait on an empty queue for ever. Costs: a job that really runs longer than
+// this stops showing as collecting, and the empty queue shows its ordinary empty state
+// until the job finishes and the next read finds the topics.
+export const SUGGESTION_SHOWN_MINUTES = 5;
