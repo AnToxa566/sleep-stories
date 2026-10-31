@@ -89,18 +89,23 @@ async function jobsOf(userId: string) {
     select: { id: true, kind: true, status: true, payload: true, dedupeKey: true },
   });
 }
-const newJobsOf = async (userId: string, before: Set<string>) =>
-  (await jobsOf(userId)).filter((job) => !before.has(job.id));
-
-async function succeededRenders(userId: string, count: number, hoursAgo = 1) {
+async function succeededGenerations(userId: string, count: number, hoursAgo = 1) {
   for (let i = 0; i < count; i++) {
     await data.job({ userId, kind: 'render_audio', status: 'succeeded', hoursAgo });
   }
 }
 
+// AGENTS.md architecture rule 10: the top-up never creates a write_story or render_audio row.
+// `before` is the set of job ids that existed before the run (seeded rows are not its work).
+async function expectNoStoryJobCreated(userId: string, before: Set<string> = new Set()) {
+  const created = (await jobsOf(userId)).filter((j) => !before.has(j.id));
+  expect(created.filter((j) => j.kind === 'write_story' || j.kind === 'render_audio')).toEqual([]);
+}
+const idsOf = async (userId: string) => new Set((await jobsOf(userId)).map((j) => j.id));
+
 describe('QueueTopUpService (database)', () => {
   describe('sources and queue length', () => {
-    it('appends after the existing positions, ready before rendering', async () => {
+    it('appends after the existing positions, ready before no-audio', async () => {
       const w = await world();
       const r = await ready(w);
       const d = await lacksAudio(w);
@@ -111,17 +116,18 @@ describe('QueueTopUpService (database)', () => {
 
       const result = await service.run(w.userId);
 
-      expect(result).toMatchObject({ queued: { ready: 1, rendering: 1, writing: 0 } });
+      expect(result).toMatchObject({ queued: { ready: 1, withoutAudio: 1, withoutStory: 0 } });
       expect(await queueOf(w.userId)).toEqual([
         { topicId: old.topicId, position: 7 },
         { topicId: r.topicId, position: 8 },
         { topicId: d.topicId, position: 9 },
       ]);
-      // The queue held 1 item, so only 2 were needed: the writing topic stays out.
+      // The queue held 1 item, so only 2 were needed: the story-less topic stays out.
       expect(result).toMatchObject({ queueLength: 3 });
+      await expectNoStoryJobCreated(w.userId);
     });
 
-    it('fills an empty queue with ready, rendering and writing in order, positions 1..3', async () => {
+    it('fills an empty queue with ready, no-audio and no-story in order, positions 1..3, and no job', async () => {
       const w = await world();
       const r = await ready(w);
       const d = await lacksAudio(w);
@@ -130,24 +136,19 @@ describe('QueueTopUpService (database)', () => {
 
       const result = await service.run(w.userId);
 
-      expect(result).toMatchObject({ queued: { ready: 1, rendering: 1, writing: 1 }, queueLength: 3 });
+      expect(result).toMatchObject({
+        queued: { ready: 1, withoutAudio: 1, withoutStory: 1 },
+        suggestRequested: false,
+        queueLength: 3,
+      });
       expect(await queueOf(w.userId)).toEqual([
         { topicId: r.topicId, position: 1 },
         { topicId: d.topicId, position: 2 },
         { topicId: own.topicId, position: 3 },
       ]);
-      const jobs = await jobsOf(w.userId);
-      expect(jobs.map((j) => j.kind).sort()).toEqual(['render_audio', 'write_story']);
-      expect(jobs.find((j) => j.kind === 'render_audio')?.payload).toEqual({
-        kind: 'render_audio',
-        storyId: d.storyId,
-        voiceId: w.voiceId,
-      });
-      expect(jobs.find((j) => j.kind === 'write_story')?.payload).toEqual({
-        kind: 'write_story',
-        topicId: own.topicId,
-        voiceId: w.voiceId,
-      });
+      // Nothing costs money here: not a single job, and nothing handed to the queue.
+      expect(await jobsOf(w.userId)).toEqual([]);
+      expect(enqueued).toEqual([]);
     });
 
     it('does nothing for a person with no preferences or no users row', async () => {
@@ -166,7 +167,7 @@ describe('QueueTopUpService (database)', () => {
         await data.queueItem(w.userId, t.topicId, i + 1);
       }
       await ready(w);
-      await expect(service.run(w.userId)).resolves.toEqual({ skipped: 'queue_full', healed: 0 });
+      await expect(service.run(w.userId)).resolves.toEqual({ skipped: 'queue_full' });
       expect(await queueOf(w.userId)).toHaveLength(3);
       expect(await jobsOf(w.userId)).toEqual([]);
     });
@@ -226,20 +227,14 @@ describe('QueueTopUpService (database)', () => {
       await onlyControl(w, unfit);
     });
 
-    it('queues the own proposed NULL-interest topic with a write_story job', async () => {
+    it('queues the own proposed NULL-interest topic and creates no write_story job', async () => {
       const w = await world();
       const own = await data.topic({ interestId: null });
       await data.userTopic(w.userId, own.topicId, 'proposed');
       const result = await service.run(w.userId);
-      expect(result).toMatchObject({ queued: { writing: 1 } });
+      expect(result).toMatchObject({ queued: { withoutStory: 1 } });
       expect(await queuedTopics(w.userId)).toEqual([own.topicId]);
-      const writes = (await jobsOf(w.userId)).filter((j) => j.kind === 'write_story');
-      expect(writes).toHaveLength(1);
-      expect(writes[0]?.payload).toEqual({
-        kind: 'write_story',
-        topicId: own.topicId,
-        voiceId: w.voiceId,
-      });
+      await expectNoStoryJobCreated(w.userId);
     });
 
     it('offers a pool topic that another person proposed, but not their story-less topic', async () => {
@@ -255,7 +250,7 @@ describe('QueueTopUpService (database)', () => {
       expect(queued).not.toContain(theirs.topicId);
     });
 
-    it('treats audio in another voice as rendering, not ready', async () => {
+    it('treats audio in another voice as no audio, not ready, and renders nothing', async () => {
       const w = await world();
       const t = await data.topic({
         interestId: w.interestId,
@@ -263,15 +258,9 @@ describe('QueueTopUpService (database)', () => {
         audioVoiceIds: [w.otherVoiceId],
       });
       const result = await service.run(w.userId);
-      expect(result).toMatchObject({ queued: { ready: 0, rendering: 1 } });
+      expect(result).toMatchObject({ queued: { ready: 0, withoutAudio: 1 } });
       expect(await queuedTopics(w.userId)).toEqual([t.topicId]);
-      const jobs = await jobsOf(w.userId);
-      expect(jobs.filter((j) => j.kind === 'render_audio')).toHaveLength(1);
-      expect(jobs[0]?.payload).toEqual({
-        kind: 'render_audio',
-        storyId: t.storyId,
-        voiceId: w.voiceId,
-      });
+      await expectNoStoryJobCreated(w.userId);
     });
   });
 
@@ -351,8 +340,7 @@ describe('QueueTopUpService (database)', () => {
       await data.userTopic(other, requested.topicId, 'requested');
       await service.run(w.userId);
       expect(await queuedTopics(w.userId)).not.toContain(requested.topicId);
-      const renders = (await jobsOf(w.userId)).filter((j) => j.kind === 'render_audio');
-      expect(renders).toEqual([]);
+      await expectNoStoryJobCreated(w.userId);
     });
 
     it('never offers another person\'s NULL-interest proposed topic with story and audio', async () => {
@@ -371,88 +359,29 @@ describe('QueueTopUpService (database)', () => {
   });
 
   describe('limits', () => {
-    const renderJobs = async (userId: string, before: Set<string>) =>
-      (await newJobsOf(userId, before)).filter((j) => j.kind === 'render_audio');
-    const idsOf = async (userId: string) => new Set((await jobsOf(userId)).map((j) => j.id));
-
-    it('allows exactly one render when 4 succeeded in the window and none is active', async () => {
+    it('is not limited by the generations of the day: it queues what it finds and starts nothing', async () => {
       const w = await world();
-      await succeededRenders(w.userId, 4);
-      for (let i = 0; i < 3; i++) await lacksAudio(w);
-      const before = await idsOf(w.userId);
-      const result = await service.run(w.userId);
-      expect(result).toMatchObject({ queued: { rendering: 1 }, suggestRequested: false, limitReached: true });
-      expect(await renderJobs(w.userId, before)).toHaveLength(1);
-      expect(await newJobsOf(w.userId, before)).toHaveLength(1);
-    });
-
-    it('queues ready stories but starts no job when 4 succeeded and 1 is pending', async () => {
-      const w = await world();
-      await succeededRenders(w.userId, 4);
-      await data.job({ userId: w.userId, kind: 'render_audio', status: 'pending' });
-      const r = await ready(w);
-      await lacksAudio(w);
-      const own = await data.topic({ interestId: w.interestId });
-      await data.userTopic(w.userId, own.topicId, 'proposed');
-      const before = await idsOf(w.userId);
-      const result = await service.run(w.userId);
-      expect(result).toMatchObject({ queued: { ready: 1, rendering: 0, writing: 0 }, limitReached: true });
-      expect(await queuedTopics(w.userId)).toEqual([r.topicId]);
-      expect(await newJobsOf(w.userId, before)).toEqual([]);
-    });
-
-    it('starts nothing when 3 succeeded and 2 are active (a running write counts)', async () => {
-      const w = await world();
-      await succeededRenders(w.userId, 3);
+      await succeededGenerations(w.userId, 5);
       await data.job({ userId: w.userId, kind: 'write_story', status: 'running' });
-      await data.job({ userId: w.userId, kind: 'render_audio', status: 'pending' });
-      await lacksAudio(w);
-      const before = await idsOf(w.userId);
-      await service.run(w.userId);
-      expect(await queueOf(w.userId)).toEqual([]);
-      expect(await newJobsOf(w.userId, before)).toEqual([]);
-    });
-
-    it('does not count a render finished 25 hours ago', async () => {
-      const w = await world();
-      await succeededRenders(w.userId, 5, 25);
+      const r = await ready(w);
       for (let i = 0; i < 3; i++) await lacksAudio(w);
       const before = await idsOf(w.userId);
       const result = await service.run(w.userId);
-      expect(result).toMatchObject({ queued: { rendering: 3 } });
-      expect(await renderJobs(w.userId, before)).toHaveLength(3);
-    });
-
-    it('counts a render finished 23 hours ago', async () => {
-      const w = await world();
-      await succeededRenders(w.userId, 4, 23);
-      await succeededRenders(w.userId, 1, 25);
-      for (let i = 0; i < 3; i++) await lacksAudio(w);
-      const before = await idsOf(w.userId);
-      await service.run(w.userId);
-      expect(await renderJobs(w.userId, before)).toHaveLength(1);
-    });
-
-    it('frees the slot of a failed job', async () => {
-      const w = await world();
-      await succeededRenders(w.userId, 3);
-      await data.job({ userId: w.userId, kind: 'render_audio', status: 'failed' });
-      await data.job({ userId: w.userId, kind: 'write_story', status: 'failed' });
-      for (let i = 0; i < 3; i++) await lacksAudio(w);
-      const before = await idsOf(w.userId);
-      await service.run(w.userId);
-      expect(await renderJobs(w.userId, before)).toHaveLength(2);
+      expect(result).toMatchObject({ queued: { ready: 1, withoutAudio: 2 }, queueLength: 3 });
+      expect((await queuedTopics(w.userId))[0]).toBe(r.topicId);
+      expect(await idsOf(w.userId)).toEqual(before);
     });
 
     it('creates a suggest_topics job for what is missing when the candidates run out', async () => {
       const w = await world();
       await ready(w);
       const result = await service.run(w.userId);
-      expect(result).toMatchObject({ queued: { ready: 1 }, suggestRequested: true, limitReached: false });
+      expect(result).toMatchObject({ queued: { ready: 1 }, suggestRequested: true });
       const suggest = (await jobsOf(w.userId)).filter((j) => j.kind === 'suggest_topics');
       expect(suggest).toHaveLength(1);
       expect(suggest[0]?.payload).toEqual({ kind: 'suggest_topics', missing: 2 });
       expect(suggest[0]?.dedupeKey).toBe(`suggest_topics:${w.userId}`);
+      await expectNoStoryJobCreated(w.userId);
     });
 
     it('blocks a new suggestion when 3 succeeded in the window, and counts only the window', async () => {
@@ -461,7 +390,7 @@ describe('QueueTopUpService (database)', () => {
         await data.job({ userId: w.userId, kind: 'suggest_topics', status: 'succeeded', hoursAgo: 2 });
       }
       const result = await service.run(w.userId);
-      expect(result).toMatchObject({ suggestRequested: false, limitReached: true });
+      expect(result).toMatchObject({ suggestRequested: false });
       expect(await jobsOf(w.userId)).toHaveLength(3);
 
       const v = await world();
@@ -471,17 +400,54 @@ describe('QueueTopUpService (database)', () => {
       await expect(service.run(v.userId)).resolves.toMatchObject({ suggestRequested: true });
     });
 
-    it('starts no suggestion when no render slot is left', async () => {
+    it('needs only a suggestion slot: all five generations used does not block a suggestion', async () => {
       const w = await world();
-      await succeededRenders(w.userId, 5);
+      await succeededGenerations(w.userId, 5);
+      const before = await idsOf(w.userId);
       const result = await service.run(w.userId);
-      expect(result).toMatchObject({ suggestRequested: false, limitReached: true });
-      expect((await jobsOf(w.userId)).filter((j) => j.kind === 'suggest_topics')).toEqual([]);
+      expect(result).toMatchObject({ suggestRequested: true });
+      const added = (await jobsOf(w.userId)).filter((j) => !before.has(j.id));
+      expect(added.map((j) => j.kind)).toEqual(['suggest_topics']);
+    });
+  });
+
+  describe('no story job in any source scenario (AGENTS.md architecture rule 10)', () => {
+    it.each([
+      ['ready stories', async (w: World) => { await ready(w); await ready(w); await ready(w); }],
+      ['stories with no audio in the voice', async (w: World) => { for (let i = 0; i < 3; i++) await lacksAudio(w); }],
+      [
+        'the own proposed topics with no story',
+        async (w: World) => {
+          for (let i = 0; i < 3; i++) {
+            const own = await data.topic({ interestId: w.interestId });
+            await data.userTopic(w.userId, own.topicId, 'proposed');
+          }
+        },
+      ],
+      ['no candidates (only a suggestion)', async () => undefined],
+      [
+        'all three sources at once',
+        async (w: World) => {
+          await ready(w);
+          await lacksAudio(w);
+          const own = await data.topic({ interestId: w.interestId });
+          await data.userTopic(w.userId, own.topicId, 'proposed');
+        },
+      ],
+    ])('creates no write_story and no render_audio row for %s', async (_name, prepare) => {
+      const w = await world();
+      await prepare(w);
+      const before = await idsOf(w.userId);
+      await service.run(w.userId);
+      await service.run(w.userId);
+      await expectNoStoryJobCreated(w.userId, before);
+      const kinds = (await jobsOf(w.userId)).map((j) => j.kind);
+      expect(kinds.every((kind) => kind === 'suggest_topics')).toBe(true);
     });
   });
 
   describe('dedupe, idempotence and isolation', () => {
-    it('queues the topic but makes no job and uses no slot when another person already writes it', async () => {
+    it('queues the topic and makes no story job while another person writes it', async () => {
       const w = await world();
       const other = await data.user({ voiceId: w.voiceId, interestIds: [w.interestId] });
       const own = await data.topic({ interestId: w.interestId });
@@ -495,28 +461,22 @@ describe('QueueTopUpService (database)', () => {
 
       const result = await service.run(w.userId);
 
-      expect(result).toMatchObject({ queued: { writing: 1 } });
+      expect(result).toMatchObject({ queued: { withoutStory: 1 } });
       expect(await queuedTopics(w.userId)).toEqual([own.topicId]);
       const mine = await jobsOf(w.userId);
-      expect(mine.filter((j) => j.kind === 'write_story')).toEqual([]);
       // The other person's job is untouched.
       const stillTheirs = await prisma.generationJob.findUnique({ where: { id: theirs } });
       expect(stillTheirs).toMatchObject({ requestedByUserId: other, status: 'running' });
-      // No render slot was used: the only job of this person is a suggestion for the rest.
       expect(mine.map((j) => j.kind)).toEqual(['suggest_topics']);
 
-      // The winner finishes: the story exists, but its audio is in the OTHER voice. The
-      // loser's next run renders it in the loser's voice, once.
-      const storyId = await data.storyFor(own.topicId, [w.otherVoiceId]);
+      // The winner finishes with audio in the OTHER voice. The next run of the loser does
+      // not render it: only an explicit start does (the stalled-items step is gone).
+      await data.storyFor(own.topicId, [w.otherVoiceId]);
       await data.markJob(theirs, 'succeeded');
       enqueued.length = 0;
-      const again = await service.run(w.userId);
-      expect(again).toMatchObject({ healed: 1 });
-      const renders = (await jobsOf(w.userId)).filter((j) => j.kind === 'render_audio');
-      expect(renders).toHaveLength(1);
-      expect(renders[0]?.dedupeKey).toBe(`render_audio:${storyId}:${w.voiceId}`);
-      expect(renders[0]?.payload).toEqual({ kind: 'render_audio', storyId, voiceId: w.voiceId });
-      expect(enqueued.filter((e) => e.id === renders[0]?.id)).toHaveLength(1);
+      await service.run(w.userId);
+      await expectNoStoryJobCreated(w.userId);
+      expect(enqueued).toEqual([]);
     });
 
     it('a second run creates nothing new', async () => {
@@ -524,7 +484,7 @@ describe('QueueTopUpService (database)', () => {
       for (let i = 0; i < 3; i++) await ready(w);
       await service.run(w.userId);
       const items = await queueOf(w.userId);
-      await expect(service.run(w.userId)).resolves.toEqual({ skipped: 'queue_full', healed: 0 });
+      await expect(service.run(w.userId)).resolves.toEqual({ skipped: 'queue_full' });
       expect(await queueOf(w.userId)).toEqual(items);
 
       // With nothing to queue the suggestion job is the only one, and a repeat adds none.
@@ -559,151 +519,43 @@ describe('QueueTopUpService (database)', () => {
     });
   });
 
-  describe('stalled queue items', () => {
-    // A queue item whose topic has a story but no audio in the person's voice.
-    async function stalledItem(w: World, position = 1) {
-      const t = await data.topic({ interestId: w.interestId, story: true });
-      await data.queueItem(w.userId, t.topicId, position);
-      return { topicId: t.topicId, storyId: t.storyId as string };
-    }
-    const renderJobsOf = async (userId: string) =>
-      (await jobsOf(userId)).filter((j) => j.kind === 'render_audio');
-
-    it('heals even when the queue already holds 3, and enqueues the job once', async () => {
+  describe('failed jobs', () => {
+    it('does not queue a topic whose write_story finally failed, nor a story whose render failed', async () => {
       const w = await world();
-      const item = await stalledItem(w, 1);
-      for (const position of [2, 3]) {
-        const t = await ready(w);
-        await data.queueItem(w.userId, t.topicId, position);
-      }
-      const result = await service.run(w.userId);
-      expect(result).toEqual({ skipped: 'queue_full', healed: 1 });
-      const renders = await renderJobsOf(w.userId);
-      expect(renders).toHaveLength(1);
-      expect(renders[0]?.dedupeKey).toBe(`render_audio:${item.storyId}:${w.voiceId}`);
-      expect(enqueued.map((e) => e.id)).toEqual([renders[0]?.id]);
-      expect(enqueued[0]?.visible).toBe(true);
-      expect(await queueOf(w.userId)).toHaveLength(3);
-    });
-
-    it('creates no job while an active render of the same story and voice exists (another person)', async () => {
-      const w = await world();
-      const other = await data.user({ voiceId: w.voiceId, interestIds: [w.interestId] });
-      const item = await stalledItem(w);
+      const failedWrite = await data.topic({ interestId: w.interestId });
+      await data.userTopic(w.userId, failedWrite.topicId, 'proposed');
       await data.job({
-        userId: other,
-        kind: 'render_audio',
-        status: 'running',
-        dedupeKey: `render_audio:${item.storyId}:${w.voiceId}`,
-      });
-      const result = await service.run(w.userId);
-      expect(result).toMatchObject({ healed: 0 });
-      expect(await renderJobsOf(w.userId)).toEqual([]);
-    });
-
-    it('creates no job when audio in the person\'s voice already exists', async () => {
-      const w = await world();
-      const t = await data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
-      await data.queueItem(w.userId, t.topicId, 1);
-      const result = await service.run(w.userId);
-      expect(result).toMatchObject({ healed: 0 });
-      expect(await renderJobsOf(w.userId)).toEqual([]);
-    });
-
-    it('does not retry a failed render, nor one that succeeded without audio (any status), also when full', async () => {
-      const w = await world();
-      const failed = await stalledItem(w, 1);
-      const failedJob = await data.job({
         userId: w.userId,
-        kind: 'render_audio',
-        status: 'running',
-        dedupeKey: `render_audio:${failed.storyId}:${w.voiceId}`,
+        kind: 'write_story',
+        status: 'failed',
+        dedupeKey: `write_story:${failedWrite.topicId}`,
       });
-      await data.markJob(failedJob, 'failed');
-      const done = await stalledItem(w, 2);
+      const failedRender = await lacksAudio(w);
       await data.job({
         userId: w.userId,
         kind: 'render_audio',
-        status: 'succeeded',
-        dedupeKey: `render_audio:${done.storyId}:${w.voiceId}`,
+        status: 'failed',
+        dedupeKey: `render_audio:${failedRender.storyId}:${w.voiceId}`,
       });
-      const third = await ready(w);
-      await data.queueItem(w.userId, third.topicId, 3);
+      const control = await ready(w);
 
-      const before = new Set((await jobsOf(w.userId)).map((j) => j.id));
-      // Full queue.
-      expect(await service.run(w.userId)).toEqual({ skipped: 'queue_full', healed: 0 });
-      expect(await newJobsOf(w.userId, before)).toEqual([]);
-      // Not full: drop one item, then run again.
-      await prisma.queueItem.deleteMany({ where: { userId: w.userId, topicId: third.topicId } });
-      expect(await service.run(w.userId)).toMatchObject({ healed: 0 });
-      expect(await renderJobsOf(w.userId)).toHaveLength(2);
-      expect(enqueued).toEqual([]);
-    });
-
-    it('does not heal a stalled item whose story the person has heard', async () => {
-      const w = await world();
-      const item = await stalledItem(w);
-      await data.listen(w.userId, item.storyId, w.voiceId);
-      expect(await service.run(w.userId)).toMatchObject({ healed: 0 });
-      expect(await renderJobsOf(w.userId)).toEqual([]);
-    });
-
-    it('respects the daily limit: nothing is created and the item stays', async () => {
-      const w = await world();
-      await succeededRenders(w.userId, 5);
-      const item = await stalledItem(w);
-      const result = await service.run(w.userId);
-      expect(result).toMatchObject({ healed: 0 });
-      expect((await jobsOf(w.userId)).filter((j) => j.status === 'pending')).toEqual([]);
-      expect(await queuedTopics(w.userId)).toEqual([item.topicId]);
-    });
-
-    it('looks only at the person\'s own queue', async () => {
-      const w = await world();
-      const otherVoice = await data.voice();
-      const other = await data.user({ voiceId: otherVoice, interestIds: [w.interestId] });
-      const theirs = await data.topic({ interestId: w.interestId, story: true });
-      await data.queueItem(other, theirs.topicId, 1);
-      // Requested by them, so it is not in the pool for the first person either.
-      await data.userTopic(other, theirs.topicId, 'requested');
       await service.run(w.userId);
-      expect(await jobsOf(other)).toEqual([]);
-      expect(await renderJobsOf(w.userId)).toEqual([]);
-    });
 
-    it('a second run right after healing creates nothing more', async () => {
-      const w = await world();
-      await stalledItem(w);
-      await service.run(w.userId);
-      const afterFirst = await jobsOf(w.userId);
-      enqueued.length = 0;
-      const second = await service.run(w.userId);
-      expect(second).toMatchObject({ healed: 0 });
-      expect(await jobsOf(w.userId)).toHaveLength(afterFirst.length);
-      expect(enqueued).toEqual([]);
+      const queued = await queuedTopics(w.userId);
+      expect(queued).toEqual([control.topicId]);
     });
   });
 
   describe('enqueue and concurrency', () => {
-    it('hands the queue only committed ids of jobs that exist, and only the created ones', async () => {
+    it('hands the queue only the committed suggestion job', async () => {
       const w = await world();
       await lacksAudio(w);
-      const own = await data.topic({ interestId: w.interestId });
-      await data.userTopic(w.userId, own.topicId, 'proposed');
-      const other = await data.user({ voiceId: w.voiceId, interestIds: [w.interestId] });
-      await data.job({
-        userId: other,
-        kind: 'write_story',
-        status: 'pending',
-        dedupeKey: `write_story:${own.topicId}`,
-      });
 
       await service.run(w.userId);
 
       const rows = await jobsOf(w.userId);
-      expect(rows.length).toBeGreaterThan(0);
-      expect(enqueued.map((e) => e.id).sort()).toEqual(rows.map((r) => r.id).sort());
+      expect(rows.map((r) => r.kind)).toEqual(['suggest_topics']);
+      expect(enqueued.map((e) => e.id)).toEqual(rows.map((r) => r.id));
       expect(enqueued.every((e) => e.visible)).toBe(true);
     });
 
@@ -716,7 +568,7 @@ describe('QueueTopUpService (database)', () => {
       expect(enqueued).toEqual([]);
     });
 
-    it('two simultaneous runs for one person never exceed the queue or the slots', async () => {
+    it('two simultaneous runs for one person never exceed the queue, and create one suggestion at most', async () => {
       for (let round = 0; round < 5; round++) {
         const w = await world();
         for (let i = 0; i < 6; i++) await lacksAudio(w);
@@ -724,19 +576,16 @@ describe('QueueTopUpService (database)', () => {
           const own = await data.topic({ interestId: w.interestId });
           await data.userTopic(w.userId, own.topicId, 'proposed');
         }
-        await succeededRenders(w.userId, 3);
+        await succeededGenerations(w.userId, 3);
 
         await Promise.all([service.run(w.userId), service.run(w.userId)]);
 
         const queued = await queuedTopics(w.userId);
         expect(queued.length).toBeLessThanOrEqual(3);
         expect(new Set(queued).size).toBe(queued.length);
-        const active = (await jobsOf(w.userId)).filter(
-          (j) => (j.kind === 'render_audio' || j.kind === 'write_story') && j.status === 'pending',
-        );
-        // 5 slots - 3 used = 2 at most, and never a job beyond the queue.
-        expect(active.length).toBeLessThanOrEqual(2);
-        expect(active.length).toBeLessThanOrEqual(queued.length);
+        const all = await jobsOf(w.userId);
+        // Only the three seeded renders: the runs added no story job.
+        expect(all.filter((j) => j.kind !== 'suggest_topics')).toHaveLength(3);
       }
     });
   });

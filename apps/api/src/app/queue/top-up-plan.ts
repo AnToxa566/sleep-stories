@@ -2,20 +2,18 @@ import { MAX_SUGGESTED_PER_JOB, QUEUE_TARGET_LENGTH, QUEUE_TOP_UP_THRESHOLD } fr
 
 export interface TopUpPlanInput {
   queueLength: number;
-  // Render slots still free in the window. Rendering and writing candidates share them.
-  rendersLeft: number;
   suggestionsLeft: number;
   // Candidate ids, already random-ordered by the caller.
   ready: readonly string[];
-  rendering: readonly string[];
-  writing: readonly string[];
+  withoutAudio: readonly string[];
+  withoutStory: readonly string[];
 }
 
 export interface TopUpPlan {
   need: number;
   queueReady: string[];
-  queueRendering: string[];
-  queueWriting: string[];
+  queueWithoutAudio: string[];
+  queueWithoutStory: string[];
   suggestMissing: number;
 }
 
@@ -25,31 +23,29 @@ function count(value: number): number {
 }
 
 // Pure decision for one top-up: how many items are needed and which candidates fill them.
-// Order is ready (free), then rendering (one render slot each), then writing (one render
-// slot each); `suggest_topics` only gets what is still missing, and only if a suggestion
-// slot and a render slot remain, because a suggestion with no render slot could not be
-// followed by a write. The total of the three lists never exceeds the need.
+// Order is ready, then stories with no audio in the person's voice, then the person's own
+// topics with no story; `suggest_topics` only gets what is still missing, and only if a
+// suggestion slot remains. Nothing here costs a generation: the top-up only fills the queue
+// (ARCHITECTURE.md section 6, "Queue top-up"). The total of the three lists never exceeds
+// the need.
 export function planTopUp(input: TopUpPlanInput): TopUpPlan {
   const queueLength = count(input.queueLength);
   const need =
     queueLength > QUEUE_TOP_UP_THRESHOLD ? 0 : Math.max(0, QUEUE_TARGET_LENGTH - queueLength);
 
   let remaining = need;
-  let renderSlots = count(input.rendersLeft);
 
   const queueReady = input.ready.slice(0, remaining);
   remaining -= queueReady.length;
 
-  const queueRendering = input.rendering.slice(0, Math.min(remaining, renderSlots));
-  remaining -= queueRendering.length;
-  renderSlots -= queueRendering.length;
+  const queueWithoutAudio = input.withoutAudio.slice(0, remaining);
+  remaining -= queueWithoutAudio.length;
 
-  const queueWriting = input.writing.slice(0, Math.min(remaining, renderSlots));
-  remaining -= queueWriting.length;
-  renderSlots -= queueWriting.length;
+  const queueWithoutStory = input.withoutStory.slice(0, remaining);
+  remaining -= queueWithoutStory.length;
 
-  const canSuggest = remaining > 0 && count(input.suggestionsLeft) >= 1 && renderSlots >= 1;
+  const canSuggest = remaining > 0 && count(input.suggestionsLeft) >= 1;
   const suggestMissing = canSuggest ? Math.min(remaining, MAX_SUGGESTED_PER_JOB) : 0;
 
-  return { need, queueReady, queueRendering, queueWriting, suggestMissing };
+  return { need, queueReady, queueWithoutAudio, queueWithoutStory, suggestMissing };
 }

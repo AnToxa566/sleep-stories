@@ -1,7 +1,7 @@
 import type { JobKind } from '@sleep-stories/contracts';
 
-// Queue top-up and limit numbers. Decided by the owner on 2026-10-30
-// (ARCHITECTURE.md section 6, "Queue top-up and the daily limit").
+// Queue top-up and limit numbers. Decided by the owner on 2026-10-30 and reworded on
+// 2026-10-31 (ARCHITECTURE.md section 6, "Generation is explicit" and "Queue top-up").
 
 // A person's queue is filled up to this many items.
 export const QUEUE_TARGET_LENGTH = 3;
@@ -9,8 +9,10 @@ export const QUEUE_TARGET_LENGTH = 3;
 // Top-up runs only when the queue holds this many items or fewer.
 export const QUEUE_TOP_UP_THRESHOLD = 2;
 
-// Audio renders (and the story writes that lead to one) one person may use per window.
-export const MAX_RENDERS_PER_WINDOW = 5;
+// Generations one person may use per window. One generation is bringing one story to ready:
+// a `write_story` and the `render_audio` that follows it, or a `render_audio` alone, count as
+// one. Only an explicit start spends one (nothing built yet creates them).
+export const MAX_GENERATIONS_PER_WINDOW = 5;
 
 // `suggest_topics` runs one person may use per window.
 export const MAX_SUGGESTIONS_PER_WINDOW = 3;

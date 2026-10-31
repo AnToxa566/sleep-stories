@@ -16,14 +16,11 @@ import type {
   GenerateStructuredResult,
 } from '../../providers/llm/llm.provider';
 import { ProvidersModule } from '../../providers/providers.module';
-import { GenerationJobsService } from '../../queue/generation-jobs.service';
-import { GenerationLimitsService } from '../../queue/generation-limits.service';
 import { QueueModule } from '../../queue/queue.module';
 import { QueueTopUpService } from '../../queue/queue-top-up.service';
 import { JobHandlerRegistry, type JobHandler } from '../job-handler';
 import { JobRunnerService } from '../job-runner.service';
 import { SuggestTopicsHandler } from './suggest-topics.handler';
-import type { Prisma } from '../../../generated/prisma/client';
 
 // Runs against the REAL local database with the real PrismaModule and QueueModule and the
 // REAL TopicSuggesterService over a fake model that records every call. The job queue is a
@@ -48,10 +45,6 @@ let app: INestApplication;
 let prisma: PrismaService;
 let data: QueueTestData;
 let topUp: QueueTopUpService;
-let suggester: TopicSuggesterService;
-let jobsService: GenerationJobsService;
-let limits: GenerationLimitsService;
-let jobQueue: JobQueue;
 let handler: SuggestTopicsHandler;
 let runner: JobRunnerService;
 
@@ -135,10 +128,6 @@ beforeAll(async () => {
   prisma = app.get(PrismaService);
   data = new QueueTestData(prisma);
   topUp = app.get(QueueTopUpService);
-  suggester = app.get(TopicSuggesterService);
-  jobsService = app.get(GenerationJobsService);
-  limits = app.get(GenerationLimitsService);
-  jobQueue = app.get(JobQueue);
   handler = app.get(SuggestTopicsHandler);
   runner = runnerFor(handler);
 });
@@ -210,7 +199,7 @@ async function suggestJob(w: World, missing = 3): Promise<string> {
   });
 }
 
-async function usedRenders(userId: string, count: number): Promise<void> {
+async function usedGenerations(userId: string, count: number): Promise<void> {
   for (let i = 0; i < count; i += 1) {
     await data.job({ userId, kind: 'render_audio', status: 'succeeded', hoursAgo: 1 });
   }
@@ -223,8 +212,6 @@ const queueOf = (userId: string) =>
   prisma.queueItem.findMany({ where: { userId }, orderBy: { position: 'asc' } });
 const writeJobsOf = (userId: string) =>
   prisma.generationJob.findMany({ where: { requestedByUserId: userId, kind: 'write_story' } });
-const topicIdOf = (job: { payload: Prisma.JsonValue }) =>
-  (job.payload as { topicId: string }).topicId;
 const allReplies = () => llmCalls.flatMap((c) => c.replies);
 
 async function expectNothingPersisted(userId: string): Promise<void> {
@@ -236,24 +223,21 @@ async function expectNothingPersisted(userId: string): Promise<void> {
   expect(enqueued).toEqual([]);
 }
 
-// A queued topic must have a pending write_story job, and every write job must belong to a
-// queued topic: a queued item with no job could never become ready.
-async function expectQueuedTopicsHaveJobs(userId: string, voiceId?: string): Promise<void> {
-  const queue = await queueOf(userId);
-  const jobs = await writeJobsOf(userId);
-  expect(new Set(queue.map((q) => q.topicId))).toEqual(new Set(jobs.map(topicIdOf)));
-  expect(queue).toHaveLength(jobs.length);
-  for (const job of jobs) {
-    expect(job.status).toBe('pending');
-    if (voiceId !== undefined) {
-      expect((job.payload as { voiceId: string }).voiceId).toBe(voiceId);
-    }
-  }
+// The rule of AGENTS.md architecture rule 10: the suggestion makes topics and queue items and
+// never a story job, whatever the person's allowance is.
+async function expectNoStoryJobs(userId: string): Promise<void> {
+  expect(await writeJobsOf(userId)).toEqual([]);
+  expect(
+    await prisma.generationJob.count({
+      where: { requestedByUserId: userId, kind: { in: ['write_story', 'render_audio'] } },
+    }),
+  ).toBe(0);
+  expect(enqueued).toEqual([]);
 }
 
 describe('SuggestTopicsHandler (database)', () => {
   describe('the result', () => {
-    it('stores topics and proposed user_topics and queues the missing ones with jobs', async () => {
+    it('stores topics and proposed user_topics and queues the missing ones with no job', async () => {
       const w = await world();
       const jobId = await suggestJob(w, 3);
 
@@ -274,13 +258,12 @@ describe('SuggestTopicsHandler (database)', () => {
 
       const queue = await queueOf(w.userId);
       expect(queue.map((q) => q.position)).toEqual([1, 2, 3]);
-      await expectQueuedTopicsHaveJobs(w.userId, w.voiceId);
+      // Queued topics are among the stored ones, and they have no story.
+      const storedIds = new Set(stored.map((row) => row.topicId));
+      for (const item of queue) expect(storedIds.has(item.topicId)).toBe(true);
+      expect(await prisma.story.count({ where: { topicId: { in: queue.map((q) => q.topicId) } } })).toBe(0);
       expect(await readJob(jobId)).toMatchObject({ status: 'succeeded', lastError: null });
-
-      // Handed to the queue after the commit: every row was visible by then.
-      const writeJobs = await writeJobsOf(w.userId);
-      expect(enqueued.map((e) => e.id).sort()).toEqual(writeJobs.map((j) => j.id).sort());
-      expect(enqueued.every((e) => e.visible)).toBe(true);
+      await expectNoStoryJobs(w.userId);
       // No title or model text in any log line.
       expect(logged.join('')).not.toContain(PREFIX);
     });
@@ -290,19 +273,18 @@ describe('SuggestTopicsHandler (database)', () => {
       await expect(runner.run(await suggestJob(w, 1))).resolves.toBe('succeeded');
       expect(await topicsOf(w.userId)).toHaveLength(4);
       expect(await queueOf(w.userId)).toHaveLength(1);
-      await expectQueuedTopicsHaveJobs(w.userId, w.voiceId);
+      await expectNoStoryJobs(w.userId);
     });
 
-    it('queues one topic and one job when 4 of 5 renders are used', async () => {
+    it('queues the topics even when the generations of the day are all used', async () => {
       const w = await world();
-      await usedRenders(w.userId, 4);
+      await usedGenerations(w.userId, 5);
 
       await expect(runner.run(await suggestJob(w, 3))).resolves.toBe('succeeded');
 
       expect(await topicsOf(w.userId)).toHaveLength(4);
-      expect(await queueOf(w.userId)).toHaveLength(1);
-      expect(await writeJobsOf(w.userId)).toHaveLength(1);
-      await expectQueuedTopicsHaveJobs(w.userId, w.voiceId);
+      expect(await queueOf(w.userId)).toHaveLength(3);
+      expect(await writeJobsOf(w.userId)).toEqual([]);
     });
 
     it('queues one more topic when two items are already queued', async () => {
@@ -316,41 +298,37 @@ describe('SuggestTopicsHandler (database)', () => {
 
       const queue = await queueOf(w.userId);
       expect(queue.map((q) => q.position)).toEqual([1, 2, 3]);
-      expect(await writeJobsOf(w.userId)).toHaveLength(1);
-      const newItem = queue[2];
-      expect((await writeJobsOf(w.userId)).map(topicIdOf)).toEqual([newItem.topicId]);
+      expect(await topicsOf(w.userId)).toHaveLength(4);
+      await expectNoStoryJobs(w.userId);
     });
 
-    it('stores the topics but queues nothing when no render slot is left', async () => {
+    it('queues nothing when the queue already holds three, but keeps the new topics', async () => {
       const w = await world();
-      const jobId = await suggestJob(w, 3);
-      await usedRenders(w.userId, 5);
+      for (const position of [1, 2, 3]) {
+        const { topicId } = await data.topic({ interestId: w.interestIds[0], story: true });
+        await data.queueItem(w.userId, topicId, position);
+      }
 
-      await expect(runner.run(jobId)).resolves.toBe('succeeded');
+      await expect(runner.run(await suggestJob(w, 3))).resolves.toBe('succeeded');
 
+      expect(await queueOf(w.userId)).toHaveLength(3);
       expect(await topicsOf(w.userId)).toHaveLength(4);
-      expect(await queueOf(w.userId)).toEqual([]);
-      expect(await writeJobsOf(w.userId)).toEqual([]);
-      expect(await readJob(jobId)).toMatchObject({ status: 'succeeded' });
-      expect(enqueued).toEqual([]);
+      await expectNoStoryJobs(w.userId);
     });
 
-    it('queues only topics whose job was created', async () => {
+    it('queues a random subset of the new topics', async () => {
       const w = await world();
-      const jobId = await suggestJob(w, 3);
-      // A job service that "finds an active job" for the first item of every batch.
-      const dropFirst = {
-        createInKeyOrder: (tx: Prisma.TransactionClient, userId: string, items: never[]) =>
-          jobsService.createInKeyOrder(tx, userId, items.slice(1)),
-      } as unknown as GenerationJobsService;
-      const partial = new SuggestTopicsHandler(prisma, suggester, dropFirst, limits, jobQueue);
-
-      await expect(runnerFor(partial).run(jobId)).resolves.toBe('succeeded');
-
-      expect(await queueOf(w.userId)).toHaveLength(2);
-      expect(await writeJobsOf(w.userId)).toHaveLength(2);
-      await expectQueuedTopicsHaveJobs(w.userId, w.voiceId);
-      expect(await topicsOf(w.userId)).toHaveLength(4);
+      const seen = new Set<string>();
+      for (let round = 0; round < 8; round += 1) {
+        await prisma.queueItem.deleteMany({ where: { userId: w.userId } });
+        await expect(runner.run(await suggestJob(w, 1))).resolves.toBe('succeeded');
+        const queue = await queueOf(w.userId);
+        expect(queue).toHaveLength(1);
+        const title = (await topicsOf(w.userId)).find((t) => t.topicId === queue[0].topicId)?.topic.title;
+        seen.add(title ?? '');
+      }
+      // Eight draws from four new topics per run: one fixed pick every time is a 1-in-4^7 chance.
+      expect(seen.size).toBeGreaterThan(1);
     });
   });
 
@@ -492,7 +470,7 @@ describe('SuggestTopicsHandler (database)', () => {
           };
         },
       } as unknown as TopicSuggesterService;
-      const stubbed = new SuggestTopicsHandler(prisma, stub, jobsService, limits, jobQueue);
+      const stubbed = new SuggestTopicsHandler(prisma, stub);
 
       await expect(runnerFor(stubbed).run(await suggestJob(w, 3))).resolves.toBe('succeeded');
 
@@ -593,67 +571,64 @@ describe('SuggestTopicsHandler (database)', () => {
   });
 
   describe('concurrency with the top-up', () => {
-    // One render slot left, one own proposed topic the top-up wants to write, and a
-    // suggestion job that wants the same slot. The users-row lock must make them take turns.
-    async function slotWorld() {
-      const w = await world({ interests: 1 });
-      await usedRenders(w.userId, 4);
+    // The suggestion queues three topics and holds the users-row lock a moment longer; the
+    // top-up starts only after the queue insert. Without the lock the top-up would not see
+    // the uncommitted items, would queue the person's own topic too, and the queue would
+    // hold four. With the lock it waits, sees three and queues nothing.
+    async function lockWorld() {
+      const w = await world({ interests: 2 });
       const own = await data.topic({ interestId: w.interestIds[0] });
       await data.userTopic(w.userId, own.topicId, 'proposed');
       return { w, jobId: await suggestJob(w, 3) };
     }
 
-    async function expectOneSlotUsed(userId: string): Promise<void> {
-      const active = await prisma.generationJob.findMany({
-        where: {
-          requestedByUserId: userId,
-          kind: { in: ['write_story', 'render_audio'] },
-          status: { in: ['pending', 'running'] },
-        },
-      });
-      expect(active).toHaveLength(1);
-      const queue = await queueOf(userId);
-      const topicIds = queue.map((q) => q.topicId);
+    async function expectQueueIntact(userId: string): Promise<void> {
+      const topicIds = (await queueOf(userId)).map((q) => q.topicId);
       expect(new Set(topicIds).size).toBe(topicIds.length);
-      // Every queued topic has its job, and the single job belongs to a queued topic.
-      expect(topicIds.sort()).toEqual((await writeJobsOf(userId)).map(topicIdOf).sort());
+      expect(topicIds.length).toBeLessThanOrEqual(3);
+      expect(await prisma.generationJob.count({
+        where: { requestedByUserId: userId, kind: { in: ['write_story', 'render_audio'] } },
+      })).toBe(0);
     }
 
-    it('lets the top-up wait while the suggestion holds the lock, then sees its job', async () => {
+    it('lets the top-up wait while the suggestion holds the lock, then sees its items', async () => {
       for (let round = 0; round < 3; round += 1) {
-        const { w, jobId } = await slotWorld();
-        // The handler pauses right after it read the limits, inside its transaction. The
-        // top-up starts only then, so without the lock it would commit in that window.
+        const { w, jobId } = await lockWorld();
         let entered!: () => void;
         const inside = new Promise<void>((resolve) => (entered = resolve));
-        const slowLimits = {
-          usage: async (tx: Prisma.TransactionClient, userId: string) => {
-            const usage = await limits.usage(tx, userId);
-            entered();
-            await sleep(400);
-            return usage;
-          },
-        } as unknown as GenerationLimitsService;
-        const slow = new SuggestTopicsHandler(prisma, suggester, jobsService, slowLimits, jobQueue);
+        const slow: JobHandler<'suggest_topics'> = {
+          kind: 'suggest_topics',
+          run: (ctx) =>
+            handler.run({
+              ...ctx,
+              markSucceeded: async (tx) => {
+                entered();
+                await sleep(400);
+                await ctx.markSucceeded(tx);
+              },
+            }),
+        };
 
-        const [outcome] = await Promise.all([
+        const [outcome, topUpResult] = await Promise.all([
           runnerFor(slow).run(jobId),
           inside.then(() => topUp.run(w.userId)),
         ]);
 
         expect(outcome).toBe('succeeded');
-        await expectOneSlotUsed(w.userId);
+        expect(topUpResult).toEqual({ skipped: 'queue_full' });
+        expect(await queueOf(w.userId)).toHaveLength(3);
+        await expectQueueIntact(w.userId);
       }
     });
 
-    it('never uses more than the one slot when both start together (repeated)', async () => {
+    it('keeps the queue unique and within three when both start together (repeated)', async () => {
       for (let round = 0; round < 6; round += 1) {
-        const { w, jobId } = await slotWorld();
+        const { w, jobId } = await lockWorld();
 
         const [, outcome] = await Promise.all([topUp.run(w.userId), runner.run(jobId)]);
 
         expect(outcome).toBe('succeeded');
-        await expectOneSlotUsed(w.userId);
+        await expectQueueIntact(w.userId);
       }
     });
   });

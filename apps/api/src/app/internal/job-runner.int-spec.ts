@@ -7,7 +7,7 @@ import { QueueTestData } from '../../test-support/queue-test-data';
 import type { Prisma } from '../../generated/prisma/client';
 import { envFilePaths, validateEnv } from '../config/env';
 import { dedupeKeyOf } from '../queue/generation-jobs.service';
-import { findReady, findRendering, findWriting } from '../queue/queue-candidates';
+import { findReady, findWithoutAudio, findWithoutStory } from '../queue/queue-candidates';
 import { MAX_ATTEMPTS, SWEEP_BATCH_SIZE } from '../queue/queue-policy';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PrismaService } from '../prisma/prisma.service';
@@ -289,7 +289,7 @@ describe('JobRunnerService (database)', () => {
       expect(calls.map((c) => c.attempt)).toEqual([1, 2]);
     });
 
-    it('does not apply the failure policy when a stale run fails', async () => {
+    it('changes nothing when a stale run fails', async () => {
       const w = await world();
       const jobId = await makeJob(w, 'write_story');
       await data.queueItem(w.userId, w.bare.topicId, 1);
@@ -390,7 +390,7 @@ describe('JobRunnerService (database)', () => {
       expect(logged.join('\n')).not.toContain(jobId);
     });
 
-    it('removes the item of everyone waiting on a failed write_story, and nothing else', async () => {
+    it('leaves the queue items of everyone in place when a write_story fails for good', async () => {
       const w = await world();
       const waiting = await data.user({ voiceId: w.voiceId, interestIds: [w.interestId] });
       const otherVoice = await data.voice();
@@ -409,14 +409,16 @@ describe('JobRunnerService (database)', () => {
 
       await expect(runner.run(jobId)).resolves.toBe('failed');
 
-      // The topic will never have a story: nobody waits for it any more, whatever their voice.
-      expect(await queuedTopics(w.userId)).toEqual([unrelated.topicId]);
-      expect(await queuedTopics(waiting)).toEqual([]);
-      expect(await queuedTopics(waitingOtherVoice)).toEqual([]);
+      // Owner decision (2026-10-31): the item stays and shows the failed state; a retry is
+      // an explicit start. Nothing is removed for anyone.
+      expect(await queuedTopics(w.userId)).toEqual([w.bare.topicId, unrelated.topicId]);
+      expect(await queuedTopics(waiting)).toEqual([w.bare.topicId]);
+      expect(await queuedTopics(waitingOtherVoice)).toEqual([w.bare.topicId]);
       expect(await queuedTopics(bystander)).toEqual([unrelated.topicId]);
+      expect(await readJob(jobId)).toMatchObject({ status: 'failed', lastError: 'unknown' });
     });
 
-    it('removes the item of everyone with the same voice waiting on a failed render_audio, and nothing else', async () => {
+    it('leaves the queue items in place when a render_audio fails for good', async () => {
       const w = await world();
       const sameVoice = await data.user({ voiceId: w.voiceId, interestIds: [w.interestId] });
       const otherVoice = await data.voice();
@@ -436,15 +438,13 @@ describe('JobRunnerService (database)', () => {
 
       await expect(runner.run(jobId)).resolves.toBe('failed');
 
-      // Waiting for audio in this voice: gone. Another voice has a render job and key of its
-      // own and keeps the item; so does a person with no voice (not a waiter on this key).
-      expect(await queuedTopics(w.userId)).toEqual([unrelated.topicId]);
-      expect(await queuedTopics(sameVoice)).toEqual([unrelated.topicId]);
+      expect(await queuedTopics(w.userId)).toEqual([w.withStory.topicId, unrelated.topicId]);
+      expect(await queuedTopics(sameVoice)).toEqual([w.withStory.topicId, unrelated.topicId]);
       expect(await queuedTopics(differentVoice)).toEqual([w.withStory.topicId]);
       expect(await queuedTopics(noPreferences)).toEqual([w.withStory.topicId]);
     });
 
-    it('still removes the waiting items when the requester was deleted', async () => {
+    it('leaves the waiting items in place when the requester was deleted', async () => {
       const w = await world();
       const waiting = await data.user({ voiceId: w.voiceId });
       const jobId = await makeJob(w, 'write_story');
@@ -454,10 +454,10 @@ describe('JobRunnerService (database)', () => {
         throw new Error('x');
       };
       await expect(runner.run(jobId)).resolves.toBe('failed');
-      expect(await queuedTopics(waiting)).toEqual([]);
+      expect(await queuedTopics(waiting)).toEqual([w.bare.topicId]);
     });
 
-    it('applies no queue policy to a failed suggest_topics', async () => {
+    it('leaves the queue alone when a suggest_topics fails for good', async () => {
       const w = await world();
       const jobId = await makeJob(w, 'suggest_topics');
       await data.queueItem(w.userId, w.bare.topicId, 1);
@@ -544,7 +544,7 @@ describe('JobRunnerService (database)', () => {
         lastError: 'attempts_exhausted',
         attempts: MAX_ATTEMPTS.write_story,
       });
-      expect(await queuedTopics(w.userId)).toEqual([]);
+      expect(await queuedTopics(w.userId)).toEqual([w.bare.topicId]);
       expect(calls).toEqual([]);
     });
   });
@@ -584,9 +584,9 @@ describe('JobRunnerService (database)', () => {
       const found = await prisma.$transaction(async (tx) => ({
         ready: (await findReady(tx, query(w.userId, w.voiceId))).map((c) => c.topicId),
         otherReady: (await findReady(tx, query(other, w.voiceId))).map((c) => c.topicId),
-        rendering: (await findRendering(tx, query(w.userId, w.voiceId))).map((c) => c.topicId),
-        otherRendering: (await findRendering(tx, query(other, w.voiceId))).map((c) => c.topicId),
-        writing: await findWriting(tx, query(w.userId, w.voiceId)),
+        rendering: (await findWithoutAudio(tx, query(w.userId, w.voiceId))).map((c) => c.topicId),
+        otherRendering: (await findWithoutAudio(tx, query(other, w.voiceId))).map((c) => c.topicId),
+        writing: await findWithoutStory(tx, query(w.userId, w.voiceId)),
       }));
 
       expect(found.ready).toContain(readyGood.topicId);
@@ -615,8 +615,8 @@ describe('JobRunnerService (database)', () => {
       });
 
       const found = await prisma.$transaction(async (tx) => ({
-        mine: (await findRendering(tx, query(w.userId, w.voiceId))).map((c) => c.topicId),
-        theirs: (await findRendering(tx, query(sameInterestUser, otherVoice))).map(
+        mine: (await findWithoutAudio(tx, query(w.userId, w.voiceId))).map((c) => c.topicId),
+        theirs: (await findWithoutAudio(tx, query(sameInterestUser, otherVoice))).map(
           (c) => c.topicId,
         ),
       }));
@@ -635,7 +635,7 @@ describe('JobRunnerService (database)', () => {
         status: 'succeeded',
         dedupeKey: `write_story:${topic.topicId}`,
       });
-      const found = await prisma.$transaction((tx) => findRendering(tx, query(w.userId, w.voiceId)));
+      const found = await prisma.$transaction((tx) => findWithoutAudio(tx, query(w.userId, w.voiceId)));
       expect(found.map((c) => c.topicId)).toContain(topic.topicId);
     });
   });

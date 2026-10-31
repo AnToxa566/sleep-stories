@@ -24,10 +24,12 @@ import {
 } from '../providers/llm/llm.provider';
 import { StorageService } from '../providers/storage/storage.service';
 import { TtsProvider, type SynthesizeInput, type SynthesizeResult } from '../providers/tts/tts.provider';
+import { JobQueue } from '../providers/job-queue/job-queue';
+import { GenerationJobsService } from '../queue/generation-jobs.service';
 import { GenerationLimitsService } from '../queue/generation-limits.service';
 import { QueueTopUpService } from '../queue/queue-top-up.service';
 
-// The first end-to-end generation: the real AppModule against the REAL local database,
+// The end-to-end pipeline: the real AppModule against the REAL local database,
 // listening on a random port, JOB_QUEUE=local (jobs are dispatched over real HTTP by the
 // local queue, and run by the real handlers), with the two paid providers and the Storage
 // upload replaced by fakes. Nothing here can reach Anthropic, ElevenLabs or Storage; the
@@ -37,6 +39,11 @@ import { QueueTopUpService } from '../queue/queue-top-up.service';
 // process.env before compile() would change nothing. As in internal-jobs.int-spec.ts the
 // instance gets a ConfigService that answers JOB_QUEUE=local and everything else as the real
 // one does, so the real factories run.
+//
+// Nothing here starts a story on its own (AGENTS.md architecture rule 10): onboarding and the
+// top-up run the suggestion only. A test-only helper (`startExplicitly`) creates the
+// `write_story` job the way the future explicit start will, through GenerationJobsService
+// inside a transaction, to show that the chain write then render still works.
 //
 // Everything is made with random ids, and the topics the handlers create carry a per-run
 // title prefix (the fake model writes it), which is how cleanup finds them.
@@ -146,6 +153,8 @@ let prisma: PrismaService;
 let data: QueueTestData;
 let topUp: QueueTopUpService;
 let limits: GenerationLimitsService;
+let jobsService: GenerationJobsService;
+let jobQueue: JobQueue;
 let secret: string;
 let userKey: CryptoKey;
 let issuer: string;
@@ -194,16 +203,38 @@ const activeJobs = (userId: string) =>
     where: { requestedByUserId: userId, status: { in: ['pending', 'running'] } },
   });
 
-// True once the person has jobs and none of them is pending or running. A write job creates
-// its render job, and a suggestion creates its write jobs, in the transaction that finishes
-// it, so there is no moment between two steps with nothing active.
-async function settled(userId: string): Promise<boolean> {
+// True once the person has `expectedTotal` jobs (at least one) and none of them is pending
+// or running. A write job creates its render job in the transaction that finishes it, so
+// there is no moment between two steps with nothing active.
+async function settled(userId: string, expectedTotal?: number): Promise<boolean> {
   const ok = await waitFor(async () => {
     const total = await prisma.generationJob.count({ where: { requestedByUserId: userId } });
-    return total > 0 && (await activeJobs(userId)) === 0;
+    return (
+      total > 0 &&
+      (expectedTotal === undefined || total === expectedTotal) &&
+      (await activeJobs(userId)) === 0
+    );
   });
   return ok;
 }
+
+// Test-only stand-in for the future explicit start (AGENTS.md architecture rule 10): creates
+// the `write_story` job for one topic in a transaction and hands it to the queue after the
+// commit, as the top-up does for a suggestion.
+async function startExplicitly(userId: string, topicId: string, voiceId: string): Promise<string> {
+  const jobId = await prisma.$transaction((tx) =>
+    jobsService.create(tx, { userId, payload: { kind: 'write_story', topicId, voiceId } }),
+  );
+  expect(jobId).not.toBeNull();
+  await jobQueue.enqueue(jobId as string);
+  return jobId as string;
+}
+
+// The count of rows of the two kinds that cost money.
+const storyJobCount = (userId: string) =>
+  prisma.generationJob.count({
+    where: { requestedByUserId: userId, kind: { in: ['write_story', 'render_audio'] } },
+  });
 
 async function person(options: {
   voiceId: string;
@@ -233,6 +264,13 @@ async function queueOf(userId: string) {
       topic: { select: { story: { select: { id: true, audio: { select: { voiceId: true } } } } } },
     },
   });
+}
+
+// No queue item has a story: nothing was written.
+function expectNoneReady(items: Awaited<ReturnType<typeof queueOf>>): void {
+  for (const item of items) {
+    expect(item.topic.story).toBeNull();
+  }
 }
 
 // Every queue item has a story and audio in the voice.
@@ -311,6 +349,8 @@ beforeAll(async () => {
   prisma = app.get(PrismaService);
   topUp = app.get(QueueTopUpService);
   limits = app.get(GenerationLimitsService);
+  jobsService = app.get(GenerationJobsService);
+  jobQueue = app.get(JobQueue);
   secret = app.get(LocalDispatchSecret).value;
   data = new QueueTestData(prisma);
 });
@@ -342,48 +382,69 @@ afterAll(async () => {
 });
 
 describe('the whole pipeline over real HTTP', () => {
-  it('fills an empty queue: suggestion, stories and audio, three ready items', async () => {
+  it('fills an empty queue with the suggestion only: three items, none ready, no story job', async () => {
     const voiceId = await data.voice();
     const interestId = await data.interest();
     const userId = await person({ voiceId, interestIds: [interestId] });
-    const voice = await prisma.voice.findUniqueOrThrow({ where: { id: voiceId } });
 
     const result = await topUp.run(userId);
     expect(result.skipped).toBeUndefined();
     expect(await settled(userId)).toBe(true);
+    // Give anything that wrongly follows a suggestion time to appear.
+    await sleep(500);
 
     const jobs = await prisma.generationJob.findMany({ where: { requestedByUserId: userId } });
-    expect(jobs.map((job) => job.kind).sort()).toEqual([
-      'render_audio',
-      'render_audio',
-      'render_audio',
-      'suggest_topics',
-      'write_story',
-      'write_story',
-      'write_story',
-    ]);
+    expect(jobs.map((job) => job.kind)).toEqual(['suggest_topics']);
+    expect(jobs.every((job) => job.status === 'succeeded' && job.lastError === null)).toBe(true);
+    expect(await storyJobCount(userId)).toBe(0);
+
+    const items = await queueOf(userId);
+    expect(items).toHaveLength(3);
+    expectNoneReady(items);
+
+    const usage = await prisma.$transaction((tx) => limits.usage(tx, userId));
+    expect(usage).toEqual({ generationsUsed: 0, suggestionsUsed: 1 });
+
+    // One suggestion call and nothing paid: no story call, no TTS call, no upload.
+    expect(llm.structuredCalls).toHaveLength(1);
+    expect(llm.textCalls).toHaveLength(0);
+    expect(tts.calls).toHaveLength(0);
+    expect(uploaded).toHaveLength(0);
+    const proposed = await prisma.userTopic.count({ where: { userId, reason: 'proposed' } });
+    expect(proposed).toBe(10);
+  });
+
+  it('runs the chain write then render for a topic that is started explicitly (test-only start)', async () => {
+    const voiceId = await data.voice();
+    const interestId = await data.interest();
+    const userId = await person({ voiceId, interestIds: [interestId] });
+    const voice = await prisma.voice.findUniqueOrThrow({ where: { id: voiceId } });
+    await topUp.run(userId);
+    expect(await settled(userId)).toBe(true);
+    const before = await queueOf(userId);
+    expect(before).toHaveLength(3);
+    expectNoneReady(before);
+    expect(await storyJobCount(userId)).toBe(0);
+
+    await startExplicitly(userId, before[0].topicId, voiceId);
+    // suggestion + write + render
+    expect(await settled(userId, 3)).toBe(true);
+
+    const jobs = await prisma.generationJob.findMany({ where: { requestedByUserId: userId } });
+    expect(jobs.map((job) => job.kind).sort()).toEqual(['render_audio', 'suggest_topics', 'write_story']);
     expect(jobs.every((job) => job.status === 'succeeded' && job.lastError === null)).toBe(true);
 
     const items = await queueOf(userId);
     expect(items).toHaveLength(3);
-    expectReady(items, voiceId);
+    expectReady([items[0]], voiceId);
+    expectNoneReady(items.slice(1));
     await expectChained(userId, voiceId);
 
     const usage = await prisma.$transaction((tx) => limits.usage(tx, userId));
-    expect(usage).toEqual({ rendersUsed: 3, suggestionsUsed: 1 });
-
-    // One suggestion call, three story calls, three TTS calls in the person's voice, three
-    // uploads. Topics were proposed to the person and nothing else.
-    expect(llm.structuredCalls).toHaveLength(1);
-    expect(llm.textCalls).toHaveLength(3);
-    expect(tts.calls.map((call) => call.providerVoiceId)).toEqual([
-      voice.providerVoiceId,
-      voice.providerVoiceId,
-      voice.providerVoiceId,
-    ]);
-    expect(uploaded).toHaveLength(3);
-    const proposed = await prisma.userTopic.count({ where: { userId, reason: 'proposed' } });
-    expect(proposed).toBe(10);
+    expect(usage).toEqual({ generationsUsed: 1, suggestionsUsed: 1 });
+    expect(llm.textCalls).toHaveLength(1);
+    expect(tts.calls.map((call) => call.providerVoiceId)).toEqual([voice.providerVoiceId]);
+    expect(uploaded).toHaveLength(1);
   });
 
   it('keeps a typed interest out of the catalogue call and out of other people (privacy)', async () => {
@@ -464,7 +525,7 @@ describe('the whole pipeline over real HTTP', () => {
     const result = await topUp.run(second);
     expect(result.skipped).toBeUndefined();
     if (result.skipped === undefined) {
-      expect(result.queued).toEqual({ ready: 0, rendering: 0, writing: 0 });
+      expect(result.queued).toEqual({ ready: 0, withoutAudio: 0, withoutStory: 0 });
     }
     expect(await settled(second)).toBe(true);
 
@@ -475,74 +536,70 @@ describe('the whole pipeline over real HTTP', () => {
     expect(secondTopics.some((row) => nullTopicIds.includes(row.topicId))).toBe(false);
   });
 
-  it('queues only what the render limit allows, and only topics that have a job', async () => {
+  it('queues topics even when every generation of the day is used, and still starts no story', async () => {
     const voiceId = await data.voice();
     const interestId = await data.interest();
     const userId = await person({ voiceId, interestIds: [interestId] });
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < 5; i += 1) {
       await data.job({ userId, kind: 'render_audio', status: 'succeeded', hoursAgo: 1 });
     }
 
     await topUp.run(userId);
     expect(await settled(userId)).toBe(true);
+    await sleep(300);
 
-    const writes = await prisma.generationJob.findMany({
-      where: { requestedByUserId: userId, kind: 'write_story' },
-    });
-    expect(writes).toHaveLength(1);
     const items = await queueOf(userId);
-    expect(items).toHaveLength(1);
-    expect((writes[0].payload as { topicId: string }).topicId).toBe(items[0].topicId);
-    expectReady(items, voiceId);
-    await expectChained(userId, voiceId);
-    // The other topics stay proposed, without a queue item.
+    expect(items).toHaveLength(3);
+    expectNoneReady(items);
+    // Only the five seeded renders exist; the top-up and the suggestion added none.
+    expect(await storyJobCount(userId)).toBe(5);
+    expect(await prisma.generationJob.count({ where: { requestedByUserId: userId, kind: 'write_story' } })).toBe(0);
     expect(await prisma.userTopic.count({ where: { userId, reason: 'proposed' } })).toBe(10);
-    const usage = await prisma.$transaction((tx) => limits.usage(tx, userId));
-    expect(usage.rendersUsed).toBe(5);
+    expect(llm.textCalls).toHaveLength(0);
   });
 
-  it('fails a story for good after three attempts, drops its queue item and never offers it again', async () => {
+  it('fails a started story for good after three attempts, keeps its queue item and never offers it again', async () => {
     const voiceId = await data.voice();
     const interestId = await data.interest();
     const userId = await person({ voiceId, interestIds: [interestId] });
+    await topUp.run(userId);
+    expect(await settled(userId)).toBe(true);
+    const queued = await queueOf(userId);
+    const failedTopicId = queued[0].topicId;
     llm.failWrites = true;
 
-    await topUp.run(userId);
+    const jobId = await startExplicitly(userId, failedTopicId, voiceId);
     // The local queue retries after a pause of seconds; delivering again at once is what the
     // queue would do, and a delivery that finds a live run answers "try again later" and
     // changes nothing.
-    const allFailed = await waitFor(async () => {
-      const writes = await prisma.generationJob.findMany({
-        where: { requestedByUserId: userId, kind: 'write_story' },
-        select: { id: true, status: true },
-      });
-      if (writes.length > 0 && writes.every((job) => job.status === 'failed')) return true;
-      for (const job of writes) {
-        if (job.status === 'pending') await runJob(job.id);
-      }
+    const failed = await waitFor(async () => {
+      const job = await prisma.generationJob.findUniqueOrThrow({ where: { id: jobId } });
+      if (job.status === 'failed') return true;
+      if (job.status === 'pending') await runJob(job.id);
       return false;
     });
-    expect(allFailed).toBe(true);
+    expect(failed).toBe(true);
 
-    const writes = await prisma.generationJob.findMany({
-      where: { requestedByUserId: userId, kind: 'write_story' },
-    });
-    expect(writes).toHaveLength(3);
-    expect(writes.every((job) => job.attempts === 3 && job.lastError !== null)).toBe(true);
-    const failedTopicIds = writes.map((job) => (job.payload as { topicId: string }).topicId);
-    expect(await prisma.queueItem.count({ where: { userId } })).toBe(0);
+    const job = await prisma.generationJob.findUniqueOrThrow({ where: { id: jobId } });
+    expect(job).toMatchObject({ attempts: 3, status: 'failed' });
+    expect(job.lastError).not.toBeNull();
+    // The failure leaves the queue as it was; the item stays for the person to retry.
+    expect((await queueOf(userId)).map((item) => item.topicId)).toEqual(queued.map((item) => item.topicId));
     expect(await prisma.generationJob.count({ where: { requestedByUserId: userId, kind: 'render_audio' } })).toBe(0);
-    expect(await prisma.story.count({ where: { topicId: { in: failedTopicIds } } })).toBe(0);
-    expect(llm.textCalls).toHaveLength(9);
+    expect(await prisma.story.count({ where: { topicId: failedTopicId } })).toBe(0);
+    expect(llm.textCalls).toHaveLength(3);
+    // A failed job returns its slot.
+    const usage = await prisma.$transaction((tx) => limits.usage(tx, userId));
+    expect(usage.generationsUsed).toBe(0);
 
-    // A second top-up (the model works again) does not offer the failed topics.
+    // The person empties the queue; the next top-up does not offer the failed topic.
     llm.failWrites = false;
+    await prisma.queueItem.deleteMany({ where: { userId } });
     await topUp.run(userId);
-    expect(await settled(userId)).toBe(true);
     const items = await prisma.queueItem.findMany({ where: { userId } });
     expect(items.length).toBe(3);
-    expect(items.some((item) => failedTopicIds.includes(item.topicId))).toBe(false);
-    expect(await prisma.userTopic.count({ where: { userId, topicId: { in: failedTopicIds } } })).toBe(3);
+    expect(items.some((item) => item.topicId === failedTopicId)).toBe(false);
+    expect(await prisma.userTopic.count({ where: { userId, topicId: failedTopicId } })).toBe(1);
   });
 
   it('answers a repeated delivery of a finished job with finished and creates nothing more', async () => {
@@ -551,6 +608,8 @@ describe('the whole pipeline over real HTTP', () => {
     const userId = await person({ voiceId, interestIds: [interestId] });
     await topUp.run(userId);
     expect(await settled(userId)).toBe(true);
+    await startExplicitly(userId, (await queueOf(userId))[0].topicId, voiceId);
+    expect(await settled(userId, 3)).toBe(true);
 
     const storiesBefore = await prisma.story.count({ where: { topic: { title: { startsWith: PREFIX } } } });
     const audioBefore = await prisma.storyAudio.count({ where: { story: { topic: { title: { startsWith: PREFIX } } } } });
@@ -558,7 +617,7 @@ describe('the whole pipeline over real HTTP', () => {
     const callsBefore = { text: llm.textCalls.length, structured: llm.structuredCalls.length, tts: tts.calls.length };
 
     const jobs = await prisma.generationJob.findMany({ where: { requestedByUserId: userId } });
-    expect(jobs).toHaveLength(7);
+    expect(jobs).toHaveLength(3);
     for (const job of jobs) {
       const answer = await runJob(job.id);
       expect(answer.status).toBe(200);
@@ -573,11 +632,11 @@ describe('the whole pipeline over real HTTP', () => {
     );
   });
 
-  it('starts the first stories when onboarding completes through the real endpoint', async () => {
+  it('starts only the suggestion when onboarding completes through the real endpoint', async () => {
     const voiceId = await data.voice();
     const interestId = await data.interest();
-    const voice = await prisma.voice.findUniqueOrThrow({ where: { id: voiceId } });
     const interest = await prisma.interest.findUniqueOrThrow({ where: { id: interestId } });
+    const voice = await prisma.voice.findUniqueOrThrow({ where: { id: voiceId } });
     const userId = randomUUID();
     userIds.push(userId);
 
@@ -602,10 +661,15 @@ describe('the whole pipeline over real HTTP', () => {
     });
     expect(suggestions).toBe(1);
     expect(await settled(userId)).toBe(true);
+    await sleep(500);
 
+    // Three queue items, none ready, and not one write_story or render_audio row.
     const items = await queueOf(userId);
     expect(items).toHaveLength(3);
-    expectReady(items, voiceId);
-    await expectChained(userId, voiceId);
+    expectNoneReady(items);
+    expect(await storyJobCount(userId)).toBe(0);
+    expect(await prisma.generationJob.count({ where: { requestedByUserId: userId } })).toBe(1);
+    expect(llm.textCalls).toHaveLength(0);
+    expect(tts.calls).toHaveLength(0);
   });
 });

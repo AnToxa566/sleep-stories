@@ -39,7 +39,7 @@ export class OnboardingService {
   // After the transaction has committed, the queue top-up starts the person's first
   // stories. It runs on every successful call, not only the first, and an error in it is
   // swallowed with one fixed log line: onboarding must not fail because generation could not
-  // start (the periodic top-up and the stalled-items step pick the person up later).
+  // start (a later top-up picks the person up).
   async complete(userId: string, request: CompleteOnboardingRequest): Promise<MeResponse> {
     const result = await this.prisma.$transaction(async (tx): Promise<MeResponse> => {
       await this.users.ensureExists(userId, tx);

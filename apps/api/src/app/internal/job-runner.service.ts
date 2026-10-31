@@ -2,21 +2,19 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   GenerationJobPayloadSchema,
   JobKindSchema,
-  type GenerationJobPayload,
   type JobKind,
 } from '@sleep-stories/contracts';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JOB_LEASE_MINUTES, MAX_ATTEMPTS } from '../queue/queue-policy';
-import { removeWaitingItems } from '../queue/queue-waiters';
 import { classifyFailure } from './classify-failure';
 import { JobHandlerRegistry, JobLeaseLostError, type JobContext } from './job-handler';
 
 // What one call of `run` ended with. The HTTP layer maps `retry` and `in_progress` to 503
 // (the queue delivers again later) and everything else to 200.
 // - succeeded: the handler ran and marked the job succeeded.
-// - failed: the job failed for good (the failure policy was applied).
+// - failed: the job failed for good (it frees its slot and removes nothing from any queue).
 // - finished: nothing to do or nothing more to do here: the job is done or dropped, or
 //   another run owns it now.
 // - retry: the attempt failed with a retryable error; the job is `pending` again.
@@ -75,8 +73,8 @@ const maxAttemptsSql = (): Prisma.Sql => Prisma.sql`
 //   attempt number it claimed, so a slow run whose lease was taken over can neither mark
 //   success nor fail the job (and its transaction rolls back).
 // - Failure: a retryable error with attempts left releases the job; anything else fails it
-//   for good, with a fixed code in `last_error` (never error text) and the failure policy
-//   applied in the same transaction (the queue items of everyone waiting on it go).
+//   for good, with a fixed code in `last_error` (never error text). A failed job frees its
+//   slot and removes nothing from any queue (owner, 2026-10-31).
 // Logging is limited to one fixed line per outcome class: no ids, no codes, no error text.
 @Injectable()
 export class JobRunnerService {
@@ -88,10 +86,10 @@ export class JobRunnerService {
   ) {}
 
   async run(jobId: string): Promise<RunOutcome> {
-    // No handler for the kind (none are registered until cycle 3b-2): touch nothing and
-    // answer `retry`, so the queue delivers again later. Failing the job instead would apply
-    // the failure policy and hide topics for good because of a deployment gap, not a failure
-    // of the job. Checked before the claim, so no attempt is counted either.
+    // No handler for the kind (a deployment gap): touch nothing and answer `retry`, so the
+    // queue delivers again later. Failing the job instead would mark it failed for good (and
+    // keep its topic from being offered again) because of the deployment, not a failure of
+    // the job. Checked before the claim, so no attempt is counted either.
     if (await this.lacksHandler(jobId)) {
       return 'retry';
     }
@@ -109,7 +107,7 @@ export class JobRunnerService {
     // The stored payload includes `kind`; it must also agree with the `kind` column.
     const parsed = GenerationJobPayloadSchema.safeParse(claimed.payload);
     if (!parsed.success || parsed.data.kind !== run.kind) {
-      return this.failForGood(run, 'running', null, 'invalid_payload');
+      return this.failForGood(run, 'running', 'invalid_payload');
     }
     const payload = parsed.data;
 
@@ -138,11 +136,11 @@ export class JobRunnerService {
     try {
       await handler.run(context);
     } catch (error) {
-      return this.afterHandlerError(run, payload, error);
+      return this.afterHandlerError(run, error);
     }
     if (!completed) {
       // A programming error in the handler: it returned without marking the job.
-      return this.failForGood(run, 'running', payload, 'handler_did_not_complete');
+      return this.failForGood(run, 'running', 'handler_did_not_complete');
     }
     return 'succeeded';
   }
@@ -206,11 +204,9 @@ export class JobRunnerService {
     if (job.attempts >= MAX_ATTEMPTS[job.kind]) {
       // A run crashed on the last attempt and its lease expired: nobody can claim the job
       // again, so close it.
-      const payload = GenerationJobPayloadSchema.safeParse(job.payload);
       return this.failForGood(
         { id: jobId, kind: job.kind, userId: job.requested_by_user_id, attempt: job.attempts },
         'any_active',
-        payload.success && payload.data.kind === job.kind ? payload.data : null,
         'attempts_exhausted',
       );
     }
@@ -240,7 +236,6 @@ export class JobRunnerService {
 
   private async afterHandlerError(
     run: ClaimedRun,
-    payload: GenerationJobPayload,
     error: unknown,
   ): Promise<RunOutcome> {
     if (error instanceof JobLeaseLostError) {
@@ -251,7 +246,7 @@ export class JobRunnerService {
     if (failure.retryable && run.attempt < MAX_ATTEMPTS[run.kind]) {
       return this.release(run);
     }
-    return this.failForGood(run, 'running', payload, failure.code);
+    return this.failForGood(run, 'running', failure.code);
   }
 
   // Back to `pending` for the next delivery. Fenced: a lost lease changes nothing.
@@ -269,35 +264,21 @@ export class JobRunnerService {
     return 'retry';
   }
 
-  // The job fails for good and the failure policy runs, in one transaction. `code` is from
-  // the fixed vocabulary; it is the only thing stored.
-  private async failForGood(
-    run: ClaimedRun,
-    fence: Fence,
-    payload: GenerationJobPayload | null,
-    code: string,
-  ): Promise<RunOutcome> {
-    const outcome = await this.prisma.$transaction(async (tx): Promise<RunOutcome> => {
-      const rows = await tx.$queryRaw<unknown[]>`
-        UPDATE generation_jobs
-        SET status = 'failed', finished_at = now(), last_error = ${code}::text
-        WHERE id = ${run.id}::uuid AND ${fenceSql(fence, run.attempt)}
-        RETURNING id
-      `;
-      if (rows.length === 0) {
-        return 'finished';
-      }
-      // Failure policy: everyone waiting on this result loses the queue item (who waits for
-      // which key is decided in queue/queue-waiters.ts). Only reached when the fenced update
-      // above matched, in the same transaction. An unreadable payload has nothing to remove.
-      if (payload !== null) {
-        await removeWaitingItems(tx, payload);
-      }
-      return 'failed';
-    });
-    if (outcome === 'failed') {
-      this.logger.warn('A job failed for good');
+  // The job fails for good. `code` is from the fixed vocabulary; it is the only thing
+  // stored. Failure policy (owner, 2026-10-31): the job becomes `failed`, which frees its
+  // generation slot, and nothing is removed from any queue; the item stays and shows the
+  // failed state. The update is fenced: a lost lease changes nothing.
+  private async failForGood(run: ClaimedRun, fence: Fence, code: string): Promise<RunOutcome> {
+    const rows = await this.prisma.$queryRaw<unknown[]>`
+      UPDATE generation_jobs
+      SET status = 'failed', finished_at = now(), last_error = ${code}::text
+      WHERE id = ${run.id}::uuid AND ${fenceSql(fence, run.attempt)}
+      RETURNING id
+    `;
+    if (rows.length === 0) {
+      return 'finished';
     }
-    return outcome;
+    this.logger.warn('A job failed for good');
+    return 'failed';
   }
 }

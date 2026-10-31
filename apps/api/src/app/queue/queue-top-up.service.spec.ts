@@ -2,7 +2,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { JobQueue } from '../providers/job-queue/job-queue';
 import { GenerationJobsService } from './generation-jobs.service';
 import type { GenerationLimitsService } from './generation-limits.service';
-import { findReady, findRendering, findStalled, findWriting } from './queue-candidates';
+import { findReady, findWithoutAudio, findWithoutStory } from './queue-candidates';
 import { QueueTopUpService } from './queue-top-up.service';
 
 jest.mock('./queue-candidates');
@@ -17,11 +17,10 @@ interface Setup {
   userRows?: unknown[];
   preferences?: { voiceId: string } | null;
   queueLength?: number;
-  usage?: { rendersUsed: number; suggestionsUsed: number };
+  usage?: { generationsUsed: number; suggestionsUsed: number };
   ready?: { topicId: string; storyId: string }[];
-  rendering?: { topicId: string; storyId: string }[];
-  writing?: string[];
-  stalled?: { topicId: string; storyId: string }[];
+  withoutAudio?: { topicId: string; storyId: string }[];
+  withoutStory?: string[];
   // Decides the id a job insert returns; null means an active job with that key exists.
   createResult?: (spec: { payload: { kind: string; topicId?: string; storyId?: string } }) => string | null;
   enqueue?: jest.Mock;
@@ -53,7 +52,7 @@ function build(setup: Setup = {}) {
     }),
   } as unknown as PrismaService;
   const limits = {
-    usage: jest.fn(async () => setup.usage ?? { rendersUsed: 0, suggestionsUsed: 0 }),
+    usage: jest.fn(async () => setup.usage ?? { generationsUsed: 0, suggestionsUsed: 0 }),
   } as unknown as GenerationLimitsService;
   const create = jest.fn(async (_tx: unknown, spec: Parameters<NonNullable<Setup['createResult']>>[0]) =>
     (setup.createResult ?? defaultId)(spec),
@@ -68,9 +67,8 @@ function build(setup: Setup = {}) {
   const jobQueue = { enqueue } as unknown as JobQueue;
 
   (findReady as jest.Mock).mockResolvedValue(setup.ready ?? []);
-  (findRendering as jest.Mock).mockResolvedValue(setup.rendering ?? []);
-  (findStalled as jest.Mock).mockResolvedValue(setup.stalled ?? []);
-  (findWriting as jest.Mock).mockResolvedValue(setup.writing ?? []);
+  (findWithoutAudio as jest.Mock).mockResolvedValue(setup.withoutAudio ?? []);
+  (findWithoutStory as jest.Mock).mockResolvedValue(setup.withoutStory ?? []);
 
   const service = new QueueTopUpService(prisma, limits, jobs, jobQueue);
   return { service, tx, create, enqueue, events, limits };
@@ -78,6 +76,10 @@ function build(setup: Setup = {}) {
 
 describe('QueueTopUpService.run', () => {
   beforeEach(() => jest.clearAllMocks());
+
+  // The rule (AGENTS.md architecture rule 10): a top-up never creates a story job.
+  const kindsCreated = (create: jest.Mock) =>
+    create.mock.calls.map(([, spec]) => (spec as { payload: { kind: string } }).payload.kind);
 
   it('skips with no_preferences when the user row does not exist', async () => {
     const { service, create, tx } = build({ userRows: [] });
@@ -95,26 +97,24 @@ describe('QueueTopUpService.run', () => {
 
   it('skips with queue_full when the queue is above the threshold', async () => {
     const { service, create, enqueue, tx } = build({ queueLength: 3 });
-    await expect(service.run(USER)).resolves.toEqual({ skipped: 'queue_full', healed: 0 });
+    await expect(service.run(USER)).resolves.toEqual({ skipped: 'queue_full' });
     expect(findReady).not.toHaveBeenCalled();
     expect(tx.queueItem.createMany).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
     expect(enqueue).not.toHaveBeenCalled();
   });
 
-  it('queues the tiers in order, appends positions and counts the result', async () => {
-    const { service, tx, create } = build({
+  it('queues the sources in order, appends positions and creates no job', async () => {
+    const { service, tx, create, enqueue } = build({
       ready: [{ topicId: topic(1), storyId: story(1) }],
-      rendering: [{ topicId: topic(2), storyId: story(2) }],
-      writing: [topic(3)],
+      withoutAudio: [{ topicId: topic(2), storyId: story(2) }],
+      withoutStory: [topic(3)],
     });
     const result = await service.run(USER);
     expect(result).toEqual({
-      queued: { ready: 1, rendering: 1, writing: 1 },
+      queued: { ready: 1, withoutAudio: 1, withoutStory: 1 },
       suggestRequested: false,
-      limitReached: false,
       queueLength: 3,
-      healed: 0,
     });
     expect(tx.queueItem.createMany).toHaveBeenCalledWith({
       data: [
@@ -124,76 +124,69 @@ describe('QueueTopUpService.run', () => {
       ],
       skipDuplicates: true,
     });
-    expect(create).toHaveBeenCalledTimes(2);
-    expect(create).toHaveBeenNthCalledWith(1, tx, {
-      userId: USER,
-      payload: { kind: 'render_audio', storyId: story(2), voiceId: VOICE },
-    });
-    expect(create).toHaveBeenNthCalledWith(2, tx, {
-      userId: USER,
-      payload: { kind: 'write_story', topicId: topic(3), voiceId: VOICE },
-    });
+    expect(create).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
   });
 
   it('asks for suggestions when nothing fits and reports it', async () => {
     const { service, create } = build({ queueLength: 1 });
     const result = await service.run(USER);
     expect(result).toEqual({
-      queued: { ready: 0, rendering: 0, writing: 0 },
+      queued: { ready: 0, withoutAudio: 0, withoutStory: 0 },
       suggestRequested: true,
-      limitReached: false,
       queueLength: 1,
-      healed: 0,
     });
+    expect(create).toHaveBeenCalledTimes(1);
     expect(create).toHaveBeenCalledWith(expect.anything(), {
       userId: USER,
       payload: { kind: 'suggest_topics', missing: 2 },
     });
   });
 
-  it('reports limitReached when no slot is left and only ready stories are queued', async () => {
-    const { service, create } = build({
-      usage: { rendersUsed: 5, suggestionsUsed: 0 },
-      ready: [{ topicId: topic(1), storyId: story(1) }],
-      rendering: [{ topicId: topic(2), storyId: story(2) }],
+  it('does not need a generation slot: a person with none left still gets a suggestion', async () => {
+    const { service, create } = build({ usage: { generationsUsed: 5, suggestionsUsed: 0 } });
+    const result = await service.run(USER);
+    expect(result).toMatchObject({ suggestRequested: true });
+    expect(kindsCreated(create)).toEqual(['suggest_topics']);
+  });
+
+  it('asks for no suggestion when the suggestion cap is used', async () => {
+    const { service, create, enqueue } = build({
+      usage: { generationsUsed: 0, suggestionsUsed: 3 },
     });
     const result = await service.run(USER);
-    expect(result).toEqual({
-      queued: { ready: 1, rendering: 0, writing: 0 },
-      suggestRequested: false,
-      limitReached: true,
-      queueLength: 1,
-      healed: 0,
-    });
+    expect(result).toMatchObject({ suggestRequested: false, queueLength: 0 });
     expect(create).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
   });
 
-  it('keeps the queue item but enqueues nothing when a job insert finds an active job', async () => {
-    const { service, tx, enqueue } = build({
-      writing: [topic(3)],
-      createResult: (spec) => (spec.payload.kind === 'write_story' ? null : 'job-s'),
-    });
-    const result = await service.run(USER);
-    expect(tx.queueItem.createMany).toHaveBeenCalled();
-    expect(result).toMatchObject({ queued: { writing: 1 }, queueLength: 1 });
-    expect(enqueue).toHaveBeenCalledTimes(1);
-    expect(enqueue).toHaveBeenCalledWith('job-s');
+  it('never creates a write_story or render_audio job, whatever the sources hold', async () => {
+    const scenarios: Setup[] = [
+      { ready: [{ topicId: topic(1), storyId: story(1) }] },
+      { withoutAudio: [{ topicId: topic(2), storyId: story(2) }] },
+      { withoutStory: [topic(3)] },
+      {},
+      { ready: [{ topicId: topic(1), storyId: story(1) }], withoutAudio: [{ topicId: topic(2), storyId: story(2) }], withoutStory: [topic(3)] },
+      { queueLength: 2, withoutStory: [topic(3)] },
+    ];
+    for (const scenario of scenarios) {
+      const { service, create } = build(scenario);
+      await service.run(USER);
+      expect(kindsCreated(create).filter((kind) => kind !== 'suggest_topics')).toEqual([]);
+    }
   });
 
-  it('enqueues only after the transaction committed, and only created job ids', async () => {
-    const { service, events } = build({
-      rendering: [
-        { topicId: topic(1), storyId: story(1) },
-        { topicId: topic(2), storyId: story(2) },
-      ],
-      createResult: (spec) => (spec.payload.storyId === story(2) ? null : defaultId(spec)),
-    });
+  it('keeps the suggestion job enqueued after the commit only', async () => {
+    const { service, events } = build({});
     await service.run(USER);
-    expect(events[0]).toBe('commit');
-    expect(events.slice(1)).toEqual([
-      `enqueue:job-render_audio-${story(1)}`,
-      'enqueue:job-suggest_topics-x',
-    ]);
+    expect(events).toEqual(['commit', 'enqueue:job-suggest_topics-x']);
+  });
+
+  it('enqueues nothing when the insert finds an active suggestion', async () => {
+    const { service, enqueue } = build({ createResult: () => null });
+    const result = await service.run(USER);
+    expect(result).toMatchObject({ suggestRequested: false });
+    expect(enqueue).not.toHaveBeenCalled();
   });
 
   it('does not enqueue anything when the transaction fails', async () => {
@@ -203,95 +196,10 @@ describe('QueueTopUpService.run', () => {
     expect(enqueue).not.toHaveBeenCalled();
   });
 
-  it('survives an enqueue rejection and still enqueues the other jobs', async () => {
-    const enqueue = jest
-      .fn()
-      .mockRejectedValueOnce(new Error('queue down with secret text'))
-      .mockResolvedValue(undefined);
-    const { service } = build({
-      rendering: [
-        { topicId: topic(1), storyId: story(1) },
-        { topicId: topic(2), storyId: story(2) },
-      ],
-      createResult: (spec) =>
-        spec.payload.kind === 'suggest_topics' ? 'job-s' : `job-${spec.payload.storyId === story(1) ? 1 : 2}`,
-      enqueue,
-    });
-    const result = await service.run(USER);
-    expect(result).toMatchObject({ queued: { rendering: 2 } });
-    expect(enqueue).toHaveBeenCalledTimes(3);
-    expect(enqueue).toHaveBeenNthCalledWith(1, 'job-1');
-    expect(enqueue).toHaveBeenNthCalledWith(2, 'job-2');
-    expect(enqueue).toHaveBeenNthCalledWith(3, 'job-s');
-  });
-
-  describe('stalled items', () => {
-    const stalled = [{ topicId: topic(5), storyId: story(5) }];
-
-    it('heals a stalled item on the queue_full return and enqueues it after the commit', async () => {
-      const { service, create, events, tx } = build({ queueLength: 3, stalled });
-      const result = await service.run(USER);
-      expect(result).toEqual({ skipped: 'queue_full', healed: 1 });
-      expect(create).toHaveBeenCalledTimes(1);
-      expect(create).toHaveBeenCalledWith(tx, {
-        userId: USER,
-        payload: { kind: 'render_audio', storyId: story(5), voiceId: VOICE },
-      });
-      expect(tx.queueItem.createMany).not.toHaveBeenCalled();
-      expect(events).toEqual(['commit', `enqueue:job-render_audio-${story(5)}`]);
-      expect(findReady).not.toHaveBeenCalled();
-    });
-
-    it('asks for at most the free render slots and takes them off before planning', async () => {
-      const { service } = build({
-        usage: { rendersUsed: 4, suggestionsUsed: 0 },
-        stalled,
-        rendering: [{ topicId: topic(2), storyId: story(2) }],
-        ready: [{ topicId: topic(1), storyId: story(1) }],
-      });
-      const result = await service.run(USER);
-      expect(findStalled).toHaveBeenCalledWith(expect.anything(), {
-        userId: USER,
-        voiceId: VOICE,
-        limit: 1,
-      });
-      // The one free slot went to the healed item, so the rendering candidate is dropped.
-      expect(result).toMatchObject({ queued: { ready: 1, rendering: 0 }, healed: 1 });
-    });
-
-    it('counts only created heal jobs and survives a null insert', async () => {
-      const { service, enqueue } = build({
-        queueLength: 3,
-        stalled,
-        createResult: () => null,
-      });
-      await expect(service.run(USER)).resolves.toEqual({ skipped: 'queue_full', healed: 0 });
-      expect(enqueue).not.toHaveBeenCalled();
-    });
-
-    it('does not heal for a person without preferences', async () => {
-      const { service, create } = build({ preferences: null, stalled });
-      await service.run(USER);
-      expect(findStalled).not.toHaveBeenCalled();
-      expect(create).not.toHaveBeenCalled();
-    });
-
-    it('inserts all jobs in the order of their dedupe keys', async () => {
-      const { service, create } = build({
-        queueLength: 0,
-        stalled,
-        rendering: [{ topicId: topic(2), storyId: story(2) }],
-        writing: [topic(3)],
-      });
-      await service.run(USER);
-      const keys = create.mock.calls.map(([, spec]) => {
-        const p = spec.payload;
-        if (p.kind === 'write_story') return `write_story:${p.topicId}`;
-        if (p.kind === 'suggest_topics') return `suggest_topics:${USER}`;
-        return `render_audio:${p.storyId}:${VOICE}`;
-      });
-      expect(keys).toHaveLength(4);
-      expect(keys).toEqual([...keys].sort());
-    });
+  it('survives an enqueue rejection', async () => {
+    const enqueue = jest.fn().mockRejectedValueOnce(new Error('queue down with secret text'));
+    const { service } = build({ enqueue });
+    await expect(service.run(USER)).resolves.toMatchObject({ suggestRequested: true });
+    expect(enqueue).toHaveBeenCalledTimes(1);
   });
 });

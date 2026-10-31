@@ -14,8 +14,7 @@ export interface ReadyCandidate {
 }
 
 // The dedupe keys used in the failure exclusions below are built by `dedupeKeyOf`
-// (generation-jobs.service.ts); the queue items removed when such a job fails for good are
-// decided in queue-waiters.ts. Change one, check the others.
+// (generation-jobs.service.ts). Change one, check the other.
 const TopicRowSchema = z.object({ topic_id: z.uuid() });
 const TopicStoryRowSchema = z.object({ topic_id: z.uuid(), story_id: z.uuid() });
 
@@ -100,7 +99,7 @@ function storyFilters(userId: string): Prisma.Sql {
   `;
 }
 
-// Pool topics that have a story and audio in the person's voice: free to queue.
+// Pool topics that have a story and audio in the person's voice: ready to play.
 export async function findReady(
   tx: Prisma.TransactionClient,
   query: CandidateQuery,
@@ -127,10 +126,10 @@ export async function findReady(
   }));
 }
 
-// Pool topics that have a story but no audio in the person's voice: need one render. Owner
+// Pool topics that have a story but no audio in the person's voice (`not_ready`). Owner
 // decision (2026-10-30): a story whose render for this voice finally failed is not offered
 // again automatically.
-export async function findRendering(
+export async function findWithoutAudio(
   tx: Prisma.TransactionClient,
   query: CandidateQuery,
 ): Promise<ReadyCandidate[]> {
@@ -161,11 +160,11 @@ export async function findRendering(
   }));
 }
 
-// The person's OWN proposed, not dismissed topics that have no story yet: need a write and
-// then a render. A pool topic of another person with no story is never a candidate, because
-// the join is on the person's own user_topics row. `voiceId` is unused here (a story has
-// no voice); it stays in the signature so the three finders are interchangeable.
-export async function findWriting(
+// The person's OWN proposed, not dismissed topics that have no story yet (`not_ready`). A pool
+// topic of another person with no story is never a candidate, because the join is on the
+// person's own user_topics row. `voiceId` is unused here (a story has
+// no voice); it stays in the signature so the finders are interchangeable.
+export async function findWithoutStory(
   tx: Prisma.TransactionClient,
   query: CandidateQuery,
 ): Promise<string[]> {
@@ -187,42 +186,4 @@ export async function findWriting(
     LIMIT ${query.limit}::int
   `;
   return z.array(TopicRowSchema).parse(rows).map((r) => r.topic_id);
-}
-
-// A queue item of the person's OWN queue that lost the dedupe race: its topic has a story,
-// there is no audio for the story in the person's voice, the person has not heard it or rated
-// it -1, and NO render_audio job row of ANY status exists for that story and voice from ANY
-// requester. An active job of someone with the same voice will produce the shared audio; a
-// finished or failed one is not this step's business, so a failed render is NOT retried here
-// and leaves the item "preparing" (failure handling, ARCHITECTURE.md section 11, item 13).
-// Items are returned in queue order. The key format below must match dedupeKeyOf in
-// generation-jobs.service.ts. Stalled "writing" items (no story, no write job) are not found
-// either, for the same reason.
-export async function findStalled(
-  tx: Prisma.TransactionClient,
-  query: CandidateQuery,
-): Promise<ReadyCandidate[]> {
-  if (query.limit < 1) {
-    return [];
-  }
-  const rows = await tx.$queryRaw<unknown[]>`
-    SELECT qi.topic_id AS topic_id, s.id AS story_id
-    FROM queue_items qi
-    JOIN stories s ON s.topic_id = qi.topic_id
-    WHERE qi.user_id = ${query.userId}::uuid
-      AND NOT EXISTS (
-        SELECT 1 FROM story_audio sa WHERE sa.story_id = s.id AND sa.voice_id = ${query.voiceId}::uuid
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM generation_jobs gj
-        WHERE gj.dedupe_key = 'render_audio:' || s.id::text || ':' || ${query.voiceId}::uuid::text
-      )
-      AND ${storyFilters(query.userId)}
-    ORDER BY qi.position ASC
-    LIMIT ${query.limit}::int
-  `;
-  return z.array(TopicStoryRowSchema).parse(rows).map((r) => ({
-    topicId: r.topic_id,
-    storyId: r.story_id,
-  }));
 }

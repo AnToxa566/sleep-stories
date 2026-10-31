@@ -228,8 +228,8 @@ describe('dispatch by the local queue', () => {
     const voiceId = await data.voice();
     const interestId = await data.interest();
     const userId = await data.user({ voiceId, interestIds: [interestId] });
-    // A story without audio in the person's voice: the top-up asks for a render and a
-    // suggestion, so at least two jobs are created and dispatched.
+    // A story without audio in the person's voice: the top-up queues it (creating no render)
+    // and asks for a suggestion for the rest, so one job is created and dispatched.
     await data.topic({ interestId, story: true });
 
     const result = await local.app.get(QueueTopUpService).run(userId);
@@ -240,14 +240,14 @@ describe('dispatch by the local queue', () => {
         where: { requestedByUserId: userId },
         select: { status: true },
       });
-      return jobs.length >= 2 && jobs.every((job) => job.status === 'succeeded');
+      return jobs.length >= 1 && jobs.every((job) => job.status === 'succeeded');
     });
     expect(settled).toBe(true);
 
     const jobs = await local.prisma.generationJob.findMany({ where: { requestedByUserId: userId } });
-    expect(jobs.map((job) => job.kind).sort()).toEqual(['render_audio', 'suggest_topics']);
+    expect(jobs.map((job) => job.kind)).toEqual(['suggest_topics']);
     expect(jobs.every((job) => job.attempts === 1 && job.lastError === null)).toBe(true);
-    expect(calls.map((call) => call.kind).sort()).toEqual(['render_audio', 'suggest_topics']);
+    expect(calls.map((call) => call.kind)).toEqual(['suggest_topics']);
   });
 });
 

@@ -2,31 +2,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 import { PrismaService } from '../prisma/prisma.service';
 import { JobQueue } from '../providers/job-queue/job-queue';
-import { GenerationJobsService, type GenerationJobSpec } from './generation-jobs.service';
+import { GenerationJobsService } from './generation-jobs.service';
 import { GenerationLimitsService, remaining } from './generation-limits.service';
-import { findReady, findRendering, findStalled, findWriting } from './queue-candidates';
+import { findReady, findWithoutAudio, findWithoutStory } from './queue-candidates';
 import { QUEUE_TARGET_LENGTH, QUEUE_TOP_UP_THRESHOLD } from './queue-policy';
 import { planTopUp } from './top-up-plan';
 
 export type TopUpResult =
   | { skipped: 'no_preferences' }
-  | {
-      skipped: 'queue_full';
-      // Stalled queue items that got a render job in this run (see run()).
-      healed: number;
-    }
+  | { skipped: 'queue_full' }
   | {
       skipped?: undefined;
-      queued: { ready: number; rendering: number; writing: number };
+      queued: { ready: number; withoutAudio: number; withoutStory: number };
       suggestRequested: boolean;
-      // True when the queue could not be filled to the target because a render or
-      // suggestion slot ran out. Exact: the planner asks for a suggestion for everything
-      // the three lists do not cover whenever a suggestion slot and a render slot remain,
-      // and one suggestion covers at most the whole need (3), so anything still missing
-      // after the plan can only be a limit.
-      limitReached: boolean;
       queueLength: number;
-      healed: number;
     };
 
 type Outcome = { result: TopUpResult; createdJobIds: string[] };
@@ -45,9 +34,13 @@ export class QueueTopUpService {
   ) {}
 
   // Fills the person's queue up to QUEUE_TARGET_LENGTH when it holds QUEUE_TOP_UP_THRESHOLD
-  // items or fewer: ready stories of the pool first (free), then stories that only lack
-  // audio in the person's voice, then the person's own proposed topics, and only then asks
-  // for new suggestions (ARCHITECTURE.md section 6, owner 2026-10-30).
+  // items or fewer: ready stories of the pool first, then stories that lack audio in the
+  // person's voice, then the person's own proposed topics with no story, and only then asks
+  // for new suggestions (ARCHITECTURE.md section 6, "Queue top-up", owner 2026-10-31).
+  //
+  // This creates NO `write_story` and NO `render_audio` job: nothing that costs a generation
+  // starts on its own (AGENTS.md architecture rule 10). The only job it may create is
+  // `suggest_topics`, which needs one suggestion slot and no generation slot.
   //
   // `userId` is a parameter supplied by the caller from a verified token or from a job row,
   // never from a body.
@@ -55,20 +48,8 @@ export class QueueTopUpService {
   // One transaction, behind a row lock on the person's `users` row. The lock makes the limit
   // count and the inserts one step, so two simultaneous calls for one person cannot both see
   // a free slot or queue the same topic twice (the cost: the second call waits). The queue
-  // is told about the new jobs only AFTER the commit; if that fails the rows stay `pending`
-  // for the sweep of cycle 3b.
-  //
-  // Stalled items come first, before the queue_full return, so a full queue of them heals: a
-  // queue item whose job insert once found an active job of another voice has a story but no
-  // audio in this person's voice and no job coming. Each gets a render_audio job and uses one
-  // render slot, taken off the slots before planning. If the insert finds an active job of the
-  // same key (a race) no job is made and no slot is used; the planner's other slots are not
-  // backfilled, the next run fixes it. Stalled "writing" items are not handled here.
-  //
-  // Every job of the run is inserted in the order of its dedupe key, so two transactions of
-  // different people that want the same keys take the unique-index entries in the same order
-  // and cannot deadlock on each other. Callers should still treat Postgres error 40P01 as
-  // retryable (ARCHITECTURE.md section 6).
+  // is told about the new job only AFTER the commit; if that fails the row stays `pending`
+  // for the sweep.
   async run(userId: string): Promise<TopUpResult> {
     const { result, createdJobIds } = await this.prisma.$transaction(
       async (tx): Promise<Outcome> => {
@@ -88,44 +69,27 @@ export class QueueTopUpService {
         }
         const voiceId = preferences.voiceId;
 
-        const usage = remaining(await this.limits.usage(tx, userId));
-        const stalled = await findStalled(tx, { userId, voiceId, limit: usage.rendersLeft });
-        const rendersLeft = usage.rendersLeft - stalled.length;
-        const healSpecs = stalled.map((row): GenerationJobSpec => ({
-          userId,
-          payload: { kind: 'render_audio', storyId: row.storyId, voiceId },
-        }));
-
         const queueLength = await tx.queueItem.count({ where: { userId } });
         if (queueLength > QUEUE_TOP_UP_THRESHOLD) {
-          const created = await this.jobs.createInKeyOrder(
-            tx,
-            userId,
-            healSpecs.map((spec) => ({ spec, heal: true })),
-          );
-          return {
-            result: { skipped: 'queue_full', healed: created.filter((c) => c.heal).length },
-            createdJobIds: created.map((c) => c.id),
-          };
+          return { result: { skipped: 'queue_full' }, createdJobIds: [] };
         }
 
         const need = QUEUE_TARGET_LENGTH - queueLength;
         const query = { userId, voiceId, limit: need };
         const ready = await findReady(tx, query);
-        const rendering = await findRendering(tx, query);
-        const writing = await findWriting(tx, query);
+        const withoutAudio = await findWithoutAudio(tx, query);
+        const withoutStory = await findWithoutStory(tx, query);
 
-        const storyByTopic = new Map(rendering.map((row) => [row.topicId, row.storyId]));
+        const usage = remaining(await this.limits.usage(tx, userId));
         const plan = planTopUp({
           queueLength,
-          rendersLeft,
           suggestionsLeft: usage.suggestionsLeft,
           ready: ready.map((row) => row.topicId),
-          rendering: rendering.map((row) => row.topicId),
-          writing,
+          withoutAudio: withoutAudio.map((row) => row.topicId),
+          withoutStory,
         });
 
-        const topicIds = [...plan.queueReady, ...plan.queueRendering, ...plan.queueWriting];
+        const topicIds = [...plan.queueReady, ...plan.queueWithoutAudio, ...plan.queueWithoutStory];
         if (topicIds.length > 0) {
           const last = await tx.queueItem.aggregate({ where: { userId }, _max: { position: true } });
           const firstPosition = (last._max.position ?? 0) + 1;
@@ -142,39 +106,26 @@ export class QueueTopUpService {
           });
         }
 
-        const planned: { spec: GenerationJobSpec; heal?: boolean; suggest?: boolean }[] = [
-          ...healSpecs.map((spec) => ({ spec, heal: true })),
-        ];
-        for (const topicId of plan.queueRendering) {
-          const storyId = storyByTopic.get(topicId);
-          if (storyId !== undefined) {
-            planned.push({ spec: { userId, payload: { kind: 'render_audio', storyId, voiceId } } });
-          }
-        }
-        for (const topicId of plan.queueWriting) {
-          planned.push({ spec: { userId, payload: { kind: 'write_story', topicId, voiceId } } });
-        }
-        if (plan.suggestMissing >= 1) {
-          planned.push({
-            spec: { userId, payload: { kind: 'suggest_topics', missing: plan.suggestMissing } },
-            suggest: true,
-          });
-        }
-        const created = await this.jobs.createInKeyOrder(tx, userId, planned);
+        // The only job a top-up may create.
+        const created =
+          plan.suggestMissing >= 1
+            ? await this.jobs.create(tx, {
+                userId,
+                payload: { kind: 'suggest_topics', missing: plan.suggestMissing },
+              })
+            : null;
 
         return {
           result: {
             queued: {
               ready: plan.queueReady.length,
-              rendering: plan.queueRendering.length,
-              writing: plan.queueWriting.length,
+              withoutAudio: plan.queueWithoutAudio.length,
+              withoutStory: plan.queueWithoutStory.length,
             },
-            suggestRequested: created.some((c) => c.suggest),
-            limitReached: topicIds.length + plan.suggestMissing < need,
+            suggestRequested: created !== null,
             queueLength: queueLength + topicIds.length,
-            healed: created.filter((c) => c.heal).length,
           },
-          createdJobIds: created.map((c) => c.id),
+          createdJobIds: created === null ? [] : [created],
         };
       },
     );

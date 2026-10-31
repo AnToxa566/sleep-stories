@@ -1,13 +1,10 @@
 import { randomInt, randomUUID } from 'node:crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { StoryStyle } from '@sleep-stories/contracts';
 import { z } from 'zod';
 import { GenerationError } from '../../generation/generation-error';
 import { TopicSuggesterService } from '../../generation/topic-suggester.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { JobQueue } from '../../providers/job-queue/job-queue';
-import { GenerationJobsService } from '../../queue/generation-jobs.service';
-import { GenerationLimitsService, remaining } from '../../queue/generation-limits.service';
 import { QUEUE_TARGET_LENGTH } from '../../queue/queue-policy';
 import type { JobContext, JobHandler } from '../job-handler';
 
@@ -24,8 +21,10 @@ interface NewTopic {
   interestId: string | null;
 }
 
-// Makes new topics for one person and queues some of them (ARCHITECTURE.md section 6, "How
-// jobs run" and "Queue top-up and the daily limit"; section 11 item 29).
+// Makes new topics for one person and queues some of them as `not_ready` items
+// (ARCHITECTURE.md section 6, "Queue top-up" and "How jobs run"; section 11 item 29). It
+// creates no story job: text and audio are made only by an explicit start of the person
+// (AGENTS.md architecture rule 10).
 //
 // Privacy is structural, not a matter of prompt wording (SECURITY.md rule 10). The model is
 // called up to twice. Call A sees the styles and the person's catalogue interests, never
@@ -37,21 +36,17 @@ interface NewTopic {
 // interests pays for two calls.
 //
 // The person and the payload come from the job row only. Model calls hold no transaction.
-// The rows, the queue items and the `write_story` jobs are written in ONE transaction behind
-// the same users-row lock the top-up takes, with `markSucceeded` as its last statement: a run
-// whose lease was lost rolls the whole step back. Jobs are handed to the queue after the
-// commit. Logging is one fixed line: no ids, titles or model output.
+// The rows and the queue items are written in ONE transaction behind the same users-row lock
+// the top-up takes, with `markSucceeded` as its last statement: a run whose lease was lost
+// rolls the whole step back. Nothing is logged by this handler: no ids, titles or model
+// output.
 @Injectable()
 export class SuggestTopicsHandler implements JobHandler<'suggest_topics'> {
   readonly kind = 'suggest_topics' as const;
-  private readonly logger = new Logger(SuggestTopicsHandler.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly suggester: TopicSuggesterService,
-    private readonly jobs: GenerationJobsService,
-    private readonly limits: GenerationLimitsService,
-    private readonly jobQueue: JobQueue,
   ) {}
 
   async run(ctx: JobContext<'suggest_topics'>): Promise<void> {
@@ -148,11 +143,11 @@ export class SuggestTopicsHandler implements JobHandler<'suggest_topics'> {
       }
     }
 
-    // 3. One transaction: lock, rows, queue, jobs, success.
+    // 3. One transaction: lock, rows, queue, success.
     // The lock comes first and explicitly. The foreign-key inserts below also take a share
     // lock on the users row, which would order this step against the top-up by accident; the
     // explicit lock does not depend on the order of the inserts (checked by removing both).
-    const createdJobIds = await this.prisma.$transaction(async (tx): Promise<string[]> => {
+    await this.prisma.$transaction(async (tx) => {
       const locked = UserRowsSchema.parse(
         await tx.$queryRaw<unknown[]>`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
       );
@@ -161,13 +156,11 @@ export class SuggestTopicsHandler implements JobHandler<'suggest_topics'> {
       }
       const current = await tx.userPreference.findUnique({
         where: { userId },
-        select: { voiceId: true },
+        select: { userId: true },
       });
       if (current === null) {
         throw new GenerationError('job_target_missing', false);
       }
-      const voiceId = current.voiceId;
-
       if (fresh.length > 0) {
         await tx.topic.createMany({
           data: fresh.map(({ id, title, style, interestId }) => ({ id, title, style, interestId })),
@@ -177,26 +170,12 @@ export class SuggestTopicsHandler implements JobHandler<'suggest_topics'> {
         });
       }
 
+      // At most what is missing and what fits in the queue, chosen at random. The others
+      // only appear on the person's list of topics. A topic is never queued because a job
+      // was created for it: no story job exists any more.
       const queueLength = await tx.queueItem.count({ where: { userId } });
-      const { rendersLeft } = remaining(await this.limits.usage(tx, userId));
-      const slots = Math.max(
-        0,
-        Math.min(ctx.job.payload.missing, QUEUE_TARGET_LENGTH - queueLength, rendersLeft),
-      );
-      const picked = shuffle(fresh.map(({ id }) => id)).slice(0, slots);
-
-      const created = await this.jobs.createInKeyOrder(
-        tx,
-        userId,
-        picked.map((topicId) => ({
-          topicId,
-          spec: { userId, payload: { kind: 'write_story' as const, topicId, voiceId } },
-        })),
-      );
-      // Only topics whose job was created are queued: a queued item without a story and
-      // without a job coming could never become ready.
-      const createdTopics = new Set(created.map((item) => item.topicId));
-      const toQueue = picked.filter((topicId) => createdTopics.has(topicId));
+      const slots = Math.max(0, Math.min(ctx.job.payload.missing, QUEUE_TARGET_LENGTH - queueLength));
+      const toQueue = shuffle(fresh.map(({ id }) => id)).slice(0, slots);
       if (toQueue.length > 0) {
         const last = await tx.queueItem.aggregate({ where: { userId }, _max: { position: true } });
         const firstPosition = (last._max.position ?? 0) + 1;
@@ -210,17 +189,7 @@ export class SuggestTopicsHandler implements JobHandler<'suggest_topics'> {
       }
 
       await ctx.markSucceeded(tx);
-      return created.map((item) => item.id);
     });
-
-    // After the commit. A failing enqueue leaves the row `pending` for the sweep.
-    for (const jobId of createdJobIds) {
-      try {
-        await this.jobQueue.enqueue(jobId);
-      } catch {
-        this.logger.warn('Enqueueing a generation job failed; it stays pending');
-      }
-    }
   }
 }
 

@@ -14,8 +14,8 @@ export interface GenerationJobSpec {
 
 const InsertedRowSchema = z.object({ id: z.uuid() });
 
-// Key formats are also known to the failure exclusions in queue-candidates.ts and to the
-// removal of waiting queue items in queue-waiters.ts: change one, check the others.
+// Key formats are also known to the failure exclusions in queue-candidates.ts: change one,
+// check the other.
 // The only place that derives a dedupe key. At most one active (pending or running) job
 // per key is enforced by the partial unique index `generation_jobs_dedupe_key_active_key`.
 export function dedupeKeyOf(userId: string, payload: GenerationJobPayload): string {

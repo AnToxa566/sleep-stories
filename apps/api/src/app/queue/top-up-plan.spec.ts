@@ -4,11 +4,10 @@ const ids = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `
 
 const base: TopUpPlanInput = {
   queueLength: 0,
-  rendersLeft: 5,
   suggestionsLeft: 3,
   ready: [],
-  rendering: [],
-  writing: [],
+  withoutAudio: [],
+  withoutStory: [],
 };
 
 const plan = (over: Partial<TopUpPlanInput>) => planTopUp({ ...base, ...over });
@@ -32,14 +31,14 @@ describe('planTopUp', () => {
         plan({
           queueLength: 3,
           ready: ids('r', 3),
-          rendering: ids('d', 3),
-          writing: ids('w', 3),
+          withoutAudio: ids('d', 3),
+          withoutStory: ids('w', 3),
         }),
       ).toEqual({
         need: 0,
         queueReady: [],
-        queueRendering: [],
-        queueWriting: [],
+        queueWithoutAudio: [],
+        queueWithoutStory: [],
         suggestMissing: 0,
       });
     });
@@ -51,104 +50,46 @@ describe('planTopUp', () => {
     });
   });
 
-  describe('each tier alone', () => {
-    it('takes ready ids with no render slot', () => {
-      const result = plan({
-        ready: ids('r', 3),
-        rendersLeft: 0,
-        suggestionsLeft: 0,
-      });
+  describe('each source alone', () => {
+    it('takes ready ids', () => {
+      const result = plan({ ready: ids('r', 3), suggestionsLeft: 0 });
       expect(result.queueReady).toEqual(['r1', 'r2', 'r3']);
-      expect(result.queueRendering).toEqual([]);
-      expect(result.queueWriting).toEqual([]);
+      expect(result.queueWithoutAudio).toEqual([]);
+      expect(result.queueWithoutStory).toEqual([]);
       expect(result.suggestMissing).toBe(0);
     });
 
-    it('takes rendering ids', () => {
-      const result = plan({ rendering: ids('d', 3) });
-      expect(result.queueRendering).toEqual(['d1', 'd2', 'd3']);
+    it('takes ids with no audio in the voice', () => {
+      const result = plan({ withoutAudio: ids('d', 3) });
+      expect(result.queueWithoutAudio).toEqual(['d1', 'd2', 'd3']);
       expect(result.queueReady).toEqual([]);
-      expect(result.queueWriting).toEqual([]);
+      expect(result.queueWithoutStory).toEqual([]);
       expect(result.suggestMissing).toBe(0);
     });
 
-    it('takes writing ids', () => {
-      const result = plan({ writing: ids('w', 2), queueLength: 1 });
-      expect(result.queueWriting).toEqual(['w1', 'w2']);
+    it('takes own topics with no story', () => {
+      const result = plan({ withoutStory: ids('w', 2), queueLength: 1 });
+      expect(result.queueWithoutStory).toEqual(['w1', 'w2']);
       expect(result.queueReady).toEqual([]);
-      expect(result.queueRendering).toEqual([]);
+      expect(result.queueWithoutAudio).toEqual([]);
       expect(result.suggestMissing).toBe(0);
     });
   });
 
-  describe('tier order', () => {
-    it('takes ready, then rendering, then writing when slots are plentiful', () => {
-      const result = plan({
-        ready: ['r1'],
-        rendering: ['d1'],
-        writing: ['w1', 'w2'],
-      });
+  describe('source order', () => {
+    it('takes ready, then no-audio, then no-story', () => {
+      const result = plan({ ready: ['r1'], withoutAudio: ['d1'], withoutStory: ['w1', 'w2'] });
       expect(result.queueReady).toEqual(['r1']);
-      expect(result.queueRendering).toEqual(['d1']);
-      expect(result.queueWriting).toEqual(['w1']);
+      expect(result.queueWithoutAudio).toEqual(['d1']);
+      expect(result.queueWithoutStory).toEqual(['w1']);
       expect(result.suggestMissing).toBe(0);
     });
 
-    it('lets rendering use the need before writing', () => {
-      const result = plan({
-        ready: ['r1'],
-        rendering: ids('d', 3),
-        writing: ['w1'],
-      });
+    it('lets no-audio use the need before no-story', () => {
+      const result = plan({ ready: ['r1'], withoutAudio: ids('d', 3), withoutStory: ['w1'] });
       expect(result.queueReady).toEqual(['r1']);
-      expect(result.queueRendering).toEqual(['d1', 'd2']);
-      expect(result.queueWriting).toEqual([]);
-    });
-
-    it('lets rendering and writing share the render slots', () => {
-      const result = plan({
-        rendersLeft: 2,
-        rendering: ids('d', 1),
-        writing: ids('w', 3),
-      });
-      expect(result.queueRendering).toEqual(['d1']);
-      expect(result.queueWriting).toEqual(['w1']);
-      // No render slot is left, so no suggestion for the one still missing.
-      expect(result.suggestMissing).toBe(0);
-    });
-  });
-
-  describe('the daily render limit (through rendersLeft)', () => {
-    it('allows one render item when four of five are used and none is active', () => {
-      const result = plan({ rendersLeft: 1, rendering: ids('d', 2) });
-      expect(result.queueRendering).toEqual(['d1']);
-      expect(result.suggestMissing).toBe(0);
-    });
-
-    it('takes ready but nothing else when four are used and one is active', () => {
-      const result = plan({
-        rendersLeft: 0,
-        ready: ['r1'],
-        rendering: ids('d', 2),
-        writing: ids('w', 2),
-      });
-      expect(result.queueReady).toEqual(['r1']);
-      expect(result.queueRendering).toEqual([]);
-      expect(result.queueWriting).toEqual([]);
-      expect(result.suggestMissing).toBe(0);
-    });
-
-    it('takes nothing but ready when three are used and two are active', () => {
-      const result = plan({
-        rendersLeft: 0,
-        ready: ['r1', 'r2'],
-        rendering: ['d1'],
-        writing: ['w1'],
-      });
-      expect(result.queueReady).toEqual(['r1', 'r2']);
-      expect(result.queueRendering).toEqual([]);
-      expect(result.queueWriting).toEqual([]);
-      expect(result.suggestMissing).toBe(0);
+      expect(result.queueWithoutAudio).toEqual(['d1', 'd2']);
+      expect(result.queueWithoutStory).toEqual([]);
     });
   });
 
@@ -160,8 +101,7 @@ describe('planTopUp', () => {
     });
 
     it('asks only for what is still missing after the lists', () => {
-      const result = plan({ ready: ['r1'] });
-      expect(result.suggestMissing).toBe(2);
+      expect(plan({ ready: ['r1'] }).suggestMissing).toBe(2);
     });
 
     it('asks for one when the queue holds two and nothing fits', () => {
@@ -172,19 +112,9 @@ describe('planTopUp', () => {
       expect(plan({ suggestionsLeft: 0 }).suggestMissing).toBe(0);
     });
 
-    it('is 0 when no render slot is left, even with 3 suggestions left', () => {
-      expect(plan({ rendersLeft: 0, suggestionsLeft: 3 }).suggestMissing).toBe(0);
-    });
-
-    it('is 0 when the render slots are all used by the lists', () => {
-      const result = plan({ rendersLeft: 1, rendering: ['d1'] });
-      expect(result.queueRendering).toEqual(['d1']);
-      expect(result.suggestMissing).toBe(0);
-    });
-
-    it('is asked when a render slot stays unused after the lists', () => {
-      const result = plan({ rendersLeft: 2, rendering: ['d1'] });
-      expect(result.suggestMissing).toBe(2);
+    it('needs only a suggestion slot: no generation input exists to block it', () => {
+      expect(Object.keys(base)).not.toContain('generationsLeft');
+      expect(plan({ suggestionsLeft: 1 }).suggestMissing).toBe(3);
     });
 
     it('is never above the need', () => {
@@ -203,41 +133,30 @@ describe('planTopUp', () => {
 
   describe('the total never exceeds the need', () => {
     it.each([
-      [0, 10, 10, 10, 10],
-      [1, 10, 10, 10, 10],
-      [2, 10, 10, 10, 10],
-      [2, 1, 0, 0, 1],
-      [0, 2, 2, 2, 3],
-    ])(
-      'queue %d with lists of %d/%d/%d and %d render slots',
-      (queueLength, r, d, w, rendersLeft) => {
-        const result = plan({
-          queueLength,
-          rendersLeft,
-          ready: ids('r', r),
-          rendering: ids('d', d),
-          writing: ids('w', w),
-        });
-        const total =
-          result.queueReady.length + result.queueRendering.length + result.queueWriting.length;
-        expect(total).toBeLessThanOrEqual(result.need);
-        expect(result.queueRendering.length + result.queueWriting.length).toBeLessThanOrEqual(
-          rendersLeft,
-        );
-      },
-    );
+      [0, 10, 10, 10],
+      [1, 10, 10, 10],
+      [2, 10, 10, 10],
+      [2, 1, 0, 0],
+      [0, 2, 2, 2],
+    ])('queue %d with lists of %d/%d/%d', (queueLength, r, d, w) => {
+      const result = plan({
+        queueLength,
+        ready: ids('r', r),
+        withoutAudio: ids('d', d),
+        withoutStory: ids('w', w),
+      });
+      const total =
+        result.queueReady.length +
+        result.queueWithoutAudio.length +
+        result.queueWithoutStory.length;
+      expect(total).toBeLessThanOrEqual(result.need);
+    });
   });
 
   describe('defensive inputs', () => {
-    it('treats negative slots as 0', () => {
-      const result = plan({
-        rendersLeft: -2,
-        suggestionsLeft: -1,
-        ready: ['r1'],
-        rendering: ['d1'],
-      });
+    it('treats a negative suggestion count as 0', () => {
+      const result = plan({ suggestionsLeft: -1, ready: ['r1'] });
       expect(result.queueReady).toEqual(['r1']);
-      expect(result.queueRendering).toEqual([]);
       expect(result.suggestMissing).toBe(0);
     });
   });
