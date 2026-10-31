@@ -16,7 +16,7 @@ Read `.claude/agent-brief.md` first. Then read from ARCHITECTURE.md only section
 2. **Layer placement.** UI and local state in the mobile app; authorization, orchestration and anything holding a key in the API; schemas and shared types in `packages/contracts`; provider SDKs only in their adapters.
 3. **Framework-free contracts.** No React Native, Nest or Prisma in `packages/contracts`.
 4. **Data model fit** (section 5). Content stays user-independent; per-user state stays in the per-user tables; the listen outcome stays derived; intent and generation health stay separate; a story row exists only when complete; audio columns hold paths, never URLs. A nullable field that applies to one lifecycle stage or subtype is a smell.
-5. **The pipeline** (section 6). Triggers through Cloud Tasks; a job that already succeeded returns 200; failure returns 5xx; each job kind marks itself `succeeded` in the same transaction as what it creates; one Cloud Task per job; the pipeline writes no queue row.
+5. **The pipeline** (section 6). Nothing creates `write_story` or `render_audio` except an explicit start of the person (architecture rule 10); the top-up and `suggest_topics` create no story job. Triggers through Cloud Tasks; a job that already succeeded returns 200; failure returns 5xx; each job kind marks itself `succeeded` in the same transaction as what it creates; one Cloud Task per job; the pipeline writes no queue row.
 6. **Scope creep into deferred territory** (section 10). A quiet commitment to something deferred or rejected is a decision for the human.
 7. **Open problems** (section 11). Did the change lock in an answer the owner has not given?
 

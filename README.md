@@ -13,7 +13,7 @@ Sleep Stories is built around that one scenario. Tonight's queue (usually two or
 ## Engineering problems worth solving here
 
 - **Staying alive in the background.** Audio has to keep playing with the screen off, and after the last story the app must open the microphone and listen. Both iOS and Android restrict exactly this. It is the riskiest part of the project and is still an open spike (see [Known open problems](ARCHITECTURE.md#11-known-open-problems)).
-- **A durable, cheap generation pipeline.** Topic, LLM text, TTS audio, storage: driven by a queue with retries and rate limits on Cloud Run, so tonight's stories already exist and tomorrow's are being prepared while you listen.
+- **A durable, cheap generation pipeline.** Topic, LLM text, TTS audio, storage: driven by a queue with retries and rate limits on Cloud Run, where the person decides which stories to make (each one spends a small daily allowance), and the choice of topics is automatic.
 - **Hearing one word without sending your room to the cloud.** The answer to "Вы спите?" is detected on the device. Microphone audio is never uploaded.
 - **A phone that stays quiet.** Silencing notifications from inside the app needs a native module and explicit permission on Android, and is not possible at all on iOS.
 - **Personalisation from behaviour and ratings, not forms.** How long a person listened to each story, and an optional rating of -1 or 1, are recorded per user and story from day one, so recommendations can be added later without a data migration.

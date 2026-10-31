@@ -27,7 +27,7 @@ The request gives you the exact files to review, the checks that apply (numbers 
 5. Boundaries: imports between apps, contracts importing more than `zod`.
 6. Provider SDK confinement: SDK imports only inside their adapters.
 7. Schema: a migration exists; no foreign key into `auth`; intent and health not merged; no owner column on stories.
-8. Generation shape: chunking, ffmpeg, work after the response, Redis, BullMQ.
+8. Generation shape: chunking, ffmpeg, work after the response, Redis, BullMQ. And automatic generation: any path other than the explicit start of the person that creates a `write_story` or `render_audio` job (architecture rule 10), or that starts one without the limit check under the `users` lock.
 9. Dependencies: a package not named in ARCHITECTURE.md.
 10. Microphone path: any network call.
 11. Prompts: user topic text kept out of system instructions; model output never executed.

@@ -34,6 +34,7 @@ Architecture:
 7. Only libraries named in ARCHITECTURE.md. A new dependency needs the owner's approval first.
 8. UI is dark-only, no pure white, Russian copy in one strings module, one primary action per screen.
 9. Anything under "Known open problems" is the owner's decision: stop and ask.
+10. Nothing that costs money starts on its own: `write_story` and `render_audio` are created only by an explicit action of the person (main button, «Создать сейчас», «Повторить»), never by onboarding, the top-up, queue edits or a tap on a topic. Only `suggest_topics` is automatic. 5 generations per person per rolling 24 hours, checked on the server under the `users` row lock (ARCHITECTURE.md section 6, "Generation is explicit").
 
 Security:
 1. Provider keys only on the server (Secret Manager, or a git-ignored env file locally). Never in the mobile app, contracts, logs, prompts or error responses.
@@ -58,4 +59,4 @@ Security:
 
 ## Open problems today (run the command in step 3 for the current list)
 
-Audio library for the stories player (expo-audio is decided only for the onboarding voice sample), TTS provider, background audio on iOS, the Prisma CLI's unverified TLS, rotation of the pinned Supabase CA, the Cloud Tasks queue, the Scheduler and the production deployment (job chaining, stuck jobs and double delivery are decided in cycle 3b-1; the handlers and the trigger after onboarding are done in cycle 3b-2; the Scheduler cadence is still open), duplicate listens, account deletion, shutdown hooks, rating placement, orphaned audio, packaging of the built API, quotas and cost control, sign-in providers, email confirmation and account enumeration, session edge cases (item 27), who refills the queue.
+Audio library for the stories player (expo-audio is decided only for the onboarding voice sample), TTS provider, background audio on iOS, the Prisma CLI's unverified TLS, rotation of the pinned Supabase CA, the Cloud Tasks queue, the Scheduler and the production deployment (job chaining, stuck jobs and double delivery are decided in cycle 3b-1; the handlers and the trigger after onboarding are done in cycle 3b-2; the Scheduler cadence is still open), duplicate listens, account deletion, shutdown hooks, rating placement, orphaned audio, packaging of the built API, quotas and cost control, sign-in providers, email confirmation and account enumeration, session edge cases (item 27), who refills the queue (onboarding is the only trigger today), how the app learns when everything is ready (item 30), two people with one topic and different voices (item 31), how the app learns the allowance (item 32).
