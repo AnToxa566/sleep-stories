@@ -34,7 +34,7 @@ Architecture:
 7. Only libraries named in ARCHITECTURE.md. A new dependency needs the owner's approval first.
 8. UI is dark-only, no pure white, Russian copy in one strings module, one primary action per screen.
 9. Anything under "Known open problems" is the owner's decision: stop and ask.
-10. Nothing that costs money starts on its own: `write_story` and `render_audio` are created only by an explicit action of the person (main button, «Создать сейчас», «Повторить»), never by onboarding, the top-up, queue edits or a tap on a topic. Only `suggest_topics` is automatic. 5 generations per person per rolling 24 hours, checked on the server under the `users` row lock (ARCHITECTURE.md section 6, "Generation is explicit").
+10. Nothing that costs money starts on its own: `write_story` and `render_audio` are created only by an explicit action of the person (main button, «Создать сейчас», «Повторить»), never by onboarding, the top-up, queue edits or a tap on a topic. Only `suggest_topics` is automatic. 5 generations per person per rolling 24 hours, checked on the server under the `users` row lock (ARCHITECTURE.md section 6, "Generation is explicit"). The queue edits (add, replace, «Другая история») and `GET /api/topics` create no job. `architecture.spec.ts` enforces where story job payloads and the `users` row lock (`lockUserRow`) may be written.
 
 Security:
 1. Provider keys only on the server (Secret Manager, or a git-ignored env file locally). Never in the mobile app, contracts, logs, prompts or error responses.
