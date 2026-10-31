@@ -1,15 +1,19 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import type { CompleteOnboardingRequest, MeResponse } from '@sleep-stories/contracts';
 import { apiErrorBody } from '../errors/api-error-body';
 import { PrismaService } from '../prisma/prisma.service';
+import { QueueTopUpService } from '../queue/queue-top-up.service';
 import { UsersService } from '../users/users.service';
 import { inCanonicalOrder } from './story-styles';
 
 @Injectable()
 export class OnboardingService {
+  private readonly logger = new Logger(OnboardingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
+    private readonly topUp: QueueTopUpService,
   ) {}
 
   // Saves the onboarding answers. Idempotent: the same request again leaves the
@@ -31,8 +35,13 @@ export class OnboardingService {
   //    (GET /me), so it must never exist without the interests. The transaction
   //    makes the order matter less, but the order keeps the invariant even if
   //    someone later splits the work up.
+  //
+  // After the transaction has committed, the queue top-up starts the person's first
+  // stories. It runs on every successful call, not only the first, and an error in it is
+  // swallowed with one fixed log line: onboarding must not fail because generation could not
+  // start (the periodic top-up and the stalled-items step pick the person up later).
   async complete(userId: string, request: CompleteOnboardingRequest): Promise<MeResponse> {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx): Promise<MeResponse> => {
       await this.users.ensureExists(userId, tx);
 
       await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
@@ -106,5 +115,13 @@ export class OnboardingService {
         },
       };
     });
+
+    try {
+      await this.topUp.run(userId);
+    } catch {
+      // Nothing from the error is logged: it may carry ids or provider text.
+      this.logger.warn('Starting the queue top-up after onboarding failed');
+    }
+    return result;
   }
 }

@@ -1,7 +1,8 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import { Logger, UnprocessableEntityException } from '@nestjs/common';
 import { ApiErrorResponseSchema } from '@sleep-stories/contracts';
 import type { CompleteOnboardingRequest } from '@sleep-stories/contracts';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { QueueTopUpService } from '../queue/queue-top-up.service';
 import { UsersService } from '../users/users.service';
 import { OnboardingService } from './onboarding.service';
 
@@ -37,7 +38,9 @@ interface Call {
 
 // A fake transaction client that records every call in order. Reads are marked so
 // the tests can tell writes from queries.
-function makeFakeTx(options: { voice?: typeof VOICE | null; interests?: typeof INTERESTS } = {}) {
+function makeFakeTx(
+  options: { voice?: typeof VOICE | null; interests?: typeof INTERESTS; topUp?: jest.Mock } = {},
+) {
   const catalogueTitles = [{ title: 'История' }, { title: 'Космос' }, { title: 'Open Sky' }];
   const calls: Call[] = [];
   const record = (name: string, result: unknown) =>
@@ -72,11 +75,13 @@ function makeFakeTx(options: { voice?: typeof VOICE | null; interests?: typeof I
     userPreference: { upsert: record('userPreference.upsert', {}) },
   };
   const prisma = { $transaction: jest.fn(async (fn: (client: unknown) => unknown) => fn(tx)) };
+  const topUp = options.topUp ?? jest.fn(async () => undefined);
   const service = new OnboardingService(
     prisma as unknown as PrismaService,
     new UsersService(prisma as unknown as PrismaService),
+    { run: topUp } as unknown as QueueTopUpService,
   );
-  return { service, calls };
+  return { service, calls, topUp };
 }
 
 const WRITES = [
@@ -280,6 +285,42 @@ describe('OnboardingService.complete', () => {
       const first = await makeFakeTx().service.complete(USER_ID, WITH_CUSTOM);
       const second = await makeFakeTx().service.complete(USER_ID, WITH_CUSTOM);
       expect(second).toEqual(first);
+    });
+  });
+
+  describe('queue top-up trigger', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    it('runs the top-up once with the token user id after a successful onboarding', async () => {
+      const { service, topUp } = makeFakeTx();
+      await service.complete(USER_ID, REQUEST);
+      expect(topUp).toHaveBeenCalledTimes(1);
+      expect(topUp).toHaveBeenCalledWith(USER_ID);
+    });
+
+    it.each([
+      ['unknown voice', { voice: null }],
+      ['unknown interest', { interests: [INTERESTS[1]] }],
+    ])('does not run the top-up when onboarding fails with 422 (%s)', async (_name, options) => {
+      const { service, topUp } = makeFakeTx(options);
+      await expect(service.complete(USER_ID, REQUEST)).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(topUp).not.toHaveBeenCalled();
+    });
+
+    it('still returns the result when the top-up throws, and logs only the fixed line', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      const secret = `boom ${USER_ID} person@example.com`;
+      const topUp = jest.fn(async () => {
+        throw new Error(secret);
+      });
+      const { service } = makeFakeTx({ topUp });
+      const result = await service.complete(USER_ID, REQUEST);
+      expect(result.onboardingCompleted).toBe(true);
+      expect(topUp).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls).toEqual([['Starting the queue top-up after onboarding failed']]);
+      expect(error).not.toHaveBeenCalled();
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(USER_ID);
     });
   });
 });

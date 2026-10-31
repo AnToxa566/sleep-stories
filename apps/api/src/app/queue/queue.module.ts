@@ -6,6 +6,6 @@ import { QueueTopUpService } from './queue-top-up.service';
 // PrismaService and JobQueue come from the global PrismaModule and ProvidersModule.
 @Module({
   providers: [GenerationLimitsService, GenerationJobsService, QueueTopUpService],
-  exports: [QueueTopUpService],
+  exports: [QueueTopUpService, GenerationJobsService, GenerationLimitsService],
 })
 export class QueueModule {}

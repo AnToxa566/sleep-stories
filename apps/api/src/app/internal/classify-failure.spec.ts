@@ -47,6 +47,10 @@ describe('classifyFailure', () => {
       retryable: false,
       code: 'generation:no_valid_topics',
     });
+    expect(classifyFailure(new GenerationError('job_target_missing', false))).toEqual({
+      retryable: false,
+      code: 'generation:job_target_missing',
+    });
   });
 
   it('treats every other error as final and unknown', () => {

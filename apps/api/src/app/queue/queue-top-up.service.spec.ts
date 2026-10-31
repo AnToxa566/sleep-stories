@@ -1,6 +1,6 @@
 import type { PrismaService } from '../prisma/prisma.service';
 import type { JobQueue } from '../providers/job-queue/job-queue';
-import type { GenerationJobsService } from './generation-jobs.service';
+import { GenerationJobsService } from './generation-jobs.service';
 import type { GenerationLimitsService } from './generation-limits.service';
 import { findReady, findRendering, findStalled, findWriting } from './queue-candidates';
 import { QueueTopUpService } from './queue-top-up.service';
@@ -58,7 +58,8 @@ function build(setup: Setup = {}) {
   const create = jest.fn(async (_tx: unknown, spec: Parameters<NonNullable<Setup['createResult']>>[0]) =>
     (setup.createResult ?? defaultId)(spec),
   );
-  const jobs = { create } as unknown as GenerationJobsService;
+  // The real key-ordered creation, with only the insert stubbed.
+  const jobs = Object.assign(new GenerationJobsService(), { create });
   const enqueue =
     setup.enqueue ??
     jest.fn(async (id: string) => {

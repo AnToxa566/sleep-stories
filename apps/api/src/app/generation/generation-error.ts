@@ -7,13 +7,15 @@ export type GenerationErrorCode =
   | 'no_valid_topics'
   | 'story_truncated'
   | 'story_text_invalid'
-  | 'audio_duration_unreadable';
+  | 'audio_duration_unreadable'
+  | 'job_target_missing';
 
 const MESSAGES: Record<GenerationErrorCode, string> = {
   no_valid_topics: 'The model returned no usable topics',
   story_truncated: 'The story was cut off by the token limit',
   story_text_invalid: 'The story text is outside the allowed bounds',
   audio_duration_unreadable: 'The audio duration could not be read',
+  job_target_missing: 'The target of the job no longer exists',
 };
 
 export class GenerationError extends Error {

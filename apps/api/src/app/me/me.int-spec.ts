@@ -9,6 +9,7 @@ import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../auth/access-tok
 import { AppModule } from '../app.module';
 import type { Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
+import { QueueTopUpService } from '../queue/queue-top-up.service';
 import { assertLocalDatabase } from '../../test-support/assert-local-database';
 
 // Runs against the REAL local database with the real AppModule: the real guard,
@@ -121,6 +122,11 @@ beforeAll(async () => {
         return new JoseAccessTokenVerifier({ keys: jwks, issuer });
       },
     })
+    // Onboarding starts the queue top-up; these tests are about the answers, so the top-up
+    // is a no-op and no job rows are created. The trigger itself is proved in
+    // internal/generation-e2e.int-spec.ts.
+    .overrideProvider(QueueTopUpService)
+    .useValue({ run: async () => undefined })
     .compile();
   app = moduleRef.createNestApplication();
   app.setGlobalPrefix('api'); // main.ts does this; the test app has to as well

@@ -1,13 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
-import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JobQueue } from '../providers/job-queue/job-queue';
-import {
-  dedupeKeyOf,
-  GenerationJobsService,
-  type GenerationJobSpec,
-} from './generation-jobs.service';
+import { GenerationJobsService, type GenerationJobSpec } from './generation-jobs.service';
 import { GenerationLimitsService, remaining } from './generation-limits.service';
 import { findReady, findRendering, findStalled, findWriting } from './queue-candidates';
 import { QUEUE_TARGET_LENGTH, QUEUE_TOP_UP_THRESHOLD } from './queue-policy';
@@ -103,7 +98,11 @@ export class QueueTopUpService {
 
         const queueLength = await tx.queueItem.count({ where: { userId } });
         if (queueLength > QUEUE_TOP_UP_THRESHOLD) {
-          const created = await this.createInKeyOrder(tx, userId, healSpecs.map((spec) => ({ spec, heal: true })));
+          const created = await this.jobs.createInKeyOrder(
+            tx,
+            userId,
+            healSpecs.map((spec) => ({ spec, heal: true })),
+          );
           return {
             result: { skipped: 'queue_full', healed: created.filter((c) => c.heal).length },
             createdJobIds: created.map((c) => c.id),
@@ -161,7 +160,7 @@ export class QueueTopUpService {
             suggest: true,
           });
         }
-        const created = await this.createInKeyOrder(tx, userId, planned);
+        const created = await this.jobs.createInKeyOrder(tx, userId, planned);
 
         return {
           result: {
@@ -190,26 +189,5 @@ export class QueueTopUpService {
       }
     }
     return result;
-  }
-  // Inserts the jobs one by one in the order of their dedupe keys and returns the created
-  // ones (a job whose key already has an active job is dropped).
-  private async createInKeyOrder(
-    tx: Prisma.TransactionClient,
-    userId: string,
-    items: { spec: GenerationJobSpec; heal?: boolean; suggest?: boolean }[],
-  ): Promise<{ id: string; heal: boolean; suggest: boolean }[]> {
-    const ordered = [...items].sort((a, b) => {
-      const left = dedupeKeyOf(userId, a.spec.payload);
-      const right = dedupeKeyOf(userId, b.spec.payload);
-      return left < right ? -1 : left > right ? 1 : 0;
-    });
-    const created: { id: string; heal: boolean; suggest: boolean }[] = [];
-    for (const item of ordered) {
-      const id = await this.jobs.create(tx, item.spec);
-      if (id !== null) {
-        created.push({ id, heal: item.heal === true, suggest: item.suggest === true });
-      }
-    }
-    return created;
   }
 }

@@ -54,4 +54,29 @@ export class GenerationJobsService {
     }
     return InsertedRowSchema.parse(rows[0]).id;
   }
+
+  // Inserts the jobs one by one in the order of their dedupe keys and returns, for each job
+  // that was created, its id together with the original item (a job whose key already has an
+  // active job is omitted). The item may carry flags of the caller; they pass through
+  // untouched. The order is fixed so that two concurrent transactions of different people
+  // insert in the same order, which avoids deadlocks on the unique-index entries.
+  async createInKeyOrder<T extends { spec: GenerationJobSpec }>(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    items: readonly T[],
+  ): Promise<(T & { id: string })[]> {
+    const ordered = [...items].sort((a, b) => {
+      const left = dedupeKeyOf(userId, a.spec.payload);
+      const right = dedupeKeyOf(userId, b.spec.payload);
+      return left < right ? -1 : left > right ? 1 : 0;
+    });
+    const created: (T & { id: string })[] = [];
+    for (const item of ordered) {
+      const id = await this.create(tx, item.spec);
+      if (id !== null) {
+        created.push({ ...item, id });
+      }
+    }
+    return created;
+  }
 }
