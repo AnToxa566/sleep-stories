@@ -14,6 +14,9 @@ export const ApiErrorCodeSchema = z.enum([
   'queue_order_mismatch',
   // POST /queue/generate and /queue/items/:itemId/generate: fewer generations left than items to start.
   'generation_limit_reached',
+  // POST /queue/items, /queue/items/:itemId/replace and /another: the topic does not exist for this
+  // person, or may not be queued by them (a foreign typed topic looks the same as a random id).
+  'topic_unavailable',
 ]);
 
 export type ApiErrorCode = z.infer<typeof ApiErrorCodeSchema>;

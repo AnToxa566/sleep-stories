@@ -49,16 +49,34 @@ export const QueueResponseSchema = z.strictObject({
   }),
 });
 
+// The most items one person's queue can hold. A reorder names every item, so it is bounded by
+// the same number as an add; the add checks the sum on the server too.
+export const QUEUE_MAX_ITEMS = 100;
+
 // The full list of the person's queue item ids in the wanted order. It must be exactly the
 // ids in the queue: no missing, no extra, no repeated one.
 export const ReorderQueueRequestSchema = z
   .strictObject({
-    itemIds: z.array(z.uuid()).max(100),
+    itemIds: z.array(z.uuid()).max(QUEUE_MAX_ITEMS),
   })
   .refine((value) => new Set(value.itemIds).size === value.itemIds.length, {
     message: 'itemIds must not repeat',
     path: ['itemIds'],
   });
+
+// POST /api/queue/items: topics to append to the end of the queue, in this order. At least
+// one, no repeats. Whether each topic may be queued by this person is decided on the server.
+export const AddToQueueRequestSchema = z
+  .strictObject({
+    topicIds: z.array(z.uuid()).min(1).max(QUEUE_MAX_ITEMS),
+  })
+  .refine((value) => new Set(value.topicIds).size === value.topicIds.length, {
+    message: 'topicIds must not repeat',
+    path: ['topicIds'],
+  });
+
+// POST /api/queue/items/:itemId/replace: the topic that takes the place of the item's topic.
+export const ReplaceQueueItemRequestSchema = z.strictObject({ topicId: z.uuid() });
 
 // The route parameter of DELETE /api/queue/items/:itemId. A malformed id is a 400, before any query.
 export const QueueItemParamsSchema = z.strictObject({ itemId: z.uuid() });
@@ -67,3 +85,5 @@ export type QueueItem = z.infer<typeof QueueItemSchema>;
 export type QueueItemState = z.infer<typeof QueueItemStateSchema>;
 export type QueueResponse = z.infer<typeof QueueResponseSchema>;
 export type ReorderQueueRequest = z.infer<typeof ReorderQueueRequestSchema>;
+export type AddToQueueRequest = z.infer<typeof AddToQueueRequestSchema>;
+export type ReplaceQueueItemRequest = z.infer<typeof ReplaceQueueItemRequestSchema>;

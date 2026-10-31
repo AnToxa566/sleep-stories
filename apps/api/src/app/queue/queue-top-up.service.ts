@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { z } from 'zod';
+import { lockUserRow } from '../prisma/lock-user-row';
 import { PrismaService } from '../prisma/prisma.service';
 import { JobQueue } from '../providers/job-queue/job-queue';
 import { GenerationJobsService } from './generation-jobs.service';
@@ -19,8 +19,6 @@ export type TopUpResult =
     };
 
 type Outcome = { result: TopUpResult; createdJobIds: string[] };
-
-const UserRowsSchema = z.array(z.object({ id: z.uuid() }));
 
 @Injectable()
 export class QueueTopUpService {
@@ -53,10 +51,7 @@ export class QueueTopUpService {
   async run(userId: string): Promise<TopUpResult> {
     const { result, createdJobIds } = await this.prisma.$transaction(
       async (tx): Promise<Outcome> => {
-        const locked = UserRowsSchema.parse(
-          await tx.$queryRaw<unknown[]>`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
-        );
-        if (locked.length === 0) {
+        if (!(await lockUserRow(tx, userId))) {
           return { result: { skipped: 'no_preferences' }, createdJobIds: [] };
         }
 

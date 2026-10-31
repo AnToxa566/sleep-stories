@@ -28,3 +28,48 @@ export const SuggestedTopicsSchema = z.strictObject({
 
 export type SuggestedTopic = z.infer<typeof SuggestedTopicSchema>;
 export type SuggestedTopics = z.infer<typeof SuggestedTopicsSchema>;
+
+// GET /api/topics?style=&ready= : the list «Темы». Query values arrive as strings, so `ready`
+// is the text 'true' or 'false' and the server turns it into a flag. Unknown keys are refused
+// (a typo in a filter must not silently return an unfiltered list).
+export const TopicsQuerySchema = z.strictObject({
+  style: StoryStyleSchema.optional(),
+  ready: z.enum(['true', 'false']).optional(),
+});
+
+// One row of the list. The state is derived from the data in the person's voice and never
+// stored (ARCHITECTURE.md section 6, "Readiness and the four states"). Only a `ready` topic
+// has a duration; the other states carry `null`, so the two shapes are strict and a row
+// cannot claim a duration while it is not ready. `inQueue` tells whether the person's queue
+// holds the topic now.
+const TopicRowBase = {
+  id: z.uuid(),
+  title: z.string(),
+  style: StoryStyleSchema,
+  inQueue: z.boolean(),
+};
+
+export const ReadyTopicRowSchema = z.strictObject({
+  ...TopicRowBase,
+  state: z.literal('ready'),
+  durationSec: z.number().int().positive(),
+});
+
+export const NotReadyTopicRowSchema = z.strictObject({
+  ...TopicRowBase,
+  state: z.enum(['creating', 'failed', 'not_ready']),
+  durationSec: z.null(),
+});
+
+export const TopicRowSchema = z.discriminatedUnion('state', [
+  ReadyTopicRowSchema,
+  NotReadyTopicRowSchema,
+]);
+
+export const TopicsResponseSchema = z.strictObject({
+  topics: z.array(TopicRowSchema),
+});
+
+export type TopicsQuery = z.infer<typeof TopicsQuerySchema>;
+export type TopicRow = z.infer<typeof TopicRowSchema>;
+export type TopicsResponse = z.infer<typeof TopicsResponseSchema>;

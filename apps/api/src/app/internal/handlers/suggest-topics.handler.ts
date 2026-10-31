@@ -1,17 +1,15 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { StoryStyle } from '@sleep-stories/contracts';
-import { z } from 'zod';
 import { GenerationError } from '../../generation/generation-error';
 import { TopicSuggesterService } from '../../generation/topic-suggester.service';
+import { lockUserRow } from '../../prisma/lock-user-row';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUE_TARGET_LENGTH } from '../../queue/queue-policy';
 import type { JobContext, JobHandler } from '../job-handler';
 
 // How many of the person's latest topics the model is told not to repeat.
 const EXISTING_TOPICS_LIMIT = 150;
-
-const UserRowsSchema = z.array(z.object({ id: z.uuid() }));
 
 interface NewTopic {
   id: string;
@@ -148,10 +146,7 @@ export class SuggestTopicsHandler implements JobHandler<'suggest_topics'> {
     // lock on the users row, which would order this step against the top-up by accident; the
     // explicit lock does not depend on the order of the inserts (checked by removing both).
     await this.prisma.$transaction(async (tx) => {
-      const locked = UserRowsSchema.parse(
-        await tx.$queryRaw<unknown[]>`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
-      );
-      if (locked.length === 0) {
+      if (!(await lockUserRow(tx, userId))) {
         throw new GenerationError('job_target_missing', false);
       }
       const current = await tx.userPreference.findUnique({

@@ -1,4 +1,12 @@
-import { QueueItemParamsSchema, QueueItemSchema, QueueResponseSchema, ReorderQueueRequestSchema } from './queue';
+import {
+  AddToQueueRequestSchema,
+  QUEUE_MAX_ITEMS,
+  QueueItemParamsSchema,
+  QueueItemSchema,
+  QueueResponseSchema,
+  ReorderQueueRequestSchema,
+  ReplaceQueueItemRequestSchema,
+} from './queue';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const base = { id: id(1), topicId: id(2), title: 'Тема', style: 'facts' };
@@ -79,5 +87,40 @@ describe('QueueItemParamsSchema', () => {
     expect(QueueItemParamsSchema.safeParse({ itemId: id(1) }).success).toBe(true);
     expect(QueueItemParamsSchema.safeParse({ itemId: 'abc' }).success).toBe(false);
     expect(QueueItemParamsSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('QUEUE_MAX_ITEMS', () => {
+  it('is 100 and bounds both a reorder and an add', () => {
+    expect(QUEUE_MAX_ITEMS).toBe(100);
+    const exactly = Array.from({ length: QUEUE_MAX_ITEMS }, (_, i) => id(i + 1));
+    expect(ReorderQueueRequestSchema.safeParse({ itemIds: exactly }).success).toBe(true);
+    expect(AddToQueueRequestSchema.safeParse({ topicIds: exactly }).success).toBe(true);
+  });
+});
+
+describe('AddToQueueRequestSchema', () => {
+  it('accepts one to 100 distinct ids', () => {
+    expect(AddToQueueRequestSchema.safeParse({ topicIds: [id(1)] }).success).toBe(true);
+    expect(AddToQueueRequestSchema.safeParse({ topicIds: [id(1), id(2)] }).success).toBe(true);
+  });
+
+  it('rejects an empty list, a repeat, a bad id, 101 ids, a missing key and an extra key', () => {
+    expect(AddToQueueRequestSchema.safeParse({ topicIds: [] }).success).toBe(false);
+    expect(AddToQueueRequestSchema.safeParse({ topicIds: [id(1), id(1)] }).success).toBe(false);
+    expect(AddToQueueRequestSchema.safeParse({ topicIds: ['x'] }).success).toBe(false);
+    const many = Array.from({ length: QUEUE_MAX_ITEMS + 1 }, (_, i) => id(i + 1));
+    expect(AddToQueueRequestSchema.safeParse({ topicIds: many }).success).toBe(false);
+    expect(AddToQueueRequestSchema.safeParse({}).success).toBe(false);
+    expect(AddToQueueRequestSchema.safeParse({ topicIds: [id(1)], userId: id(9) }).success).toBe(false);
+  });
+});
+
+describe('ReplaceQueueItemRequestSchema', () => {
+  it('accepts a topic id and rejects anything else', () => {
+    expect(ReplaceQueueItemRequestSchema.safeParse({ topicId: id(1) }).success).toBe(true);
+    expect(ReplaceQueueItemRequestSchema.safeParse({ topicId: 'abc' }).success).toBe(false);
+    expect(ReplaceQueueItemRequestSchema.safeParse({}).success).toBe(false);
+    expect(ReplaceQueueItemRequestSchema.safeParse({ topicId: id(1), extra: 1 }).success).toBe(false);
   });
 });

@@ -3,14 +3,17 @@ import { GenerationJobsService } from './generation-jobs.service';
 import { GenerationLimitsService } from './generation-limits.service';
 import { GenerationStartService } from './generation-start.service';
 import { QueueEditService } from './queue-edit.service';
+import { QueuePickService } from './queue-pick.service';
 import { QueueReadService } from './queue-read.service';
 import { QueueTopUpService } from './queue-top-up.service';
 import { QueueController } from './queue.controller';
+import { TopicsController } from './topics.controller';
+import { TopicsService } from './topics.service';
 
 // PrismaService, JobQueue and StorageService come from the global PrismaModule and
 // ProvidersModule.
 @Module({
-  controllers: [QueueController],
+  controllers: [QueueController, TopicsController],
   providers: [
     GenerationLimitsService,
     GenerationJobsService,
@@ -18,6 +21,8 @@ import { QueueController } from './queue.controller';
     QueueReadService,
     QueueEditService,
     GenerationStartService,
+    QueuePickService,
+    TopicsService,
   ],
   exports: [QueueTopUpService, GenerationJobsService, GenerationLimitsService],
 })

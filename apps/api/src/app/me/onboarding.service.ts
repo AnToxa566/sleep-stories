@@ -1,6 +1,7 @@
 import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import type { CompleteOnboardingRequest, MeResponse } from '@sleep-stories/contracts';
 import { apiErrorBody } from '../errors/api-error-body';
+import { lockUserRow } from '../prisma/lock-user-row';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueTopUpService } from '../queue/queue-top-up.service';
 import { UsersService } from '../users/users.service';
@@ -44,7 +45,7 @@ export class OnboardingService {
     const result = await this.prisma.$transaction(async (tx): Promise<MeResponse> => {
       await this.users.ensureExists(userId, tx);
 
-      await tx.$queryRaw`SELECT 1 FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+      await lockUserRow(tx, userId);
 
       const voice = await tx.voice.findFirst({
         where: { slug: request.voiceSlug, isActive: true },

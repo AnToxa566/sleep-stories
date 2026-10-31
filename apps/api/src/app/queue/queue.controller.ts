@@ -6,7 +6,13 @@ import { CurrentUserId } from '../auth/current-user-id.decorator';
 import { GenerationStartService } from './generation-start.service';
 import { QueueEditService } from './queue-edit.service';
 import { QueueReadService } from './queue-read.service';
-import { QueueItemParamsDto, ReorderQueueRequestDto } from './queue.dto';
+import { QueuePickService } from './queue-pick.service';
+import {
+  AddToQueueRequestDto,
+  QueueItemParamsDto,
+  ReorderQueueRequestDto,
+  ReplaceQueueItemRequestDto,
+} from './queue.dto';
 
 // The person is identified only by the verified token (CurrentUserId); nothing in the
 // body, query, path or headers can name another person. Every route answers with the
@@ -17,6 +23,7 @@ export class QueueController {
     private readonly reader: QueueReadService,
     private readonly editor: QueueEditService,
     private readonly starter: GenerationStartService,
+    private readonly picker: QueuePickService,
   ) {}
 
   @Get()
@@ -65,5 +72,40 @@ export class QueueController {
     @Param() params: QueueItemParamsDto,
   ): Promise<QueueResponse> {
     return this.starter.start(userId, params.itemId);
+  }
+
+  // Adds topics from «Темы» to the end of the queue. Never starts a generation. A topic the
+  // person may not queue is a 404 for the whole request; one already queued is skipped.
+  @Post('items')
+  @HttpCode(200)
+  @ZodSerializerDto(QueueResponseSchema)
+  add(
+    @CurrentUserId() userId: string,
+    @Body() body: AddToQueueRequestDto,
+  ): Promise<QueueResponse> {
+    return this.picker.add(userId, body.topicIds);
+  }
+
+  // Replaces the topic of one item (the picker). The item keeps its place. Never generates.
+  @Post('items/:itemId/replace')
+  @HttpCode(200)
+  @ZodSerializerDto(QueueResponseSchema)
+  replace(
+    @CurrentUserId() userId: string,
+    @Param() params: QueueItemParamsDto,
+    @Body() body: ReplaceQueueItemRequestDto,
+  ): Promise<QueueResponse> {
+    return this.picker.replace(userId, params.itemId, body.topicId);
+  }
+
+  // «Другая история»: the server chooses another topic of the same style. No body.
+  @Post('items/:itemId/another')
+  @HttpCode(200)
+  @ZodSerializerDto(QueueResponseSchema)
+  another(
+    @CurrentUserId() userId: string,
+    @Param() params: QueueItemParamsDto,
+  ): Promise<QueueResponse> {
+    return this.picker.another(userId, params.itemId);
   }
 }

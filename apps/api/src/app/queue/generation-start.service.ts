@@ -1,7 +1,7 @@
 import { BadRequestException, HttpException, Injectable, Logger } from '@nestjs/common';
 import type { QueueResponse } from '@sleep-stories/contracts';
-import { z } from 'zod';
 import { apiErrorBody } from '../errors/api-error-body';
+import { lockUserRow } from '../prisma/lock-user-row';
 import { PrismaService } from '../prisma/prisma.service';
 import { JobQueue } from '../providers/job-queue/job-queue';
 import { GenerationJobsService } from './generation-jobs.service';
@@ -10,8 +10,6 @@ import { planStart } from './generation-start-plan';
 import { queueItemNotFound } from './queue-item-not-found';
 import { QueueReadService } from './queue-read.service';
 import { readStoryStates } from './story-state';
-
-const UserRowsSchema = z.array(z.object({ id: z.uuid() }));
 
 // The only place that creates `write_story` and `render_audio` jobs: an explicit start by the
 // person, either the main button (every item that is `not_ready` or `failed`) or one item
@@ -42,9 +40,7 @@ export class GenerationStartService {
     const createdJobIds = await this.prisma.$transaction(async (tx): Promise<string[]> => {
       // A token for a person with no `users` row locks nothing, but such a person has no
       // preferences either (foreign key), so the check below answers 400 before any insert.
-      UserRowsSchema.parse(
-        await tx.$queryRaw<unknown[]>`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
-      );
+      await lockUserRow(tx, userId);
 
       let items: { id: string; topicId: string }[];
       if (itemId === undefined) {

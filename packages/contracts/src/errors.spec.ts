@@ -25,6 +25,7 @@ describe('ApiErrorResponseSchema', () => {
   it.each([
     [404, 'queue_item_not_found'],
     [409, 'queue_order_mismatch'],
+    [404, 'topic_unavailable'],
   ])('accepts the queue code %i %s', (statusCode, code) => {
     expect(ApiErrorResponseSchema.safeParse({ statusCode, code, message: 'x' }).success).toBe(true);
   });

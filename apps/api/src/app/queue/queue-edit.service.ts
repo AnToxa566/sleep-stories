@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import type { QueueResponse } from '@sleep-stories/contracts';
 import { z } from 'zod';
 import { apiErrorBody } from '../errors/api-error-body';
+import { lockUserRow } from '../prisma/lock-user-row';
 import { PrismaService } from '../prisma/prisma.service';
 import { queueItemNotFound } from './queue-item-not-found';
 import { isSameSet } from './queue-order';
@@ -29,9 +30,7 @@ export class QueueEditService {
   // the person, and the answer does not say which part failed.
   async remove(userId: string, itemId: string): Promise<QueueResponse> {
     await this.prisma.$transaction(async (tx) => {
-      UserRowsSchema.parse(
-        await tx.$queryRaw<unknown[]>`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
-      );
+      await lockUserRow(tx, userId);
       const deleted = UserRowsSchema.parse(
         await tx.$queryRaw<unknown[]>`
           DELETE FROM queue_items
@@ -60,9 +59,7 @@ export class QueueEditService {
   // nothing is written. The set is read under the lock, so it is the set the write applies to.
   async reorder(userId: string, itemIds: readonly string[]): Promise<QueueResponse> {
     await this.prisma.$transaction(async (tx) => {
-      UserRowsSchema.parse(
-        await tx.$queryRaw<unknown[]>`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`,
-      );
+      await lockUserRow(tx, userId);
       const current = await tx.queueItem.findMany({ where: { userId }, select: { id: true } });
       if (!isSameSet(current.map((row) => row.id), itemIds)) {
         throw new ConflictException(
