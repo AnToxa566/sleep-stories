@@ -22,6 +22,13 @@ describe('ApiErrorResponseSchema', () => {
     ).toBe(true);
   });
 
+  it.each([
+    [404, 'queue_item_not_found'],
+    [409, 'queue_order_mismatch'],
+  ])('accepts the queue code %i %s', (statusCode, code) => {
+    expect(ApiErrorResponseSchema.safeParse({ statusCode, code, message: 'x' }).success).toBe(true);
+  });
+
   it.each([399, 600, 200, 0])('rejects status code %i', (statusCode) => {
     expect(
       ApiErrorResponseSchema.safeParse({ statusCode, code: 'unauthorized', message: 'x' }).success,

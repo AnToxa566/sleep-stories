@@ -47,3 +47,10 @@ export const SWEEP_PENDING_AFTER_MINUTES = 2;
 // Most jobs one sweep call re-enqueues. Decided by the owner on 2026-10-30. Bounds the work
 // of one scheduler call; the next call takes the rest.
 export const SWEEP_BATCH_SIZE = 50;
+
+// How long the audio URLs in the queue response stay valid. The app downloads a ready
+// story right after reading the queue, so the URL only has to outlive that download.
+// Buys: a leaked URL stops working soon, and the bucket stays private. Costs: a screen left
+// open longer than this holds a dead URL and must read the queue again (owner default,
+// 2026-10-31).
+export const QUEUE_AUDIO_URL_TTL_SECONDS = 30 * 60;

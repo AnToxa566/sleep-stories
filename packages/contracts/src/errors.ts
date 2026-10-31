@@ -8,6 +8,10 @@ export const ApiErrorCodeSchema = z.enum([
   'validation_failed',
   'unknown_voice',
   'unknown_interest',
+  // DELETE /queue/items/:itemId: no such item for this person (a foreign id looks the same).
+  'queue_item_not_found',
+  // PUT /queue/order: the sent ids are not exactly the ids in the person's queue.
+  'queue_order_mismatch',
 ]);
 
 export type ApiErrorCode = z.infer<typeof ApiErrorCodeSchema>;

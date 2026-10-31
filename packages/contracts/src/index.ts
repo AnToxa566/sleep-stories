@@ -5,6 +5,7 @@ export * from './interests';
 export * from './internal-jobs';
 export * from './me';
 export * from './onboarding';
+export * from './queue';
 export * from './slug';
 export * from './story';
 export * from './story-style';
