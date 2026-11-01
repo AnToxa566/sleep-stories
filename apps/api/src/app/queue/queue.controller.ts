@@ -1,9 +1,10 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
-import { QueueResponseSchema } from '@sleep-stories/contracts';
-import type { QueueResponse } from '@sleep-stories/contracts';
+import { ContinueResponseSchema, QueueResponseSchema } from '@sleep-stories/contracts';
+import type { ContinueResponse, QueueResponse } from '@sleep-stories/contracts';
 import { ZodSerializerDto } from 'nestjs-zod';
 import { CurrentUserId } from '../auth/current-user-id.decorator';
 import { GenerationStartService } from './generation-start.service';
+import { QueueContinueService } from './queue-continue.service';
 import { QueueEditService } from './queue-edit.service';
 import { QueueReadService } from './queue-read.service';
 import { QueuePickService } from './queue-pick.service';
@@ -26,6 +27,7 @@ export class QueueController {
     private readonly starter: GenerationStartService,
     private readonly picker: QueuePickService,
     private readonly topUp: QueueTopUpService,
+    private readonly continuer: QueueContinueService,
   ) {}
 
   @Get()
@@ -45,6 +47,18 @@ export class QueueController {
   async collect(@CurrentUserId() userId: string): Promise<QueueResponse> {
     await this.topUp.run(userId);
     return this.reader.read(userId);
+  }
+
+  // The tap during the waves after the last story: the person's ready, unheard stories
+  // replace the queue (`ready`), or, when there are none, the queue is topped up from what
+  // can be found and at most a topic suggestion is requested (`none_ready`). Creates NO story
+  // or audio job and spends no generation (architecture rule 10). No body: the person is the
+  // token.
+  @Post('continue')
+  @HttpCode(200)
+  @ZodSerializerDto(ContinueResponseSchema)
+  continueNight(@CurrentUserId() userId: string): Promise<ContinueResponse> {
+    return this.continuer.run(userId);
   }
 
   @Delete('items/:itemId')

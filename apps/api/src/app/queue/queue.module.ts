@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { GenerationJobsService } from './generation-jobs.service';
 import { GenerationLimitsService } from './generation-limits.service';
 import { GenerationStartService } from './generation-start.service';
+import { QueueContinueService } from './queue-continue.service';
 import { QueueEditService } from './queue-edit.service';
 import { QueuePickService } from './queue-pick.service';
 import { QueueReadService } from './queue-read.service';
@@ -22,6 +23,7 @@ import { TopicsService } from './topics.service';
     QueueEditService,
     GenerationStartService,
     QueuePickService,
+    QueueContinueService,
     TopicsService,
   ],
   exports: [QueueTopUpService, GenerationJobsService, GenerationLimitsService],

@@ -8,6 +8,7 @@ import { envFilePaths, validateEnv } from './config/env';
 import { GenerationModule } from './generation/generation.module';
 import { InterestsModule } from './interests/interests.module';
 import { InternalModule } from './internal/internal.module';
+import { ListensModule } from './listens/listens.module';
 import { MeModule } from './me/me.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProvidersModule } from './providers/providers.module';
@@ -33,6 +34,7 @@ import { VoicesModule } from './voices/voices.module';
     VoicesModule,
     GenerationModule,
     QueueModule,
+    ListensModule,
     InternalModule,
   ],
   controllers: [AppController],
