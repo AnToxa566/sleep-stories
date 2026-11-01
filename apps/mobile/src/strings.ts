@@ -100,6 +100,11 @@ export const strings = {
     settings: 'Настройки',
   },
 
+  // Temporary «Настройки» screen: a sign-out button for testing on a phone.
+  settings: {
+    logout: 'Выйти',
+  },
+
   // The screen «Сегодня» (design frames 2a, 2a·1 to 2a·14). Number-dependent phrases are
   // functions that take already-declined nouns: the declension itself lives in
   // features/today/plural.ts, so copy stays here and logic stays testable.

@@ -13,15 +13,13 @@ type TabCopy = { label: string; icon: IconName };
 const BUILT_TABS: Readonly<Record<string, TabCopy>> = {
   home: { label: strings.nav.today, icon: 'moon' },
   topics: { label: strings.nav.topics, icon: 'compass' },
+  settings: { label: strings.nav.settings, icon: 'sliders' },
 };
 
-const SETTINGS: TabCopy = { label: strings.nav.settings, icon: 'sliders' };
-
-// The bottom bar of the tabs navigator (the `tabBar` of «Сегодня» and «Темы»). It sits below
+// The bottom bar of the tabs navigator (the `tabBar` of «Сегодня», «Темы» and «Настройки»). It sits below
 // the screens in the layout, not over them, so no screen reserves space for it. `selected` is
 // state.index, which changes the moment a tab is pressed, before the screen is drawn.
-// «Настройки» is not built: it is drawn dimmed, is not a route and cannot be pressed (its
-// accessibility state says disabled). The Library is not in the MVP.
+// The Library is not in the MVP.
 export function TabBar({ state, navigation, insets }: BottomTabBarProps) {
   return (
     <View style={[styles.bar, { paddingBottom: insets.bottom }]}>
@@ -52,16 +50,6 @@ export function TabBar({ state, navigation, insets }: BottomTabBarProps) {
           </Pressable>
         );
       })}
-      <Pressable
-        disabled
-        accessibilityRole="tab"
-        accessibilityLabel={SETTINGS.label}
-        accessibilityState={{ selected: false, disabled: true }}
-        style={[styles.tab, styles.inert]}
-      >
-        <Icon name={SETTINGS.icon} size={22} color={colors.muted} />
-        <Text style={[styles.label, { color: colors.muted }]}>{SETTINGS.label}</Text>
-      </Pressable>
     </View>
   );
 }
@@ -80,6 +68,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 5,
   },
-  inert: { opacity: 0.45 },
   label: { fontSize: typeSizes.eyebrow, fontWeight: '500' },
 });

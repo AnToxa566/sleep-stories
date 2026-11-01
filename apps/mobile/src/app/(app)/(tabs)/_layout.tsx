@@ -2,7 +2,7 @@ import { Tabs } from 'expo-router/js-tabs';
 import { colors } from '../../../theme/tokens';
 import { TabBar } from '../../../ui/TabBar';
 
-// «Сегодня» and «Темы» are two tabs of one navigator with our own bar. What this buys: the bar
+// «Сегодня», «Темы» and «Настройки» are three tabs of one navigator with our own bar. What this buys: the bar
 // is part of the layout (below the screens, in flow) and never goes away; a tab keeps its
 // state and is not recreated; the pressed tab is active at once (TabBar reads state.index).
 // What it costs: both screens are mounted from the start (`lazy: false`, owner's choice).
@@ -26,6 +26,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="home" />
       <Tabs.Screen name="topics" />
+      <Tabs.Screen name="settings" />
     </Tabs>
   );
 }
