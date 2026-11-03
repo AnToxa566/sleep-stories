@@ -22,7 +22,9 @@ import { topicUnavailable } from './topic-unavailable';
 // judged by the rules that choose topics for the queue, privacy rules included. Two of the
 // top-up's rules are relaxed on purpose, because the person names the topic: an add may name a
 // topic that is queued already (skipped quietly), and add and replace may name a topic whose
-// generation failed (the person can start it again). Every other rule stays.
+// generation failed (the person can start it again), and a topic whose story the person has
+// heard (owner, 2026-11-03: they may want to hear it again). Every other rule stays.
+// «Другая история» keeps the defaults: the server picks, and it never picks a heard story.
 @Injectable()
 export class QueuePickService {
   constructor(
@@ -38,7 +40,7 @@ export class QueuePickService {
       const voiceId = await this.voiceOf(tx, userId);
 
       // A topic that is queued already is skipped quietly, even if it has stopped being
-      // eligible since (heard, rated). Only the rest is judged; one ineligible id there fails
+      // eligible since (rated). Only the rest is judged; one ineligible id there fails
       // the whole request.
       const current = await tx.queueItem.findMany({
         where: { userId },
@@ -53,6 +55,7 @@ export class QueuePickService {
         includeQueued: false,
         includeFailed: true,
         includeOwn: true,
+        heard: 'include',
       });
       if (fresh.some((topicId) => !eligible.has(topicId))) {
         throw topicUnavailable();
@@ -98,6 +101,7 @@ export class QueuePickService {
         includeQueued: false,
         includeFailed: true,
         includeOwn: true,
+        heard: 'include',
       });
       if (!eligible.has(topicId)) {
         throw topicUnavailable();

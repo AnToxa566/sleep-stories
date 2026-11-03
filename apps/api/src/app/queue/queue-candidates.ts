@@ -1,6 +1,7 @@
 import type { StoryStyle } from '@sleep-stories/contracts';
 import { z } from 'zod';
 import { Prisma } from '../../generated/prisma/client';
+import { finishedListenExists } from './heard';
 
 export interface CandidateQuery {
   userId: string;
@@ -29,6 +30,11 @@ export interface CandidateQuery {
   includeOwn?: boolean;
   // 'random' (default) for the top-up; 'newest' orders by topic creation, newest first.
   order?: 'random' | 'newest';
+  // Heard stories (one listen reached LISTEN_FINISHED_SHARE of the audio in its own voice; see
+  // `heard.ts`). 'exclude' (default) drops them, which is what every automatic choice and the
+  // add/replace checks want; 'include' keeps them; 'only' keeps only them (the «Темы» filter).
+  // A topic with no story is never heard, so 'only' gives nothing from `findWithoutStory`.
+  heard?: 'exclude' | 'include' | 'only';
 }
 
 export interface ReadyCandidate {
@@ -154,14 +160,22 @@ function ownInterestFilter(userId: string): Prisma.Sql {
   `;
 }
 
-// Conditions on the topic's story. Alias: s = stories. In order: the person has no listens
-// row for it (heard, finished or skipped), and has not rated it -1 (other people's ratings
-// are irrelevant).
-function storyFilters(userId: string): Prisma.Sql {
+// Conditions on the topic's story. Alias: s = stories. In order: the heard rule (see
+// `CandidateQuery.heard`; the definition of heard is `finishedListenExists`, so a listen that
+// stopped early does not hide the story), and the person has not rated it -1 (other people's
+// ratings are irrelevant).
+function storyFilters(query: CandidateQuery): Prisma.Sql {
+  const { userId } = query;
+  const heard = query.heard ?? 'exclude';
+  const finished = finishedListenExists(userId, Prisma.sql`s.id`);
+  const heardRule =
+    heard === 'include'
+      ? Prisma.sql`TRUE`
+      : heard === 'only'
+        ? finished
+        : Prisma.sql`NOT ${finished}`;
   return Prisma.sql`
-    NOT EXISTS (
-      SELECT 1 FROM listens l WHERE l.user_id = ${userId}::uuid AND l.story_id = s.id
-    )
+    ${heardRule}
     AND NOT EXISTS (
       SELECT 1 FROM story_ratings sr
       WHERE sr.user_id = ${userId}::uuid AND sr.story_id = s.id AND sr.rating = -1
@@ -183,7 +197,7 @@ export async function findReady(
     JOIN stories s ON s.topic_id = t.id
     WHERE ${topicFilters(query)}
       AND ${storyInterestFilter(query)}
-      AND ${storyFilters(query.userId)}
+      AND ${storyFilters(query)}
       AND EXISTS (
         SELECT 1 FROM story_audio sa WHERE sa.story_id = s.id AND sa.voice_id = ${query.voiceId}::uuid
       )
@@ -220,7 +234,7 @@ export async function findWithoutAudio(
     JOIN stories s ON s.topic_id = t.id
     WHERE ${topicFilters(query)}
       AND ${storyInterestFilter(query)}
-      AND ${storyFilters(query.userId)}
+      AND ${storyFilters(query)}
       AND NOT EXISTS (
         SELECT 1 FROM story_audio sa WHERE sa.story_id = s.id AND sa.voice_id = ${query.voiceId}::uuid
       )
@@ -242,7 +256,7 @@ export async function findWithoutStory(
   tx: Prisma.TransactionClient,
   query: CandidateQuery,
 ): Promise<string[]> {
-  if (query.limit < 1) {
+  if (query.limit < 1 || query.heard === 'only') {
     return [];
   }
   const rows = await tx.$queryRaw<unknown[]>`
@@ -265,8 +279,8 @@ export async function findWithoutStory(
 // The topics among `topicIds` that this person may be given right now: the union of the three
 // finders with the same privacy rules as the top-up, so a topic id sent by a client is
 // checked by exactly the rules that choose topics for the queue. A topic that is missing, is
-// someone's typed topic, is outside the person's styles or interests, was heard, dismissed or
-// rated -1 is simply not in the set, so the caller cannot tell the reasons apart. `limit` is
+// someone's typed topic, is outside the person's styles or interests, was heard (unless `heard`
+// says otherwise), dismissed or rated -1 is simply not in the set, so the caller cannot tell the reasons apart. `limit` is
 // the number of ids asked about, so no eligible id is cut off. Run it inside the transaction
 // that also writes, behind `lockUserRow`.
 export async function findEligible(
@@ -278,6 +292,7 @@ export async function findEligible(
     includeQueued?: boolean;
     includeFailed?: boolean;
     includeOwn?: boolean;
+    heard?: 'exclude' | 'include' | 'only';
   },
 ): Promise<Set<string>> {
   const narrowed: CandidateQuery = { ...query, limit: query.topicIds.length };

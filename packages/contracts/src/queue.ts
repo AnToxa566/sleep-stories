@@ -6,12 +6,15 @@ import { StoryStyleSchema } from './story-style';
 // voice and never stored. Only a `ready` item carries the story id, the duration and a
 // short-lived signed audio URL; the stored audio path is never sent, and the URL is never
 // stored (section 5, "Paths, not URLs"). The two shapes are strict so an item cannot
-// carry a URL while it is not ready.
+// carry a URL while it is not ready. `heard` is derived too: true when the person has one
+// listen of the story that reached LISTEN_FINISHED_SHARE of its audio (listens.ts). The queue
+// keeps a heard item until the person removes it, so the app can mark it.
 const QueueItemBase = {
   id: z.uuid(),
   topicId: z.uuid(),
   title: z.string(),
   style: StoryStyleSchema,
+  heard: z.boolean(),
 };
 
 export const ReadyQueueItemSchema = z.strictObject({

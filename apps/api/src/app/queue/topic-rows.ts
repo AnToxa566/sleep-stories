@@ -18,13 +18,18 @@ export interface TopicInfo {
 //   person sees it where they can retry or remove it, and the list does not fill with dead
 //   topics; ARCHITECTURE.md section 6, "Generation is explicit", rule 9);
 // - `readyOnly` true keeps only ready rows, false only the rest, undefined keeps all;
-// - order: ready first, then newest topic first, then id, so the order is stable;
-// - at most TOPICS_LIST_MAX rows, cut after the order is applied.
+// - `heard` marks the rows whose topic the person has heard (the set is made by `heard.ts`);
+//   which rows are present (heard only, unheard only, both) is decided by the finders, not here;
+// - order: unheard rows first, then heard ones; inside each group ready first, then newest
+//   topic first, then id, so the order is stable;
+// - at most TOPICS_LIST_MAX rows, cut after the order is applied. The finders already cut
+//   their own results at the same number before this function sees them (see TopicsService).
 export function buildTopicRows(input: {
   ids: readonly string[];
   topics: ReadonlyMap<string, TopicInfo>;
   states: ReadonlyMap<string, StoryState>;
   queued: ReadonlySet<string>;
+  heard: ReadonlySet<string>;
   readyOnly?: boolean;
 }): TopicRow[] {
   const seen = new Set<string>();
@@ -40,7 +45,13 @@ export function buildTopicRows(input: {
     }
     const inQueue = input.queued.has(id);
     const state = input.states.get(id);
-    const common = { id, title: info.title, style: info.style, inQueue };
+    const common = {
+      id,
+      title: info.title,
+      style: info.style,
+      inQueue,
+      heard: input.heard.has(id),
+    };
     let row: TopicRow;
     if (state?.state === 'ready' && state.durationSec !== null) {
       row = { ...common, state: 'ready', durationSec: state.durationSec };
@@ -57,6 +68,10 @@ export function buildTopicRows(input: {
     rows.push({ row, createdAt: info.createdAt.getTime() });
   }
   rows.sort((a, b) => {
+    const heardOrder = Number(a.row.heard) - Number(b.row.heard);
+    if (heardOrder !== 0) {
+      return heardOrder;
+    }
     const readyOrder = Number(b.row.state === 'ready') - Number(a.row.state === 'ready');
     if (readyOrder !== 0) {
       return readyOrder;

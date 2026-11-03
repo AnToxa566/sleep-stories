@@ -45,7 +45,7 @@ describe('POST /api/listens', () => {
     expect(ApiErrorResponseSchema.parse(response.json)).toMatchObject({ code: 'unauthorized' });
   });
 
-  it('records a listen of the own story and removes its queue item, closing the gap', async () => {
+  it('records a listen of the own story and leaves the queue and its positions untouched', async () => {
     const w = await world();
     const before = Date.now();
     const response = await report(w.userId, { storyId: w.storyId, listenedSec: 45 });
@@ -60,7 +60,20 @@ describe('POST /api/listens', () => {
       listenedSec: 45,
     });
     expect(rows[0].listenedAt.getTime()).toBeGreaterThanOrEqual(before - 1000);
-    expect(await positionsOf(w.userId)).toEqual([{ topicId: w.plain.topicId, position: 1 }]);
+    expect(await positionsOf(w.userId)).toEqual([
+      { topicId: w.ready.topicId, position: 1 },
+      { topicId: w.plain.topicId, position: 2 },
+    ]);
+  });
+
+  it('leaves the item in the queue after a whole listen too: the queue changes only by the person', async () => {
+    const w = await world();
+    const response = await report(w.userId, { storyId: w.storyId, listenedSec: 60 });
+    expect(ListenReportResponseSchema.parse(response.json)).toEqual({ recorded: true });
+    expect(await positionsOf(w.userId)).toEqual([
+      { topicId: w.ready.topicId, position: 1 },
+      { topicId: w.plain.topicId, position: 2 },
+    ]);
   });
 
   it('records a listen when the story was no longer in the queue', async () => {
@@ -142,14 +155,19 @@ describe('POST /api/listens', () => {
     expect(await listensOf(w.userId)).toHaveLength(0);
   });
 
-  it('takes the users-row lock: an item inserted while it was held keeps contiguous positions', async () => {
+  it('takes the users-row lock: a report sent while it is held waits, then records and changes no queue row', async () => {
     const w = await world();
-    const { response } = await h.requestWhileLockHeld(w.userId, () =>
+    const { response, insertedId } = await h.requestWhileLockHeld(w.userId, () =>
       report(w.userId, { storyId: w.storyId, listenedSec: 30 }),
     );
     expect(response.status).toBe(200);
-    const rows = await positionsOf(w.userId);
-    expect(rows.map((row) => row.position)).toEqual([1, 2]);
-    expect(rows.map((row) => row.topicId)).not.toContain(w.ready.topicId);
+    expect(await listensOf(w.userId)).toHaveLength(1);
+    // The item added while the lock was held is there too, and nothing was removed or renumbered.
+    const rows = await h.prisma.queueItem.findMany({ where: { userId: w.userId }, orderBy: { position: 'asc' } });
+    expect(rows.map((row) => row.position)).toEqual([1, 2, 3]);
+    expect(rows.map((row) => row.id)).toContain(insertedId);
+    expect(rows.map((row) => row.topicId)).toEqual(
+      expect.arrayContaining([w.ready.topicId, w.plain.topicId]),
+    );
   });
 });

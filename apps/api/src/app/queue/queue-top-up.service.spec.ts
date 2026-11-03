@@ -152,7 +152,7 @@ describe('QueueTopUpService.run', () => {
 
   it('asks for no suggestion when the suggestion cap is used', async () => {
     const { service, create, enqueue } = build({
-      usage: { generationsUsed: 0, suggestionsUsed: 3 },
+      usage: { generationsUsed: 0, suggestionsUsed: 5 },
     });
     const result = await service.run(USER);
     expect(result).toMatchObject({ suggestRequested: false, queueLength: 0 });

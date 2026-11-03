@@ -15,7 +15,7 @@ import {
 const ID = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
 
 function item(n: number, state: 'not_ready' | 'creating' | 'failed' = 'not_ready'): QueueItem {
-  return { id: ID(n), topicId: ID(n + 5), title: `Story ${n}`, style: 'facts', state };
+  return { id: ID(n), topicId: ID(n + 5), title: `Story ${n}`, style: 'facts', heard: false, state };
 }
 
 function queue(items: QueueItem[], collecting = false): QueueResponse {

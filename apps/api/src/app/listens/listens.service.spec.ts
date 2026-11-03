@@ -9,19 +9,17 @@ const lockMock = lockUserRow as jest.Mock;
 const USER = '00000000-0000-4000-8000-000000000001';
 const STORY = '00000000-0000-4000-8000-000000000002';
 const VOICE = '00000000-0000-4000-8000-000000000003';
-const TOPIC = '00000000-0000-4000-8000-000000000004';
 
 function build(
   options: {
     preference?: { voiceId: string } | null;
-    audio?: { durationSec: number; story: { topicId: string } } | null;
-    removed?: number;
+    audio?: { durationSec: number } | null;
   } = {},
 ) {
   const tx = {
     listen: { create: jest.fn().mockResolvedValue({}) },
-    queueItem: { deleteMany: jest.fn().mockResolvedValue({ count: options.removed ?? 1 }) },
-    $executeRaw: jest.fn().mockResolvedValue(0),
+    queueItem: { deleteMany: jest.fn(), updateMany: jest.fn() },
+    $executeRaw: jest.fn(),
   };
   const prisma = {
     userPreference: {
@@ -33,7 +31,7 @@ function build(
       findUnique: jest
         .fn()
         .mockResolvedValue(
-          options.audio === undefined ? { durationSec: 600, story: { topicId: TOPIC } } : options.audio,
+          options.audio === undefined ? { durationSec: 600 } : options.audio,
         ),
     },
     $transaction: jest.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
@@ -58,7 +56,7 @@ describe('ListensService', () => {
     );
   });
 
-  it('records the listen, removes the queue item and closes the gap under the user lock', async () => {
+  it('records the listen under the user lock and leaves the queue alone', async () => {
     const { service, tx } = build();
     await expect(service.report(USER, { storyId: STORY, listenedSec: 100 })).resolves.toEqual({
       recorded: true,
@@ -73,16 +71,8 @@ describe('ListensService', () => {
         listenedAt: expect.any(Date),
       }),
     });
-    expect(tx.queueItem.deleteMany).toHaveBeenCalledWith({ where: { userId: USER, topicId: TOPIC } });
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
-  });
-
-  it('skips the gap closing when the story was not in the queue, and still records', async () => {
-    const { service, tx } = build({ removed: 0 });
-    await expect(service.report(USER, { storyId: STORY, listenedSec: 100 })).resolves.toEqual({
-      recorded: true,
-    });
-    expect(tx.listen.create).toHaveBeenCalledTimes(1);
+    expect(tx.queueItem.deleteMany).not.toHaveBeenCalled();
+    expect(tx.queueItem.updateMany).not.toHaveBeenCalled();
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 

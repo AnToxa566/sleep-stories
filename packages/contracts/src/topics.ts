@@ -29,24 +29,28 @@ export const SuggestedTopicsSchema = z.strictObject({
 export type SuggestedTopic = z.infer<typeof SuggestedTopicSchema>;
 export type SuggestedTopics = z.infer<typeof SuggestedTopicsSchema>;
 
-// GET /api/topics?style=&ready= : the list «Темы». Query values arrive as strings, so `ready`
-// is the text 'true' or 'false' and the server turns it into a flag. Unknown keys are refused
-// (a typo in a filter must not silently return an unfiltered list).
+// GET /api/topics?style=&ready=&heard= : the list «Темы». Query values arrive as strings, so
+// `ready` and `heard` are the text 'true' or 'false' and the server turns them into flags.
+// `ready` 'true' keeps only topics that can be played at once, 'false' only the others, unset
+// all. `heard` works the same way for topics the person has heard (LISTEN_FINISHED_SHARE).
+// Unknown keys are refused (a typo in a filter must not silently return an unfiltered list).
 export const TopicsQuerySchema = z.strictObject({
   style: StoryStyleSchema.optional(),
   ready: z.enum(['true', 'false']).optional(),
+  heard: z.enum(['true', 'false']).optional(),
 });
 
 // One row of the list. The state is derived from the data in the person's voice and never
 // stored (ARCHITECTURE.md section 6, "Readiness and the four states"). Only a `ready` topic
 // has a duration; the other states carry `null`, so the two shapes are strict and a row
 // cannot claim a duration while it is not ready. `inQueue` tells whether the person's queue
-// holds the topic now.
+// holds the topic now. `heard` is derived from the person's listens, never stored.
 const TopicRowBase = {
   id: z.uuid(),
   title: z.string(),
   style: StoryStyleSchema,
   inQueue: z.boolean(),
+  heard: z.boolean(),
 };
 
 export const ReadyTopicRowSchema = z.strictObject({

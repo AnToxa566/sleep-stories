@@ -51,6 +51,28 @@ describe('QueuePickService', () => {
     );
   });
 
+  it('add and replace let a heard topic through, another keeps the default (not heard)', async () => {
+    (candidates.findEligible as jest.Mock).mockResolvedValue(new Set([NEW_TOPIC]));
+    (candidates.findReady as jest.Mock).mockResolvedValue([{ topicId: NEW_TOPIC, storyId: id(5) }]);
+    const { tx, service } = build();
+    (tx.queueItem as Record<string, jest.Mock>)['findMany'] = jest.fn().mockResolvedValue([]);
+    (tx.queueItem as Record<string, jest.Mock>)['aggregate'] = jest.fn();
+    (tx.queueItem as Record<string, jest.Mock>)['createMany'] = jest.fn();
+    await service.add(USER, [NEW_TOPIC]);
+    await service.replace(USER, ITEM, NEW_TOPIC);
+    for (const call of (candidates.findEligible as jest.Mock).mock.calls) {
+      expect(call[1]).toEqual(expect.objectContaining({ heard: 'include' }));
+    }
+    expect(candidates.findEligible).toHaveBeenCalledTimes(2);
+
+    await service.another(USER, ITEM);
+    for (const finder of [candidates.findReady, candidates.findWithoutAudio, candidates.findWithoutStory]) {
+      for (const call of (finder as jest.Mock).mock.calls) {
+        expect(call[1]).not.toHaveProperty('heard');
+      }
+    }
+  });
+
   it('another updates by id and person, using the style of the current topic and the top-up defaults', async () => {
     (candidates.findReady as jest.Mock).mockResolvedValue([]);
     (candidates.findWithoutAudio as jest.Mock).mockResolvedValue([{ topicId: NEW_TOPIC, storyId: id(5) }]);

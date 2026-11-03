@@ -401,6 +401,29 @@ describe('GET /api/queue', () => {
     expect(items[2]).toMatchObject({ audioUrl: 'https://signed.example.test/opaque-1?token=fake' });
   });
 
+  it('marks an item heard only after a listen of 90 % or more, and keeps every heard item in place', async () => {
+    const w = await world();
+    const stranger = await data.user({ voiceId: w.voiceId });
+    const whole = await data.topic({ story: true, audioVoiceIds: [w.voiceId] });
+    const partial = await data.topic({ story: true, audioVoiceIds: [w.voiceId] });
+    const heardByOther = await data.topic({ story: true, audioVoiceIds: [w.voiceId] });
+    const noListen = await data.topic();
+    await data.queueItem(w.userId, whole.topicId, 1);
+    await data.queueItem(w.userId, partial.topicId, 2);
+    await data.queueItem(w.userId, heardByOther.topicId, 3);
+    await data.queueItem(w.userId, noListen.topicId, 4);
+    await data.listen(w.userId, whole.storyId as string, w.voiceId, 57);
+    await data.listen(w.userId, partial.storyId as string, w.voiceId, 36);
+    await data.listen(stranger, heardByOther.storyId as string, w.voiceId, 60);
+    const body = QueueResponseSchema.parse((await getQueue(w.userId)).json);
+    expect(body.items.map((item) => [item.topicId, item.heard])).toEqual([
+      [whole.topicId, true],
+      [partial.topicId, false],
+      [heardByOther.topicId, false],
+      [noListen.topicId, false],
+    ]);
+  });
+
   it('shows only the caller\'s own queue', async () => {
     const a = await world();
     const b = await world();
@@ -605,7 +628,7 @@ describe('POST /api/queue/collect and the collecting flag', () => {
 
   it('with the suggestion cap used up creates no job and is not collecting', async () => {
     const w = await pooled();
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       await data.job({ userId: w.userId, kind: 'suggest_topics', status: 'succeeded', hoursAgo: 1 });
     }
     const result = await collect(w.userId);
@@ -613,7 +636,7 @@ describe('POST /api/queue/collect and the collecting flag', () => {
     const body = QueueResponseSchema.parse(result.json);
     expect(body.items).toEqual([]);
     expect(body.collecting).toBe(false);
-    expect(await jobsOf(w.userId)).toHaveLength(3);
+    expect(await jobsOf(w.userId)).toHaveLength(5);
     expect(jobQueue.enqueued).toEqual([]);
   });
 

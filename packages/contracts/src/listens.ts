@@ -4,6 +4,12 @@ import { z } from 'zod';
 // story, not a listen. The server enforces it; the app may use it to skip the call.
 export const LISTEN_MIN_SEC = 10;
 
+// A story is HEARD («прослушана») when one listen of it reached this share of the duration of
+// the audio in that listen's own voice. Derived from `listens` and `story_audio` and never
+// stored (AGENTS.md architecture rule 4). `listened_sec` is the position when the person left;
+// there is no check against seeking.
+export const LISTEN_FINISHED_SHARE = 0.9;
+
 // The column `listens.listened_sec` is a 32-bit integer; this bound only keeps a wild value
 // from reaching the database. The server clamps the value to the audio duration (the real
 // bound) and never trusts the client number as a duration.
@@ -21,8 +27,9 @@ export const ListenReportRequestSchema = z.strictObject({
   listenedSec: z.number().int().min(0).max(LISTEN_REPORT_MAX_SEC),
 });
 
-// `recorded` is false when the listen was below LISTEN_MIN_SEC: nothing is written and the
-// queue item stays. When it is true a `listens` row exists and the queue item was removed.
+// `recorded` is false when the listen was below LISTEN_MIN_SEC: nothing is written. When it is
+// true a `listens` row exists. Either way the queue is not touched: it changes only by the
+// person's own actions.
 export const ListenReportResponseSchema = z.strictObject({
   recorded: z.boolean(),
 });

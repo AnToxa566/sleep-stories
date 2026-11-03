@@ -10,14 +10,14 @@ import {
 const ID = (n: number) => `00000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`;
 
 function topic(n: number, state: TopicRow['state'], inQueue = false): TopicRow {
-  const base = { id: ID(n), title: `Topic ${n}`, style: 'facts' as const, inQueue };
+  const base = { id: ID(n), title: `Topic ${n}`, style: 'facts' as const, inQueue, heard: false };
   return state === 'ready'
     ? { ...base, state, durationSec: 151 }
     : { ...base, state, durationSec: null };
 }
 
 function queueItem(n: number, topicN: number): QueueItem {
-  return { id: ID(n), topicId: ID(topicN), title: `Topic ${topicN}`, style: 'facts', state: 'not_ready' };
+  return { id: ID(n), topicId: ID(topicN), title: `Topic ${topicN}`, style: 'facts', heard: false, state: 'not_ready' };
 }
 
 describe('deriveTopicRow', () => {

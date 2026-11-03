@@ -126,14 +126,6 @@ describe('privacy: a topic the person may not queue is one indistinguishable 404
 
   const reasons: [string, (w: World) => Promise<string>][] = [
     [
-      'heard',
-      async (w) => {
-        const t = await readyTopic(w);
-        await h.data.listen(w.userId, t.storyId as string, w.voiceId);
-        return t.topicId;
-      },
-    ],
-    [
       'dismissed',
       async (w) => {
         const t = await h.data.topic({ interestId: w.interestId });
@@ -302,10 +294,19 @@ describe('POST /api/queue/items (add)', () => {
     expect(response.status).toBe(200);
     expect(await topicIdsOf(w.userId)).toEqual([old.topicId, fresh.topicId]);
     // An ineligible id that is not queued still fails the whole request.
-    const heardNotQueued = await readyTopic(w);
-    await h.data.listen(w.userId, heardNotQueued.storyId as string, w.voiceId);
-    expectCode(await add(w.userId, [old.topicId, heardNotQueued.topicId]), 404, 'topic_unavailable');
+    const ratedNotQueued = await readyTopic(w);
+    await h.data.rating(w.userId, ratedNotQueued.storyId as string, -1);
+    expectCode(await add(w.userId, [old.topicId, ratedNotQueued.topicId]), 404, 'topic_unavailable');
     expect(await itemRows(w.userId)).toHaveLength(2);
+  });
+
+  it('adds a heard topic (owner, 2026-11-03: the person may want to hear it again)', async () => {
+    const w = await world();
+    const heard = await readyTopic(w);
+    await h.data.listen(w.userId, heard.storyId as string, w.voiceId);
+    const response = await add(w.userId, [heard.topicId]);
+    expect(response.status).toBe(200);
+    expect(await topicIdsOf(w.userId)).toEqual([heard.topicId]);
   });
 
   it('accepts a topic whose generation failed (the person can start it again)', async () => {
@@ -384,6 +385,15 @@ describe('POST /api/queue/items/:itemId/replace', () => {
     expect((await itemRows(w.userId)).map((row) => row.position)).toEqual([1, 2, 3]);
     expect(responseTopicIds(response)).toContain(target.topicId);
     expect(responseTopicIds(response)).not.toContain(item.topicId);
+  });
+
+  it('replaces an item with a heard topic', async () => {
+    const w = await world();
+    const item = await oneItem(w);
+    const heard = await readyTopic(w);
+    await h.data.listen(w.userId, heard.storyId as string, w.voiceId);
+    expect((await replace(w.userId, item.id, heard.topicId)).status).toBe(200);
+    expect(await topicIdsOf(w.userId)).toEqual([heard.topicId]);
   });
 
   it('is a 200 with no change for the topic the item holds already', async () => {

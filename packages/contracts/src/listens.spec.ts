@@ -1,4 +1,5 @@
 import {
+  LISTEN_FINISHED_SHARE,
   LISTEN_MIN_SEC,
   LISTEN_REPORT_MAX_SEC,
   ListenReportRequestSchema,
@@ -10,6 +11,10 @@ const storyId = '00000000-0000-4000-8000-000000000001';
 describe('ListenReportRequestSchema', () => {
   it('keeps the minimum at 10 seconds', () => {
     expect(LISTEN_MIN_SEC).toBe(10);
+  });
+
+  it('keeps the finished share at 0.9', () => {
+    expect(LISTEN_FINISHED_SHARE).toBe(0.9);
   });
 
   it.each([0, 1, 5, 600, LISTEN_REPORT_MAX_SEC])('accepts %d seconds', (listenedSec) => {

@@ -4,6 +4,7 @@ import { lockUserRow } from '../prisma/lock-user-row';
 import { PrismaService } from '../prisma/prisma.service';
 import { findReady } from './queue-candidates';
 import { QUEUE_TARGET_LENGTH } from './queue-policy';
+import { replaceQueue } from './queue-replace';
 import { QueueReadService } from './queue-read.service';
 import { QueueTopUpService } from './queue-top-up.service';
 
@@ -14,7 +15,7 @@ import { QueueTopUpService } from './queue-top-up.service';
 //
 // This creates NO `write_story` and NO `render_audio` job and spends no generation
 // (AGENTS.md architecture rule 10). The only job that can come out of it is the
-// `suggest_topics` of the top-up, within its 3 per 24 hours.
+// `suggest_topics` of the top-up, within its 5 per 24 hours.
 @Injectable()
 export class QueueContinueService {
   constructor(
@@ -41,7 +42,7 @@ export class QueueContinueService {
   // Returns whether the queue was replaced; when nothing is found nothing is touched.
   //
   // The finder is the one of the top-up and the picks, so the same rules apply: the person's
-  // styles and interests, not heard (no `listens` row), not rated -1, and never a topic that
+  // styles and interests, not heard (no listen of at least 90 % of the audio), not rated -1, and never a topic that
   // anybody typed (SECURITY.md rule 10). Two options differ on purpose: `includeQueued`,
   // because the queue is replaced and a ready story already in it is still a good one, and
   // `includeOwn`, because a story made for the person's own topic is theirs to hear again
@@ -66,15 +67,11 @@ export class QueueContinueService {
         includeOwn: true,
         order: 'newest',
       });
-      // Defensive: a topic is queued once (the (user, topic) key is unique).
       const topicIds = [...new Set(found.map((row) => row.topicId))];
       if (topicIds.length === 0) {
         return false;
       }
-      await tx.queueItem.deleteMany({ where: { userId } });
-      await tx.queueItem.createMany({
-        data: topicIds.map((topicId, index) => ({ userId, topicId, position: index + 1 })),
-      });
+      await replaceQueue(tx, userId, topicIds);
       return true;
     });
   }

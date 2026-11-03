@@ -81,6 +81,7 @@ function readyItem(n: number): QueueItem {
     topicId: ID(n + 6),
     title: `Again ${n}`,
     style: 'history',
+    heard: false,
     state: 'ready',
     storyId: ID(n + 7),
     durationSec: 120,

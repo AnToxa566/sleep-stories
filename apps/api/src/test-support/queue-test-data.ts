@@ -148,9 +148,13 @@ export class QueueTestData {
     await this.prisma.queueItem.create({ data: { userId, topicId, position } });
   }
 
-  async listen(userId: string, storyId: string, voiceId: string): Promise<void> {
+  // A listen. The default (60 s) is a whole listen of the 60 s test audio, which counts as
+  // HEARD (LISTEN_FINISHED_SHARE of the duration of the audio in `voiceId`); pass a smaller
+  // `listenedSec` for a listen that stopped early. The audio in `voiceId` must exist for the
+  // listen to count at all, as in production.
+  async listen(userId: string, storyId: string, voiceId: string, listenedSec = 60): Promise<void> {
     await this.prisma.listen.create({
-      data: { userId, storyId, voiceId, listenedSec: 30, listenedAt: new Date() },
+      data: { userId, storyId, voiceId, listenedSec, listenedAt: new Date() },
     });
   }
 

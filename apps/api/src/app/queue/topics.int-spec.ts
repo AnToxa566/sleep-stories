@@ -108,9 +108,9 @@ describe('GET /api/topics', () => {
     expect(await ids('?style=history&ready=true')).toEqual(new Set());
   });
 
-  it('answers 400 for an unknown style, a bad ready and an unknown query key', async () => {
+  it('answers 400 for an unknown style, a bad ready or heard and an unknown query key', async () => {
     const w = await world();
-    for (const query of ['?style=comedy', '?ready=yes', '?userId=' + randomUUID()]) {
+    for (const query of ['?style=comedy', '?ready=yes', '?heard=maybe', '?userId=' + randomUUID()]) {
       const response = await list(w.userId, query);
       expect(response.status).toBe(400);
       expect(ApiErrorResponseSchema.parse(response.json)).toMatchObject({ code: 'validation_failed' });
@@ -138,19 +138,76 @@ describe('GET /api/topics', () => {
     expect((await rowsOf(w.strangerId)).map((row) => row.id)).not.toContain(mine.topicId);
   });
 
-  it('omits heard, dismissed, rated -1 and out-of-style topics', async () => {
+  it('omits dismissed, rated -1 and out-of-style topics', async () => {
     const w = await world();
-    const heard = await h.data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
-    await h.data.listen(w.userId, heard.storyId as string, w.voiceId);
     const disliked = await h.data.topic({ interestId: w.interestId, story: true });
     await h.data.rating(w.userId, disliked.storyId as string, -1);
     const dismissed = await h.data.topic({ interestId: w.interestId });
     await h.data.userTopic(w.userId, dismissed.topicId, 'proposed', { dismissed: true });
     const otherStyle = await h.data.topic({ interestId: w.interestId, style: 'history', story: true });
     const ids = (await rowsOf(w.userId)).map((row) => row.id);
-    for (const hidden of [heard, disliked, dismissed, otherStyle]) {
+    for (const hidden of [disliked, dismissed, otherStyle]) {
       expect(ids).not.toContain(hidden.topicId);
     }
+  });
+
+  it('keeps privacy and the -1 rating even for a heard topic, with the heard filter on', async () => {
+    const w = await world();
+    const typed = await h.data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+    await h.data.userTopic(w.strangerId, typed.topicId, 'requested');
+    await h.data.listen(w.userId, typed.storyId as string, w.voiceId);
+    const disliked = await h.data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+    await h.data.rating(w.userId, disliked.storyId as string, -1);
+    await h.data.listen(w.userId, disliked.storyId as string, w.voiceId);
+    for (const query of ['', '?heard=true', '?heard=false']) {
+      const ids = (await rowsOf(w.userId, query)).map((row) => row.id);
+      expect(ids).not.toContain(typed.topicId);
+      expect(ids).not.toContain(disliked.topicId);
+    }
+  });
+
+  it('includes heard topics, marks them and lists them after the unheard ones', async () => {
+    const w = await world();
+    // Created in this order, so newest-first would put the heard ready topic before the others.
+    const unheardNotReady = await h.data.topic({ interestId: w.interestId, story: true });
+    const unheardReady = await h.data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+    const partial = await h.data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+    const heard = await h.data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+    await h.data.listen(w.userId, partial.storyId as string, w.voiceId, 30);
+    await h.data.listen(w.userId, heard.storyId as string, w.voiceId, 55);
+    const rows = await rowsOf(w.userId);
+    expect(rows.map((row) => [row.id, row.heard])).toEqual([
+      [partial.topicId, false],
+      [unheardReady.topicId, false],
+      [unheardNotReady.topicId, false],
+      [heard.topicId, true],
+    ]);
+  });
+
+  it('filters by heard=true and heard=false and combines them with ready', async () => {
+    const w = await world();
+    const heardReady = await h.data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+    const heardOtherVoice = await h.data.topic({
+      interestId: w.interestId,
+      story: true,
+      audioVoiceIds: [w.voiceId, w.otherVoiceId],
+    });
+    const unheardReady = await h.data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+    const unheardNotReady = await h.data.topic({ interestId: w.interestId });
+    await h.data.userTopic(w.userId, unheardNotReady.topicId, 'proposed');
+    await h.data.listen(w.userId, heardReady.storyId as string, w.voiceId);
+    await h.data.listen(w.userId, heardOtherVoice.storyId as string, w.otherVoiceId);
+    const ids = async (query: string) => new Set((await rowsOf(w.userId, query)).map((row) => row.id));
+    expect(await ids('')).toEqual(
+      new Set([heardReady.topicId, heardOtherVoice.topicId, unheardReady.topicId, unheardNotReady.topicId]),
+    );
+    expect(await ids('?heard=true')).toEqual(new Set([heardReady.topicId, heardOtherVoice.topicId]));
+    expect(await ids('?heard=false')).toEqual(new Set([unheardReady.topicId, unheardNotReady.topicId]));
+    expect(await ids('?heard=false&ready=true')).toEqual(new Set([unheardReady.topicId]));
+    expect(await ids('?heard=false&ready=false')).toEqual(new Set([unheardNotReady.topicId]));
+    expect(await ids('?heard=true&ready=false')).toEqual(new Set());
+    expect((await rowsOf(w.userId, '?heard=true')).every((row) => row.heard)).toBe(true);
+    expect((await rowsOf(w.userId, '?heard=false')).every((row) => !row.heard)).toBe(true);
   });
 
   it('creates no job and writes no row', async () => {

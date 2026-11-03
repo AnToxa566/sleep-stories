@@ -8,6 +8,7 @@ const queue = {
       topicId: id(2),
       title: 'Тема',
       style: 'facts',
+      heard: false,
       state: 'ready',
       storyId: id(3),
       durationSec: 600,

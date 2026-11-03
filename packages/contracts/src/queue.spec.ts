@@ -9,7 +9,7 @@ import {
 } from './queue';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const base = { id: id(1), topicId: id(2), title: 'Тема', style: 'facts' };
+const base = { id: id(1), topicId: id(2), title: 'Тема', style: 'facts', heard: false };
 const ready = {
   ...base,
   state: 'ready',
@@ -42,6 +42,17 @@ describe('QueueItemSchema', () => {
     expect(QueueItemSchema.safeParse({ ...ready, durationSec: 1.5 }).success).toBe(false);
     expect(QueueItemSchema.safeParse({ ...ready, audioUrl: 'stories/a/b.mp3' }).success).toBe(false);
     expect(QueueItemSchema.safeParse({ ...ready, storagePath: 'stories/a/b.mp3' }).success).toBe(false);
+  });
+
+  it('accepts heard as true or false and requires it on both shapes', () => {
+    expect(QueueItemSchema.safeParse({ ...ready, heard: true }).success).toBe(true);
+    expect(QueueItemSchema.safeParse({ ...base, state: 'not_ready', heard: true }).success).toBe(true);
+    for (const item of [ready, { ...base, state: 'not_ready' }]) {
+      const copy: Record<string, unknown> = { ...item };
+      delete copy['heard'];
+      expect(QueueItemSchema.safeParse(copy).success).toBe(false);
+      expect(QueueItemSchema.safeParse({ ...item, heard: 'true' }).success).toBe(false);
+    }
   });
 
   it('rejects an unknown state, a bad id and an unknown style', () => {

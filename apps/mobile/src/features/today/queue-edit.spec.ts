@@ -7,6 +7,7 @@ const mk = (n: number, topic = n, title = `Тема ${topic}`): QueueItem => ({
   topicId: id(100 + topic),
   title,
   style: 'facts',
+  heard: false,
   state: 'not_ready',
 });
 

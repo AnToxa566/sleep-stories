@@ -11,7 +11,9 @@ export const LISTEN_DURATION_SLACK_SEC = 5;
 
 // Records that a person left a story (finished or skipped; the outcome is derived from
 // `listened_sec` and the audio duration and is never stored, AGENTS.md architecture rule 4).
-// It creates no generation job and spends no generation.
+// It only inserts the `listens` row: the queue changes by the person's own actions only, so a
+// heard story stays in the queue until they remove it. It creates no generation job and spends
+// no generation.
 @Injectable()
 export class ListensService {
   constructor(private readonly prisma: PrismaService) {}
@@ -27,7 +29,7 @@ export class ListensService {
     }
     const audio = await this.prisma.storyAudio.findUnique({
       where: { storyId_voiceId: { storyId: request.storyId, voiceId: preference.voiceId } },
-      select: { durationSec: true, story: { select: { topicId: true } } },
+      select: { durationSec: true },
     });
     if (audio === null) {
       throw storyUnavailable();
@@ -39,8 +41,8 @@ export class ListensService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      // The same lock as every queue edit of this person, so removing the item and closing
-      // the gap never interleave with a top-up, an edit or a start.
+      // The same lock as every write of this person's data. It also turns a vanished `users`
+      // row into the 404 below instead of a foreign-key error.
       if (!(await lockUserRow(tx, userId))) {
         throw storyUnavailable();
       }
@@ -53,21 +55,6 @@ export class ListensService {
           listenedAt: new Date(),
         },
       });
-      const removed = await tx.queueItem.deleteMany({
-        where: { userId, topicId: audio.story.topicId },
-      });
-      if (removed.count > 0) {
-        // The same gap closing as QueueEditService.remove.
-        await tx.$executeRaw`
-          UPDATE queue_items q SET position = r.rn::int
-          FROM (
-            SELECT id, row_number() OVER (ORDER BY position, created_at, id) AS rn
-            FROM queue_items
-            WHERE user_id = ${userId}::uuid
-          ) r
-          WHERE q.id = r.id AND q.user_id = ${userId}::uuid
-        `;
-      }
     });
     return { recorded: true };
   }

@@ -7,6 +7,7 @@ import { GenerationStartService } from './generation-start.service';
 import { QueueContinueService } from './queue-continue.service';
 import { QueueEditService } from './queue-edit.service';
 import { QueueReadService } from './queue-read.service';
+import { QueueRebuildService } from './queue-rebuild.service';
 import { QueuePickService } from './queue-pick.service';
 import { QueueTopUpService } from './queue-top-up.service';
 import {
@@ -28,6 +29,7 @@ export class QueueController {
     private readonly picker: QueuePickService,
     private readonly topUp: QueueTopUpService,
     private readonly continuer: QueueContinueService,
+    private readonly rebuilder: QueueRebuildService,
   ) {}
 
   @Get()
@@ -37,7 +39,7 @@ export class QueueController {
   }
 
   // «Собрать темы» on an empty queue: fills it from the pool and, when the pool is not
-  // enough, asks for new topic suggestions (at most 3 per rolling 24 hours). Creates NO story
+  // enough, asks for new topic suggestions (at most 5 per rolling 24 hours). Creates NO story
   // or audio job and spends no generation (architecture rule 10). When the suggestion cap is
   // used up the answer is still 200, with an empty queue and `collecting: false`. No body:
   // the person is the token.
@@ -59,6 +61,18 @@ export class QueueController {
   @ZodSerializerDto(ContinueResponseSchema)
   continueNight(@CurrentUserId() userId: string): Promise<ContinueResponse> {
     return this.continuer.run(userId);
+  }
+
+  // «Пересобрать очередь»: the whole queue is replaced with up to 3 unheard stories (ready
+  // first, then without audio, then the person's own topics without a story); when fewer
+  // are found the queue is topped up and at most a topic suggestion is requested. No undo.
+  // Creates NO story or audio job and spends no generation (architecture rule 10). No body:
+  // the person is the token.
+  @Post('rebuild')
+  @HttpCode(200)
+  @ZodSerializerDto(QueueResponseSchema)
+  rebuild(@CurrentUserId() userId: string): Promise<QueueResponse> {
+    return this.rebuilder.run(userId);
   }
 
   @Delete('items/:itemId')

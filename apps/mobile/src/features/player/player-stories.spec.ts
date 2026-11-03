@@ -23,6 +23,7 @@ function ready(storyId: string, title: string, url: string): QueueItem {
     topicId: '33333333-3333-4333-8333-333333333333',
     title,
     style: 'facts',
+    heard: false,
     state: 'ready',
     storyId,
     durationSec: 185,
@@ -35,6 +36,7 @@ const waiting: QueueItem = {
   topicId: '55555555-5555-4555-8555-555555555555',
   title: 'Not yet',
   style: 'history',
+  heard: false,
   state: 'not_ready',
 };
 

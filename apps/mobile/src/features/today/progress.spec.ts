@@ -7,6 +7,7 @@ const item = (state: 'creating' | 'not_ready'): QueueItem => ({
   topicId: ID,
   title: 'Тема',
   style: 'facts',
+  heard: false,
   state,
 });
 

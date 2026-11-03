@@ -17,15 +17,15 @@ const ID = (n: number) => `00000000-0000-4000-8000-0000000000${String(n).padStar
 function list(): TopicsResponse {
   return {
     topics: [
-      { id: ID(1), title: 'One', style: 'facts', inQueue: true, state: 'ready', durationSec: 120 },
-      { id: ID(2), title: 'Two', style: 'history', inQueue: false, state: 'not_ready', durationSec: null },
-      { id: ID(3), title: 'Three', style: 'fairy_tale', inQueue: false, state: 'creating', durationSec: null },
+      { id: ID(1), title: 'One', style: 'facts', inQueue: true, heard: false, state: 'ready', durationSec: 120 },
+      { id: ID(2), title: 'Two', style: 'history', inQueue: false, heard: false, state: 'not_ready', durationSec: null },
+      { id: ID(3), title: 'Three', style: 'fairy_tale', inQueue: false, heard: false, state: 'creating', durationSec: null },
     ],
   };
 }
 
 function item(n: number, topicN: number): QueueItem {
-  return { id: ID(n), topicId: ID(topicN), title: 'x', style: 'facts', state: 'not_ready' };
+  return { id: ID(n), topicId: ID(topicN), title: 'x', style: 'facts', heard: false, state: 'not_ready' };
 }
 
 describe('topics cache keys', () => {

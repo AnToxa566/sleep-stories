@@ -5,6 +5,7 @@ import {
   type TopicsResponse,
 } from '@sleep-stories/contracts';
 import { PrismaService } from '../prisma/prisma.service';
+import { readHeardTopicIds } from './heard';
 import { findReady, findWithoutAudio, findWithoutStory } from './queue-candidates';
 import { readStoryStates } from './story-state';
 import { buildTopicRows, TOPICS_LIST_MAX, type TopicInfo } from './topic-rows';
@@ -14,7 +15,9 @@ import { buildTopicRows, TOPICS_LIST_MAX, type TopicInfo } from './topic-rows';
 // privacy rules (nobody's typed topic, the NULL-interest rule, the person's styles and
 // interests, heard, dismissed, rated -1) are the one set in `queue-candidates.ts`, not a copy.
 // It differs from the top-up only by what it lets through: topics already queued and topics
-// that finally failed are included here (the failed ones are hidden unless queued, below).
+// that finally failed are included here (the failed ones are hidden unless queued, below), and
+// so are heard topics (marked `heard` and listed after the unheard ones), unless the `heard`
+// filter says otherwise.
 //
 // A plain read: no transaction, no lock, no `generation_jobs` write. Every query is scoped by
 // `userId`, which the caller takes from the verified token. It never creates a job and never
@@ -25,6 +28,7 @@ export class TopicsService {
 
   // `ready` true: only topics that can be played at once. false: only those that cannot (the
   // query schema accepts both words, so both need a meaning). Unset: all.
+  // `heard` true: only topics the person has heard. false: only the unheard. Unset: both.
   async list(userId: string, query: TopicsQuery): Promise<TopicsResponse> {
     const preferences = await this.prisma.userPreference.findUnique({
       where: { userId },
@@ -35,6 +39,8 @@ export class TopicsService {
     }
     const { voiceId } = preferences;
     const readyOnly = query.ready === undefined ? undefined : query.ready === 'true';
+    const heard: 'include' | 'only' | 'exclude' =
+      query.heard === undefined ? 'include' : query.heard === 'true' ? 'only' : 'exclude';
 
     const finder = {
       userId,
@@ -45,7 +51,12 @@ export class TopicsService {
       includeFailed: true,
       includeOwn: true,
       order: 'newest' as const,
+      heard,
     };
+    // The cap of TOPICS_LIST_MAX is applied by each finder (newest first) BEFORE the rows are
+    // merged and sorted (unheard first, ready first). So a person with more than the cap of
+    // matching topics in one finder can lose older rows of it, whatever their sort position.
+    // No pagination in the MVP.
     const ids: string[] = [];
     if (readyOnly !== false) {
       ids.push(...(await findReady(this.prisma, finder)).map((row) => row.topicId));
@@ -58,7 +69,7 @@ export class TopicsService {
       return TopicsResponseSchema.parse({ topics: [] });
     }
 
-    const [topicRows, states, queueRows] = await Promise.all([
+    const [topicRows, states, queueRows, heardIds] = await Promise.all([
       this.prisma.topic.findMany({
         where: { id: { in: ids } },
         select: { id: true, title: true, style: true, createdAt: true },
@@ -68,6 +79,7 @@ export class TopicsService {
         where: { userId, topicId: { in: ids } },
         select: { topicId: true },
       }),
+      readHeardTopicIds(this.prisma, userId, ids),
     ]);
     const topics = new Map<string, TopicInfo>(
       topicRows.map((row) => [row.id, { title: row.title, style: row.style, createdAt: row.createdAt }]),
@@ -77,6 +89,7 @@ export class TopicsService {
       topics,
       states,
       queued: new Set(queueRows.map((row) => row.topicId)),
+      heard: heardIds,
       readyOnly,
     });
     return TopicsResponseSchema.parse({ topics: rows });

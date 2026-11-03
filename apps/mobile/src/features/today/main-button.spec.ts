@@ -8,7 +8,7 @@ function uuid(): string {
 }
 
 function item(state: QueueItem['state'], durationSec = 150): QueueItem {
-  const base = { id: uuid(), topicId: uuid(), title: 'Почему мы икаем', style: 'facts' as const };
+  const base = { id: uuid(), topicId: uuid(), title: 'Почему мы икаем', style: 'facts' as const, heard: false };
   if (state === 'ready') {
     return {
       ...base,

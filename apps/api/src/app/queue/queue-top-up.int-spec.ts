@@ -384,17 +384,17 @@ describe('QueueTopUpService (database)', () => {
       await expectNoStoryJobCreated(w.userId);
     });
 
-    it('blocks a new suggestion when 3 succeeded in the window, and counts only the window', async () => {
+    it('blocks a new suggestion when 5 succeeded in the window, and counts only the window', async () => {
       const w = await world();
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 5; i++) {
         await data.job({ userId: w.userId, kind: 'suggest_topics', status: 'succeeded', hoursAgo: 2 });
       }
       const result = await service.run(w.userId);
       expect(result).toMatchObject({ suggestRequested: false });
-      expect(await jobsOf(w.userId)).toHaveLength(3);
+      expect(await jobsOf(w.userId)).toHaveLength(5);
 
       const v = await world();
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 5; i++) {
         await data.job({ userId: v.userId, kind: 'suggest_topics', status: 'succeeded', hoursAgo: 26 });
       }
       await expect(service.run(v.userId)).resolves.toMatchObject({ suggestRequested: true });

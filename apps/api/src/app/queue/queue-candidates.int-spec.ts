@@ -48,7 +48,11 @@ async function world() {
 }
 type World = Awaited<ReturnType<typeof world>>;
 
-const eligible = (w: World, topicIds: string[], extra: { includeQueued?: boolean; includeFailed?: boolean } = {}) =>
+const eligible = (
+  w: World,
+  topicIds: string[],
+  extra: { includeQueued?: boolean; includeFailed?: boolean; heard?: 'exclude' | 'include' | 'only' } = {},
+) =>
   findEligible(prisma, { userId: w.userId, voiceId: w.voiceId, topicIds, ...extra });
 
 describe('findEligible', () => {
@@ -131,5 +135,77 @@ describe('findEligible', () => {
     expect(await eligible(w, ids, { includeFailed: true })).toEqual(
       new Set([failedWrite.topicId, failedRender.topicId]),
     );
+  });
+
+  // The test audio lasts 60 s. HEARD means one listen reached 90 % of the duration of the audio
+  // in that listen's own voice (LISTEN_FINISHED_SHARE); it does not depend on the voice the
+  // person has now.
+  describe('heard', () => {
+    it('does not count a 60 % listen as heard, counts 90 % and 95 %, and treats a listen under 90 % as unheard', async () => {
+      const w = await world();
+      const partial = await data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+      const edge = await data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+      const nearlyAll = await data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+      const justUnder = await data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+      await data.listen(w.userId, partial.storyId as string, w.voiceId, 36);
+      await data.listen(w.userId, edge.storyId as string, w.voiceId, 54);
+      await data.listen(w.userId, nearlyAll.storyId as string, w.voiceId, 57);
+      await data.listen(w.userId, justUnder.storyId as string, w.voiceId, 53);
+      const ids = [partial, edge, nearlyAll, justUnder].map((t) => t.topicId);
+      expect(await eligible(w, ids)).toEqual(new Set([partial.topicId, justUnder.topicId]));
+      expect(await eligible(w, ids, { heard: 'only' })).toEqual(new Set([edge.topicId, nearlyAll.topicId]));
+      expect(await eligible(w, ids, { heard: 'include' })).toEqual(new Set(ids));
+    });
+
+    it('takes the duration from the voice of the listen itself, not from the current voice', async () => {
+      const w = await world();
+      const topic = await data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+      const storyId = topic.storyId as string;
+      await prisma.storyAudio.create({
+        data: {
+          storyId,
+          voiceId: w.otherVoiceId,
+          storagePath: `test/other-${storyId}.mp3`,
+          durationSec: 1000,
+          byteSize: 1000,
+          mimeType: 'audio/mpeg',
+          ttsProvider: 'test',
+        },
+      });
+      // 60 s is a whole story in the person's voice (60 s) but 6 % of the other voice (1000 s).
+      await data.listen(w.userId, storyId, w.otherVoiceId, 60);
+      expect(await eligible(w, [topic.topicId])).toEqual(new Set([topic.topicId]));
+      // The same 60 s under the voice with the 60 s audio is a finished listen.
+      await data.listen(w.userId, storyId, w.voiceId, 60);
+      expect(await eligible(w, [topic.topicId])).toEqual(new Set());
+      expect(await eligible(w, [topic.topicId], { heard: 'only' })).toEqual(new Set([topic.topicId]));
+    });
+
+    it('counts a finished listen made under another voice, whatever the current voice has', async () => {
+      const w = await world();
+      const topic = await data.topic({
+        interestId: w.interestId,
+        story: true,
+        audioVoiceIds: [w.voiceId, w.otherVoiceId],
+      });
+      await data.listen(w.userId, topic.storyId as string, w.otherVoiceId, 60);
+      expect(await eligible(w, [topic.topicId])).toEqual(new Set());
+      expect(await eligible(w, [topic.topicId], { heard: 'only' })).toEqual(new Set([topic.topicId]));
+    });
+
+    it('ignores another person\'s listen, keeps heard out of "only" for a topic without a story, and still drops a rated -1 story', async () => {
+      const w = await world();
+      const theirs = await data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+      await data.listen(w.strangerId, theirs.storyId as string, w.voiceId, 60);
+      const own = await data.topic({ interestId: w.interestId });
+      await data.userTopic(w.userId, own.topicId, 'proposed');
+      const disliked = await data.topic({ interestId: w.interestId, story: true, audioVoiceIds: [w.voiceId] });
+      await data.rating(w.userId, disliked.storyId as string, -1);
+      await data.listen(w.userId, disliked.storyId as string, w.voiceId, 60);
+      const ids = [theirs.topicId, own.topicId, disliked.topicId];
+      expect(await eligible(w, ids)).toEqual(new Set([theirs.topicId, own.topicId]));
+      expect(await eligible(w, ids, { heard: 'only' })).toEqual(new Set());
+      expect(await eligible(w, ids, { heard: 'include' })).toEqual(new Set([theirs.topicId, own.topicId]));
+    });
   });
 });

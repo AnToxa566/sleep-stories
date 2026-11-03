@@ -15,7 +15,7 @@ export const QUEUE_TOP_UP_THRESHOLD = 2;
 export const MAX_GENERATIONS_PER_WINDOW = 5;
 
 // `suggest_topics` runs one person may use per window.
-export const MAX_SUGGESTIONS_PER_WINDOW = 3;
+export const MAX_SUGGESTIONS_PER_WINDOW = 5;
 
 // Length of the rolling window for both limits, counted on the database clock.
 export const LIMIT_WINDOW_HOURS = 24;

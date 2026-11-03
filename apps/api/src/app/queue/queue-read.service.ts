@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../providers/storage/storage.service';
 import { GenerationLimitsService, remaining } from './generation-limits.service';
 import { MAX_GENERATIONS_PER_WINDOW, QUEUE_AUDIO_URL_TTL_SECONDS } from './queue-policy';
+import { readHeardTopicIds } from './heard';
 import { isCollecting } from './suggestion-state';
 import { readStoryStates } from './story-state';
 
@@ -40,11 +41,11 @@ export class QueueReadService {
       select: { id: true, topicId: true, topic: { select: { title: true, style: true } } },
     });
 
-    const states = await readStoryStates(
-      this.prisma,
-      preferences.voiceId,
-      rows.map((row) => row.topicId),
-    );
+    const topicIds = rows.map((row) => row.topicId);
+    const states = await readStoryStates(this.prisma, preferences.voiceId, topicIds);
+    // One batched query: the items whose story the person has heard. A heard item stays in the
+    // queue until they remove it; the app only marks it.
+    const heardTopicIds = await readHeardTopicIds(this.prisma, userId, topicIds);
 
     // One storage call for all ready items, and none when nothing is ready. The URLs come
     // back in the order of the paths, so they are matched by index.
@@ -72,6 +73,7 @@ export class QueueReadService {
         topicId: row.topicId,
         title: row.topic.title,
         style: row.topic.style,
+        heard: heardTopicIds.has(row.topicId),
       };
       const state = states.get(row.topicId);
       const audioUrl = urlByIndex.get(index);

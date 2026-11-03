@@ -1,5 +1,6 @@
 import { QueueReadService } from './queue-read.service';
 import { QUEUE_AUDIO_URL_TTL_SECONDS } from './queue-policy';
+import * as heardModule from './heard';
 import * as storyState from './story-state';
 import * as suggestionState from './suggestion-state';
 import type { StoryState } from './story-state';
@@ -9,10 +10,13 @@ jest.mock('./story-state', () => ({
   readStoryStates: jest.fn(),
 }));
 
+jest.mock('./heard', () => ({ readHeardTopicIds: jest.fn() }));
+
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 jest.mock('./suggestion-state', () => ({ isCollecting: jest.fn() }));
 
 const readStates = storyState.readStoryStates as jest.Mock;
+const heardMock = heardModule.readHeardTopicIds as jest.Mock;
 const collectingMock = suggestionState.isCollecting as jest.Mock;
 
 function row(n: number) {
@@ -52,6 +56,8 @@ function build(options: { preferences?: { voiceId: string } | null; rows?: Retur
 
 beforeEach(() => {
   readStates.mockReset();
+  heardMock.mockReset();
+  heardMock.mockResolvedValue(new Set());
   collectingMock.mockReset();
   collectingMock.mockResolvedValue(false);
 });
@@ -119,6 +125,7 @@ describe('QueueReadService.read', () => {
       storyId: id(201),
       durationSec: 601,
       audioUrl: 'https://signed.example.test/opaque-0',
+      heard: false,
     });
     expect(result.items[2]).toMatchObject({ state: 'ready', audioUrl: 'https://signed.example.test/opaque-1' });
     expect(result.items[1]).toEqual({
@@ -126,9 +133,30 @@ describe('QueueReadService.read', () => {
       topicId: id(102),
       title: 'Тема 2',
       style: 'facts',
+      heard: false,
       state: 'not_ready',
     });
     expect(JSON.stringify(result)).not.toMatch(/secret-|stories\//);
+  });
+
+  it('marks the heard items from one batched lookup, keeping them in place', async () => {
+    const { service, prisma } = build({ rows: [row(1), row(2), row(3)] });
+    readStates.mockResolvedValue(
+      new Map<string, StoryState>([
+        [id(101), ready(1)],
+        [id(102), plain('not_ready')],
+        [id(103), ready(3)],
+      ]),
+    );
+    heardMock.mockResolvedValue(new Set([id(101), id(103)]));
+    const result = await service.read(id(1));
+    expect(heardMock).toHaveBeenCalledTimes(1);
+    expect(heardMock).toHaveBeenCalledWith(prisma, id(1), [id(101), id(102), id(103)]);
+    expect(result.items.map((item) => [item.id, item.heard])).toEqual([
+      [id(1), true],
+      [id(2), false],
+      [id(3), true],
+    ]);
   });
 
   it('reports the allowance left from the usage', async () => {

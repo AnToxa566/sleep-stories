@@ -2,7 +2,7 @@ import type { QueueItem } from '@sleep-stories/contracts';
 import { deriveHintText, deriveMenu, deriveRow } from './rows';
 
 const ID = '00000000-0000-4000-8000-000000000001';
-const base = { id: ID, topicId: ID, title: 'Лис и звёздная карта', style: 'fairy_tale' as const };
+const base = { id: ID, topicId: ID, title: 'Лис и звёздная карта', style: 'fairy_tale' as const, heard: false };
 const ready: QueueItem = {
   ...base,
   style: 'facts',

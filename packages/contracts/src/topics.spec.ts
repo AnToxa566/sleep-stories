@@ -71,6 +71,13 @@ describe('TopicsQuerySchema', () => {
     expect(TopicsQuerySchema.safeParse({ ready: 'false', style: 'history' }).success).toBe(true);
   });
 
+  it('accepts heard as text, alone or with ready, and rejects other values', () => {
+    expect(TopicsQuerySchema.safeParse({ heard: 'true' }).success).toBe(true);
+    expect(TopicsQuerySchema.safeParse({ heard: 'false', ready: 'false' }).success).toBe(true);
+    expect(TopicsQuerySchema.safeParse({ heard: true }).success).toBe(false);
+    expect(TopicsQuerySchema.safeParse({ heard: 'all' }).success).toBe(false);
+  });
+
   it('rejects an unknown style, a non-text ready, other words and an unknown key', () => {
     expect(TopicsQuerySchema.safeParse({ style: 'x' }).success).toBe(false);
     expect(TopicsQuerySchema.safeParse({ ready: true }).success).toBe(false);
@@ -81,7 +88,7 @@ describe('TopicsQuerySchema', () => {
 
 describe('TopicRowSchema', () => {
   const rowId = '00000000-0000-4000-8000-000000000001';
-  const base = { id: rowId, title: 'Тема', style: 'facts', inQueue: false };
+  const base = { id: rowId, title: 'Тема', style: 'facts', inQueue: false, heard: false };
 
   it('accepts a ready row with a positive integer duration', () => {
     expect(TopicRowSchema.safeParse({ ...base, state: 'ready', durationSec: 600 }).success).toBe(true);
@@ -103,10 +110,23 @@ describe('TopicRowSchema', () => {
     expect(TopicRowSchema.safeParse({ ...base, state: 'failed' }).success).toBe(false);
   });
 
+  it('requires heard as a boolean on both shapes', () => {
+    expect(TopicRowSchema.safeParse({ ...base, heard: true, state: 'ready', durationSec: 600 }).success).toBe(true);
+    expect(TopicRowSchema.safeParse({ ...base, heard: true, state: 'failed', durationSec: null }).success).toBe(true);
+    for (const row of [
+      { state: 'ready', durationSec: 600 },
+      { state: 'not_ready', durationSec: null },
+    ]) {
+      const copy: Record<string, unknown> = { ...base, ...row };
+      delete copy['heard'];
+      expect(TopicRowSchema.safeParse(copy).success).toBe(false);
+    }
+  });
+
   it('rejects an unknown state, a missing inQueue and an extra key (no audio URL, no story id)', () => {
     expect(TopicRowSchema.safeParse({ ...base, state: 'done', durationSec: null }).success).toBe(false);
     expect(
-      TopicRowSchema.safeParse({ id: rowId, title: 'T', style: 'facts', state: 'not_ready', durationSec: null })
+      TopicRowSchema.safeParse({ id: rowId, title: 'T', style: 'facts', heard: false, state: 'not_ready', durationSec: null })
         .success,
     ).toBe(false);
     expect(

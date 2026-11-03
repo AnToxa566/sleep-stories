@@ -36,6 +36,7 @@ describe('buildTopicRows', () => {
         [id(4), ready(300)],
       ]),
       queued: new Set(),
+      heard: new Set<string>(),
     });
     expect(rows.map((row) => row.id)).toEqual([id(4), id(1), id(3), id(2)]);
   });
@@ -49,10 +50,11 @@ describe('buildTopicRows', () => {
         [id(2), plain('creating')],
       ]),
       queued: new Set([id(2)]),
+      heard: new Set<string>(),
     });
     expect(rows).toEqual([
-      { id: id(1), title: 'Тема 1', style: 'facts', inQueue: false, state: 'ready', durationSec: 615 },
-      { id: id(2), title: 'Тема 2', style: 'facts', inQueue: true, state: 'creating', durationSec: null },
+      { id: id(1), title: 'Тема 1', style: 'facts', inQueue: false, heard: false, state: 'ready', durationSec: 615 },
+      { id: id(2), title: 'Тема 2', style: 'facts', inQueue: true, heard: false, state: 'creating', durationSec: null },
     ]);
   });
 
@@ -65,6 +67,7 @@ describe('buildTopicRows', () => {
         [id(2), plain('failed')],
       ]),
       queued: new Set([id(2)]),
+      heard: new Set<string>(),
     });
     expect(rows.map((row) => [row.id, row.state, row.inQueue])).toEqual([[id(2), 'failed', true]]);
   });
@@ -75,9 +78,10 @@ describe('buildTopicRows', () => {
       topics: topicsOf(1),
       states: new Map(),
       queued: new Set(),
+      heard: new Set<string>(),
     });
     expect(rows).toEqual([
-      { id: id(1), title: 'Тема 1', style: 'facts', inQueue: false, state: 'not_ready', durationSec: null },
+      { id: id(1), title: 'Тема 1', style: 'facts', inQueue: false, heard: false, state: 'not_ready', durationSec: null },
     ]);
   });
 
@@ -87,6 +91,7 @@ describe('buildTopicRows', () => {
       topics: topicsOf(1),
       states: new Map(),
       queued: new Set(),
+      heard: new Set<string>(),
     });
     expect(rows.map((row) => row.id)).toEqual([id(1)]);
   });
@@ -100,10 +105,34 @@ describe('buildTopicRows', () => {
         [id(2), plain('not_ready')],
       ]),
       queued: new Set<string>(),
+      heard: new Set<string>(),
     };
     expect(buildTopicRows({ ...base, readyOnly: true }).map((row) => row.id)).toEqual([id(1)]);
     expect(buildTopicRows({ ...base, readyOnly: false }).map((row) => row.id)).toEqual([id(2)]);
     expect(buildTopicRows(base)).toHaveLength(2);
+  });
+
+  it('marks heard rows and lists them after the unheard ones, ready first inside each group', () => {
+    const rows = buildTopicRows({
+      ids: [id(1), id(2), id(3), id(4), id(5)],
+      topics: topicsOf(1, 2, 3, 4, 5),
+      states: new Map([
+        [id(1), ready(600)],
+        [id(2), ready(600)],
+        [id(3), plain('not_ready')],
+        [id(4), plain('not_ready')],
+        [id(5), ready(300)],
+      ]),
+      queued: new Set<string>(),
+      heard: new Set([id(2), id(4)]),
+    });
+    expect(rows.map((row) => [row.id, row.heard])).toEqual([
+      [id(5), false],
+      [id(1), false],
+      [id(3), false],
+      [id(2), true],
+      [id(4), true],
+    ]);
   });
 
   it('orders equal creation times by id, so the order is stable', () => {
@@ -116,6 +145,7 @@ describe('buildTopicRows', () => {
       topics,
       states: new Map(),
       queued: new Set(),
+      heard: new Set<string>(),
     });
     expect(rows.map((row) => row.id)).toEqual([id(1), id(2)]);
   });
@@ -129,6 +159,7 @@ describe('buildTopicRows', () => {
       topics: topicsOf(...numbers),
       states,
       queued: new Set(),
+      heard: new Set<string>(),
     });
     expect(rows).toHaveLength(TOPICS_LIST_MAX);
     expect(rows[0].id).toBe(id(1));

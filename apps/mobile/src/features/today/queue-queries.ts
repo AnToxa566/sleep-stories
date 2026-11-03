@@ -358,7 +358,7 @@ export function useReplaceQueueItem(
 }
 
 // POST /queue/collect: «Собрать подборку» on the empty queue. The server fills the queue from
-// the pool, or starts one topic suggestion (at most 3 per rolling 24 hours). It creates no
+// the pool, or starts one topic suggestion (at most 5 per rolling 24 hours). It creates no
 // story job and spends no generation, but it is still an explicit action: call it only from
 // the person's tap. A cap that is used up is not an error: the answer is an empty queue with
 // `collecting: false`, which the screen turns into the toast «Пока не из чего собрать»

@@ -212,7 +212,7 @@ describe('POST /api/queue/continue', () => {
 
   it('(c) keeps what the queue holds when nothing is ready and the suggestion cap is used up', async () => {
     const w = await world();
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       await data.job({ userId: w.userId, kind: 'suggest_topics', status: 'succeeded', hoursAgo: 1 });
     }
     const queued = await data.topic({ interestId: w.interestId });
@@ -224,7 +224,7 @@ describe('POST /api/queue/continue', () => {
     expect(body.queue.items.map((item) => item.topicId)).toEqual([queued.topicId]);
     expect(await itemRows(w.userId)).toEqual(before);
     const jobs = await jobsOf(w.userId);
-    expect(jobs).toHaveLength(3);
+    expect(jobs).toHaveLength(5);
     expect(jobs.every((job) => job.kind === 'suggest_topics')).toBe(true);
     expect(jobQueue.enqueued).toEqual([]);
   });
