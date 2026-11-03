@@ -24,6 +24,22 @@ export const WAVES_NOMINAL_SEC = 20;
 // silence at the end (ARCHITECTURE.md section 7 says the sound "fades out over about 20 seconds").
 export const WAVES_FADE_START = 0.25;
 
+// The waves come in from silence over their first seconds (owner, 2026-11-03).
+export const WAVES_FADE_IN_SEC = 3;
+
+// Silence before the waves, after the last story (owner, 2026-11-03), and between two stories so
+// that they do not run into each other. Both are played by the bundled silent file
+// (assets/audio/silence-3s.wav), so they equal its length; player-stories.spec.ts reads the file
+// header and fails if it does not match SILENCE_FILE_SEC. The wait is a native playback of that
+// file, never a JavaScript timer (the Android background constraint, ARCHITECTURE.md section 7).
+export const SILENCE_FILE_SEC = 3;
+export const WAVES_GAP_BEFORE_SEC = 3;
+export const STORY_GAP_SEC = 3;
+
+// «Предыдущая» restarts the current story when it has played longer than this, and goes to the
+// previous story otherwise (the usual media-player rule; owner, 2026-11-03).
+export const PREVIOUS_RESTART_AFTER_SEC = 3;
+
 // One story of the night as the player holds it. The snapshot is taken when the player opens
 // and again when a touch during the waves finds more ready stories.
 export type PlayerStory = {
@@ -102,12 +118,16 @@ function safeDuration(durationSec: number): number {
   return Number.isFinite(durationSec) && durationSec > 0 ? durationSec : WAVES_NOMINAL_SEC;
 }
 
-// Volume of the waves as a function of the native playback position (never a timer).
+// Volume of the waves as a function of the native playback position (never a timer): the
+// smaller of the fade-in over the first WAVES_FADE_IN_SEC and the fade-out over the last part.
 export function wavesVolume(positionSec: number, durationSec: number): number {
   const duration = safeDuration(durationSec);
-  const played = clamp01(positionSec / duration);
-  if (played <= WAVES_FADE_START) return 1;
-  return clamp01(1 - (played - WAVES_FADE_START) / (1 - WAVES_FADE_START));
+  const position = Number.isFinite(positionSec) ? positionSec : 0;
+  const fadeIn = clamp01(position / WAVES_FADE_IN_SEC);
+  const played = clamp01(position / duration);
+  const fadeOut =
+    played <= WAVES_FADE_START ? 1 : clamp01(1 - (played - WAVES_FADE_START) / (1 - WAVES_FADE_START));
+  return Math.min(fadeIn, fadeOut);
 }
 
 // The number inside the ring of design 3c: whole seconds left, counting down to 0.
@@ -120,4 +140,49 @@ export function wavesSecondsLeft(positionSec: number, durationSec: number): numb
 // 0 (full ring) to 1 (empty ring) for the ring of design 3c.
 export function wavesRingProgress(positionSec: number, durationSec: number): number {
   return clamp01((Number.isFinite(positionSec) ? positionSec : 0) / safeDuration(durationSec));
+}
+
+// ----- the progress of a story, the slider and «Предыдущая» -----
+
+// The length the bar is drawn against: what the native player reports for the audio it plays,
+// else the length the server stored. The two can differ by a second or more (the server reads
+// the file with a parser and rounds; a streamed file's duration is the player's own estimate), and
+// a bar drawn against the wrong one stops short of the edge or runs into it early.
+export function effectiveDuration(
+  nativeDurationSec: number,
+  story: Pick<PlayerStory, 'durationSec'>,
+): number {
+  if (Number.isFinite(nativeDurationSec) && nativeDurationSec > 0) return nativeDurationSec;
+  return Number.isFinite(story.durationSec) && story.durationSec > 0 ? story.durationSec : 0;
+}
+
+// 0 to 1, always inside the range. A story that ended is exactly 1 whatever the last native
+// position was (it stops a fraction short of the end).
+export function storyProgress(positionSec: number, durationSec: number, ended: boolean): number {
+  if (ended) return 1;
+  if (!(durationSec > 0) || !Number.isFinite(positionSec)) return 0;
+  return clamp01(positionSec / durationSec);
+}
+
+// Where a slider drag may land: inside the story, one second short of its end so that a drag
+// cannot make the story end by itself.
+export function clampSeekTarget(targetSec: number, durationSec: number): number {
+  const last = Number.isFinite(durationSec) ? Math.max(0, durationSec - 1) : 0;
+  const target = Number.isFinite(targetSec) ? targetSec : 0;
+  return Math.min(last, Math.max(0, target));
+}
+
+// The slider position (0 to 1) as seconds of the story.
+export function secondsAtFraction(fraction: number, durationSec: number): number {
+  if (!(durationSec > 0)) return 0;
+  return clamp01(Number.isFinite(fraction) ? fraction : 0) * durationSec;
+}
+
+// What «Предыдущая» does. After more than PREVIOUS_RESTART_AFTER_SEC of the story it starts the
+// story again; before that it goes to the previous story, except on the first, which it starts again.
+export type PreviousIntent = 'restart' | 'previous-story';
+
+export function previousIntent(positionSec: number, index: number): PreviousIntent {
+  if (Number.isFinite(positionSec) && positionSec > PREVIOUS_RESTART_AFTER_SEC) return 'restart';
+  return index > 0 ? 'previous-story' : 'restart';
 }

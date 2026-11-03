@@ -9,6 +9,7 @@ import { strings } from '../../strings';
 import { showToast } from '../../ui/toast-store';
 import { useSessionStore } from '../auth/session-store';
 import { queueQueryKey } from '../today/queue-cache';
+import { topicsUserKey } from '../topics/topic-cache';
 import { NightEngine, type NightExit } from './night-engine';
 import { fetchFreshAudioUrls, postListenReport, useContinueQueue } from './player-queries';
 import { IDLE_DIM_MS, KEEP_AWAKE_MAX_MS, readyStories } from './player-stories';
@@ -19,6 +20,12 @@ import { IDLE_DIM_MS, KEEP_AWAKE_MAX_MS, readyStories } from './player-stories';
 
 // The bundled waves sound (20 s, the same for every voice, ARCHITECTURE.md section 7).
 const WAVES_SOURCE: number = require('../../../assets/audio/waves.mp3');
+
+// The bundled silent file that makes the pauses (3 s, SILENCE_FILE_SEC): 8000 Hz, 16-bit, mono PCM
+// WAV, all zero samples, with a 44-byte header (about 47 KB). Made with a throwaway Node script
+// (no ffmpeg): write the header, then 24000 zero samples. It is played by a native player and its
+// `didJustFinish` ends the pause, so the pauses run with the screen off (see night-engine.ts).
+const SILENCE_SOURCE: number = require('../../../assets/audio/silence-3s.wav');
 
 // How often native playback reports its position. The waves report faster so that the fade and
 // the countdown of 3c move smoothly; both are native events, not timers.
@@ -66,15 +73,20 @@ export function useNightSession(): NightEngine | null {
       () => undefined,
     );
 
+    let exited = false;
     const created: NightEngine = new NightEngine(
       {
         createStoryPlayer: (url) => createAudioPlayer({ uri: url }, { updateInterval: STORY_UPDATE_MS }),
         createWavesPlayer: () => createAudioPlayer(WAVES_SOURCE, { updateInterval: WAVES_UPDATE_MS }),
+        createSilencePlayer: () => createAudioPlayer(SILENCE_SOURCE, { updateInterval: WAVES_UPDATE_MS }),
         reportListen: postListenReport,
         fetchFreshUrls: fetchFreshAudioUrls,
         continueNight: () => latest.current.continueAsync(),
         now: () => Date.now(),
-        onExit: (exit) => handleExit(exit, created, latest.current),
+        onExit: (exit) => {
+          exited = true;
+          handleExit(exit, created, latest.current);
+        },
       },
       stories,
     );
@@ -82,6 +94,9 @@ export function useNightSession(): NightEngine | null {
     void created.start();
     return () => {
       created.dispose();
+      // The screen went away without a way out of the engine (a gesture, a navigation): the
+      // listens are still recorded and «Сегодня» still needs the heard marks.
+      if (!exited) refreshAfterNight(created, latest.current);
       setEngine(null);
     };
     // The night starts once per mount; the closures above read `latest`.
@@ -109,16 +124,24 @@ type Latest = {
 };
 
 // Where each way of ending the night goes: always «Сегодня». The toast is put in the store first
-// and shows when «Сегодня» is on screen again (its host mounts on focus). A recorded listen takes
-// the item out of the queue, so the queue is read again once the reports have landed (not on
-// «none-ready», whose answer already set the cache).
+// and shows when «Сегодня» is on screen again (its host mounts on focus). «Сегодня» then shows
+// the heard marks, which come from the listens, so the queue and the topics are read once more
+// after the last report has landed (not on «none-ready», whose answer already set the queue and
+// refreshed the topics, after the same wait).
 function handleExit(exit: NightExit, engine: NightEngine, latest: Latest): void {
   if (exit === 'none-ready') showToast({ label: strings.player.noneReady });
   if (exit === 'error') showToast({ label: strings.today.errors.generic });
   latest.goToToday();
   if (exit === 'none-ready') return;
-  void engine.whenReportsSettled().then(() =>
-    latest.queryClient.invalidateQueries({ queryKey: queueQueryKey(latest.userId) }),
+  refreshAfterNight(engine, latest);
+}
+
+function refreshAfterNight(engine: NightEngine, latest: Latest): void {
+  void engine.whenListensRecorded().then(() =>
+    Promise.all([
+      latest.queryClient.invalidateQueries({ queryKey: queueQueryKey(latest.userId) }),
+      latest.queryClient.invalidateQueries({ queryKey: topicsUserKey(latest.userId) }),
+    ]),
   );
 }
 
@@ -128,12 +151,16 @@ function handleExit(exit: NightExit, engine: NightEngine, latest: Latest): void 
 // every touch.
 export function useIdleDim(engine: NightEngine, playerViewShown: boolean): () => void {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // `playerViewShown` is false while the story is paused: a touch must not arm the timer then.
+  const shown = useRef(playerViewShown);
+  shown.current = playerViewShown;
   const clear = useCallback(() => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
   }, []);
   const arm = useCallback(() => {
     clear();
+    if (!shown.current) return;
     timer.current = setTimeout(() => engine.idle(), IDLE_DIM_MS);
   }, [clear, engine]);
 

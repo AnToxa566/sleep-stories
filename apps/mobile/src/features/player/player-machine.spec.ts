@@ -40,6 +40,10 @@ describe('player machine: dimming', () => {
     expect(run(three, { type: 'moon' }).mode).toBe('dim');
     expect(run(three, { type: 'idle' }).mode).toBe('dim');
     expect(run(three, { type: 'moon' }, { type: 'idle' }).mode).toBe('dim');
+    // A paused story does not dim by itself, the moon button still works, resuming allows it.
+    expect(run(three, { type: 'togglePause' }, { type: 'idle' }).mode).toBe('playing');
+    expect(run(three, { type: 'togglePause' }, { type: 'moon' }).mode).toBe('dim');
+    expect(run(three, { type: 'togglePause' }, { type: 'togglePause' }, { type: 'idle' }).mode).toBe('dim');
   });
 
   it('comes back on a touch and does not pause playback', () => {
@@ -108,6 +112,22 @@ describe('player machine: stories in a row', () => {
     const waves = run(initialPlayerState(1), { type: 'storyEnded' });
     expect(run(waves, { type: 'storyEnded' })).toBe(waves);
     expect(run(waves, { type: 'nextPressed' })).toBe(waves);
+  });
+});
+
+describe('player machine: previous', () => {
+  const three = initialPlayerState(3);
+  const second = { ...three, index: 1 };
+
+  it('moves to the previous story and clears the pause', () => {
+    const paused = run(second, { type: 'togglePause' });
+    expect(run(paused, { type: 'previousPressed' })).toMatchObject({ index: 0, paused: false, mode: 'playing' });
+  });
+
+  it('does nothing on the first story or outside the player view', () => {
+    expect(run(three, { type: 'previousPressed' })).toBe(three);
+    const dim = run(second, { type: 'moon' });
+    expect(run(dim, { type: 'previousPressed' })).toBe(dim);
   });
 });
 

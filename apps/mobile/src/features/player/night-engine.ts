@@ -1,6 +1,7 @@
 import type { ContinueResponse } from '@sleep-stories/contracts';
 import {
   initialPlayerState,
+  isLastStory,
   isWaves,
   playerReducer,
   tapIntent,
@@ -8,8 +9,12 @@ import {
   type PlayerState,
 } from './player-machine';
 import {
+  clampSeekTarget,
+  effectiveDuration,
   listenSecondsToReport,
+  previousIntent,
   readyStories,
+  storyProgress,
   urlIsStale,
   WAVES_NOMINAL_SEC,
   wavesRingProgress,
@@ -32,8 +37,21 @@ import {
 // screen is on.
 //
 // ONE PLAYER PER STORY, chained: the next story's player is created when the previous one has
-// ended and the old one is removed. Cost: a short gap (the time to open the next stream) between
-// stories; buying a gapless join would mean pre-loading, which this first version leaves out.
+// ended and the old one is removed, after a pause of silence (below).
+//
+// THE PAUSES. Three seconds of silence follow a story that ended by itself, so that two stories do
+// not run into each other, and three seconds follow the last story before the waves (owner,
+// 2026-11-03). The silence is a bundled silent file played by its own player (`createSilencePlayer`)
+// and its native `didJustFinish` starts the next thing. Why not a timer: a phone locked by the
+// person must still go on to the next story, and JavaScript timers do not fire in the background
+// on Android while native player events do. Cost: one more short-lived native player per pause,
+// and the pause is as long as the file (SILENCE_FILE_SEC). «Следующая» and «Предыдущая» skip the
+// pause between stories (the person asked for the move); «Следующая» on the last story takes the
+// same pause before the waves as the end of the last story does.
+//
+// In the pause between stories the machine still shows the story that ended (its bar full); the
+// index moves on when the next story actually starts. In the pause before the waves the machine
+// is already in `waves`, and the countdown keeps its full length until the waves audio starts.
 
 // The part of expo-audio's AudioStatus the engine reads. The real player's status has more fields.
 export interface PlayerStatusLike {
@@ -64,6 +82,8 @@ export type NightExit = 'leave' | 'woke' | 'none-ready' | 'error';
 export interface NightDeps {
   createStoryPlayer(url: string): AudioPlayerLike;
   createWavesPlayer(): AudioPlayerLike;
+  // A player of the bundled silent file (SILENCE_FILE_SEC long).
+  createSilencePlayer(): AudioPlayerLike;
   // POST /api/listens. Must never reject and must not wait long (the caller times it out).
   reportListen(storyId: string, listenedSec: number): Promise<void>;
   // GET /api/queue: signed URLs by story id, or null when the queue could not be read.
@@ -77,8 +97,14 @@ export interface NightDeps {
 export type NightView = {
   readonly state: PlayerState;
   readonly stories: readonly PlayerStory[];
-  // Position in the current story, seconds.
+  // Position in the current story, seconds, never beyond `durationSec`. The full length once the
+  // story has ended (the pause after it).
   readonly positionSec: number;
+  // The length the bar is drawn against: the player's own duration when it has reported one, else
+  // the length the server stored (effectiveDuration).
+  readonly durationSec: number;
+  // 0 to 1; exactly 1 when the story has ended. Use it for the bar and the slider.
+  readonly progress: number;
   // The ring and the number of design 3c.
   readonly wavesLeftSec: number;
   readonly wavesProgress: number;
@@ -98,6 +124,9 @@ export const RECOVERY_PROGRESS_SEC = 5;
 // only while the screen is on, and a request that outlives it is simply dropped.
 export const REQUEST_TIMEOUT_MS = 15_000;
 
+// A seek has landed when the native position is within this many seconds of its target.
+const SEEK_LANDED_SEC = 1;
+
 export class NightEngine {
   private stories: PlayerStory[];
   private state: PlayerState;
@@ -113,8 +142,21 @@ export class NightEngine {
   // from a player that is gone changes nothing.
   private storyToken = 0;
   private wavesToken = 0;
+  private gapToken = 0;
+  // The target of a seek that has not landed yet, and which seek it is.
+  private seekTarget: number | null = null;
+  private seekId = 0;
+
+  // The silent player of a pause, and which pause it is.
+  private gapPlayer: AudioPlayerLike | null = null;
+  private gapSubscription: { remove(): void } | null = null;
+  private gap: 'between-stories' | 'before-waves' | null = null;
 
   private position = 0;
+  // The duration the native player reported for the current story (0 until it does).
+  private nativeDuration = 0;
+  // The current story played to its end (the pause after it): the bar is full.
+  private storyEnded = false;
   private reported = false;
   private retried = false;
   // Where the current player started from (0, or the resume position of a retry).
@@ -143,9 +185,10 @@ export class NightEngine {
 
   readonly getView = (): NightView => this.view;
 
-  // Resolves when every listen report sent so far has finished (or failed). The screen reads
-  // the queue again after it, since a recorded listen takes the item out of the queue.
-  whenReportsSettled(): Promise<void> {
+  // Resolves when every listen report sent so far has finished (or failed). Two callers need the
+  // listens to be on the server first: the continue request (it looks for unheard stories) and
+  // the refresh of «Сегодня» after the night (the heard marks come from the listens).
+  whenListensRecorded(): Promise<void> {
     return Promise.allSettled([...this.pending]).then(() => undefined);
   }
 
@@ -156,9 +199,10 @@ export class NightEngine {
   // ----- the person -----
 
   togglePause(): void {
-    if (this.state.mode !== 'playing') return;
+    if (this.disposed || this.state.mode !== 'playing') return;
     this.send({ type: 'togglePause' });
-    const player = this.storyPlayer;
+    // In the pause between stories the silence is what pauses.
+    const player = this.storyPlayer ?? this.gapPlayer;
     if (player === null) return;
     try {
       if (this.state.paused) player.pause();
@@ -168,32 +212,91 @@ export class NightEngine {
     }
   }
 
-  // «Предыдущая» restarts the current story. It reports nothing: the story is not left.
+  // «Предыдущая»: after PREVIOUS_RESTART_AFTER_SEC of the story it starts the story again; before
+  // that it goes to the previous story (on the first story it always starts it again). Going to
+  // another story leaves this one like «Следующая» does: one report with the position at leave.
+  // Starting the same story again reports nothing: the story is not left.
   pressPrevious(): void {
-    if (this.state.mode !== 'playing') return;
-    this.position = 0;
-    try {
-      void this.storyPlayer?.seekTo(0).catch(() => undefined);
-    } catch {
-      // See togglePause.
+    if (this.disposed || this.state.mode !== 'playing') return;
+    const position = this.storyEnded ? Number.MAX_SAFE_INTEGER : this.position;
+    if (previousIntent(position, this.state.index) === 'restart') {
+      this.restartCurrent();
+      return;
     }
+    this.reportCurrent(false);
+    this.releaseStoryPlayer();
+    this.releaseGap();
+    this.send({ type: 'previousPressed' });
+    void this.beginStory(this.state.index);
+  }
+
+  // A drag of the slider. Only inside a story that is playing: in a pause, in the waves and while
+  // the next stream opens it is ignored. The target stays one second short of the end so that a
+  // drag cannot end the story. A native seek, no timer. The listen report still means "the
+  // position at leave" (owner: no anti-seek rule).
+  seekTo(seconds: number): void {
+    if (this.disposed || this.storyPlayer === null || this.gap !== null || this.storyEnded) return;
+    if (this.state.mode !== 'playing' && this.state.mode !== 'dim') return;
+    const story = this.stories[this.state.index];
+    if (story === undefined || !Number.isFinite(seconds)) return;
+    const target = clampSeekTarget(seconds, effectiveDuration(this.nativeDuration, story));
+    this.position = target;
+    // Where real progress is counted from: a jump must not count as five seconds of recovery.
+    this.progressFrom = target;
+    this.nativeSeek(this.storyPlayer, target);
     this.emit();
+  }
+
+  private restartCurrent(): void {
+    if (this.disposed) return;
+    if (this.storyPlayer === null) {
+      // In the pause after the story, or while the stream opens: a fresh start of the same story.
+      // A story already reported as finished is not reported a second time for the same play.
+      const alreadyReported = this.storyEnded && this.reported;
+      this.releaseGap();
+      void this.beginStory(this.state.index, alreadyReported);
+      return;
+    }
+    this.position = 0;
+    this.progressFrom = 0;
+    this.nativeSeek(this.storyPlayer, 0);
+    this.emit();
+  }
+
+  // A native seek. Until it lands (the position comes near the target, or the seek settles) the
+  // positions of the status events are ignored, so the bar does not jump back for one update.
+  private nativeSeek(player: AudioPlayerLike, target: number): void {
+    const seekId = this.seekId + 1;
+    this.seekId = seekId;
+    this.seekTarget = target;
+    const settle = () => {
+      if (this.seekId === seekId) this.seekTarget = null;
+    };
+    try {
+      void player.seekTo(target).then(settle, settle);
+    } catch {
+      // The player may be gone; the next status event or the next story sorts it out.
+      settle();
+    }
   }
 
   // «Следующая». On the last story it starts the waves.
   pressNext(): void {
-    if (this.state.mode !== 'playing') return;
+    if (this.disposed || this.state.mode !== 'playing') return;
     this.reportCurrent(false);
     this.releaseStoryPlayer();
+    this.releaseGap();
     this.send({ type: 'nextPressed' });
     this.afterAdvance();
   }
 
   moon(): void {
+    if (this.disposed) return;
     this.send({ type: 'moon' });
   }
 
   idle(): void {
+    if (this.disposed) return;
     this.send({ type: 'idle' });
   }
 
@@ -232,14 +335,29 @@ export class NightEngine {
 
   // ----- stories -----
 
-  private beginStory(index: number): Promise<void> {
+  private resetStoryProgress(): void {
     this.retried = false;
     this.position = 0;
+    this.nativeDuration = 0;
+    this.storyEnded = false;
     this.reported = false;
+    this.seekTarget = null;
+  }
+
+  // `alreadyReported`: this play of the story was already reported as finished, so it is not
+  // reported again when it ends or is left.
+  private beginStory(index: number, alreadyReported = false): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    this.releaseGap();
+    this.resetStoryProgress();
+    this.reported = alreadyReported;
+    // The view must not keep the full bar of the story that ended.
+    this.emit();
     return this.loadStory(index, 0);
   }
 
   private async loadStory(index: number, resumeAtSec: number): Promise<void> {
+    if (this.disposed) return;
     this.releaseStoryPlayer();
     this.progressFrom = resumeAtSec;
     const token = this.storyToken;
@@ -256,6 +374,7 @@ export class NightEngine {
       }
     }
 
+    if (this.disposed || token !== this.storyToken) return;
     try {
       const player = this.deps.createStoryPlayer(story.url);
       this.storyPlayer = player;
@@ -283,7 +402,10 @@ export class NightEngine {
       void this.onStoryError(token);
       return;
     }
-    if (Number.isFinite(status.currentTime)) this.position = status.currentTime;
+    if (Number.isFinite(status.currentTime) && !this.seekStillLanding(status.currentTime)) {
+      this.position = status.currentTime;
+    }
+    if (Number.isFinite(status.duration) && status.duration > 0) this.nativeDuration = status.duration;
     if (status.didJustFinish) {
       this.finishStory();
       return;
@@ -296,18 +418,77 @@ export class NightEngine {
     this.emit();
   }
 
+  // The story played to its end. The bar is full from here until the next story starts.
+  // True while a seek has not landed: the native position is still far from the target.
+  private seekStillLanding(currentTime: number): boolean {
+    if (this.seekTarget === null) return false;
+    if (Math.abs(currentTime - this.seekTarget) <= SEEK_LANDED_SEC) {
+      this.seekTarget = null;
+      return false;
+    }
+    return true;
+  }
+
   private finishStory(): void {
     if (this.state.mode !== 'playing' && this.state.mode !== 'dim') return;
     this.reportCurrent(true);
+    this.storyEnded = true;
     this.releaseStoryPlayer();
-    this.send({ type: 'storyEnded' });
-    this.afterAdvance();
+    if (isLastStory(this.state)) {
+      this.send({ type: 'storyEnded' });
+      this.startGap('before-waves');
+    } else {
+      // The index moves on when the next story starts (endGap).
+      this.startGap('between-stories');
+    }
+    this.emit();
   }
 
-  // After the machine moved on from a story: the next story, or the waves after the last one.
+  // After the machine moved on from a story by the person's press or a skip: the next story at
+  // once, or the pause and the waves after the last one.
   private afterAdvance(): void {
-    if (isWaves(this.state)) this.startWaves();
+    if (isWaves(this.state)) this.startGap('before-waves');
     else void this.beginStory(this.state.index);
+  }
+
+  // ----- the pauses -----
+
+  private startGap(kind: 'between-stories' | 'before-waves'): void {
+    if (this.disposed) return;
+    this.releaseGap();
+    this.gap = kind;
+    const token = this.gapToken;
+    try {
+      const player = this.deps.createSilencePlayer();
+      this.gapPlayer = player;
+      this.gapSubscription = player.addListener('playbackStatusUpdate', (status) =>
+        this.onGapStatus(token, status),
+      );
+      if (!this.state.paused) player.play();
+    } catch {
+      // No silence available: go on at once rather than hold the night.
+      this.endGap(token);
+    }
+  }
+
+  private onGapStatus(token: number, status: PlayerStatusLike): void {
+    if (this.disposed || token !== this.gapToken) return;
+    if (status.error || status.didJustFinish) this.endGap(token);
+  }
+
+  private endGap(token: number): void {
+    if (this.disposed || token !== this.gapToken || this.gap === null) return;
+    const kind = this.gap;
+    this.releaseGap();
+    if (kind === 'between-stories') {
+      if (this.state.mode !== 'playing' && this.state.mode !== 'dim') return;
+      this.resetStoryProgress();
+      this.send({ type: 'storyEnded' });
+      void this.beginStory(this.state.index);
+      return;
+    }
+    // A touch during the pause already asked the server to continue: no waves then.
+    if (isWaves(this.state) && !this.state.continuing) this.startWaves();
   }
 
   private async onStoryError(token: number): Promise<void> {
@@ -371,6 +552,7 @@ export class NightEngine {
   // ----- the waves -----
 
   private startWaves(): void {
+    if (this.disposed) return;
     this.releaseWaves();
     this.wavesLeft = WAVES_NOMINAL_SEC;
     this.wavesProgress = 0;
@@ -381,7 +563,8 @@ export class NightEngine {
       this.wavesSubscription = player.addListener('playbackStatusUpdate', (status) =>
         this.onWavesStatus(token, status),
       );
-      player.volume = 1;
+      // In from silence: the first status events raise it (wavesVolume).
+      player.volume = wavesVolume(0, WAVES_NOMINAL_SEC);
       player.play();
     } catch {
       // No waves: the night goes on to sleep.
@@ -426,7 +609,7 @@ export class NightEngine {
     if (!isWaves(this.state) || this.state.continuing) return;
     this.send({ type: 'continueStarted' });
     // The listen of the last story must have reached the server before it looks for unheard ones.
-    await this.whenReportsSettled();
+    await this.whenListensRecorded();
     if (this.disposed) return;
 
     let response: ContinueResponse;
@@ -443,6 +626,7 @@ export class NightEngine {
     const stories = readyStories(response.queue.items, this.deps.now());
     if (response.outcome === 'ready' && stories.length > 0) {
       this.releaseWaves();
+      this.releaseGap();
       this.stories = stories;
       this.failures = 0;
       this.send({ type: 'continueReady', count: stories.length });
@@ -464,14 +648,24 @@ export class NightEngine {
 
   private stopAudio(): void {
     this.releaseStoryPlayer();
+    this.releaseGap();
     this.releaseWaves();
   }
 
   private releaseStoryPlayer(): void {
     this.storyToken += 1;
+    this.seekTarget = null;
     release(this.storyPlayer, this.storySubscription);
     this.storyPlayer = null;
     this.storySubscription = null;
+  }
+
+  private releaseGap(): void {
+    this.gapToken += 1;
+    release(this.gapPlayer, this.gapSubscription);
+    this.gapPlayer = null;
+    this.gapSubscription = null;
+    this.gap = null;
   }
 
   private releaseWaves(): void {
@@ -489,10 +683,19 @@ export class NightEngine {
   }
 
   private buildView(): NightView {
+    const story = this.stories[this.state.index];
+    const durationSec = story === undefined ? 0 : effectiveDuration(this.nativeDuration, story);
+    const positionSec = this.storyEnded
+      ? durationSec
+      : durationSec > 0
+        ? Math.min(durationSec, Math.max(0, this.position))
+        : Math.max(0, this.position);
     return {
       state: this.state,
       stories: this.stories,
-      positionSec: this.position,
+      positionSec,
+      durationSec,
+      progress: storyProgress(this.position, durationSec, this.storyEnded),
       wavesLeftSec: this.wavesLeft,
       wavesProgress: this.wavesProgress,
     };

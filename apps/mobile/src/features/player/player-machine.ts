@@ -38,6 +38,9 @@ export type PlayerEvent =
   | { readonly type: 'storyEnded' }
   // «Следующая». The state changes exactly as when the story ends.
   | { readonly type: 'nextPressed' }
+  // «Предыдущая» when it goes to the previous story (the restart of the same story is not a
+  // state change). Ignored on the first story.
+  | { readonly type: 'previousPressed' }
   // The waves file played to its end (a native event).
   | { readonly type: 'wavesEnded' }
   | { readonly type: 'continueStarted' }
@@ -97,8 +100,10 @@ function advance(state: PlayerState): PlayerState {
 export function playerReducer(state: PlayerState, event: PlayerEvent): PlayerState {
   switch (event.type) {
     case 'moon':
-    case 'idle':
       return state.mode === 'playing' ? { ...state, mode: 'dim' } : state;
+    case 'idle':
+      // Nobody is falling asleep to a paused story: the interface does not dim by itself then.
+      return state.mode === 'playing' && !state.paused ? { ...state, mode: 'dim' } : state;
     case 'touch':
       // Leaving the dimmed look never pauses or continues anything. During the dimmed waves it
       // shows 3c; only a touch on 3c (`waves`) continues the stories.
@@ -112,6 +117,9 @@ export function playerReducer(state: PlayerState, event: PlayerEvent): PlayerSta
     case 'nextPressed':
       // The button exists only in the player view; a late press in another look is ignored.
       return state.mode === 'playing' ? advance(state) : state;
+    case 'previousPressed':
+      if (state.mode !== 'playing' || state.index === 0) return state;
+      return { ...state, index: state.index - 1, paused: false };
     case 'wavesEnded':
       // While the request is in flight the answer decides, not the end of the file.
       if (!isWaves(state) || state.continuing) return state;

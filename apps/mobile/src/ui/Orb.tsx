@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, G, Mask, Path, RadialGradient, Stop } from 'react-native-svg';
 import {
   colourOpacity,
@@ -9,6 +9,7 @@ import {
   orbLayout,
   type ConicStop,
 } from './orb-geometry';
+import { useReduceMotion } from './use-reduce-motion';
 
 // The sleeping-mind orb from the designs (the intro mark; the player reuses it larger later).
 // Four layers, as in the design: a soft glow, a spinning conic ring, a faint spinning sheen
@@ -199,21 +200,6 @@ export function Orb({ size, dim = false, asleep = false, children }: Props) {
       {decorative ? null : <View style={[styles.layer, styles.content, { width: size, height: size }]}>{children}</View>}
     </View>
   );
-}
-
-// People who turned off animations get a still orb.
-function useReduceMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((value) => {
-      if (alive) setReduced(value);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return reduced;
 }
 
 // 0 to 1 forever, linear: one full turn per `durationMs`.

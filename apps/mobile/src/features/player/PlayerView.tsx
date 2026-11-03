@@ -1,25 +1,30 @@
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { strings, styleCopy } from '../../strings';
 import { colors, spacing } from '../../theme/tokens';
 import { Icon } from '../../ui/icons';
 import { NightBackground } from '../../ui/NightBackground';
 import { Orb } from '../../ui/Orb';
-import { formatDuration } from '../today/plural';
 import { PlayerHeader } from './PlayerHeader';
 import { nextStoryIndex, positionLabel, type PlayerState } from './player-machine';
 import type { PlayerStory } from './player-stories';
+import { SeekBar } from './SeekBar';
 
 type Props = {
   state: PlayerState;
   stories: readonly PlayerStory[];
+  // From the engine's view: position and length in seconds, and the share played (0 to 1).
   positionSec: number;
+  durationSec: number;
+  progress: number;
   onLeave: () => void;
   onDim: () => void;
   onTogglePause: () => void;
   onPrevious: () => void;
   onNext: () => void;
+  // The bar was dragged or tapped (seconds into the story), and any touch on it.
+  onSeek: (seconds: number) => void;
+  onActivity: () => void;
 };
 
 // The player (design 3a): header, the orb, the title with its style, the progress line, the
@@ -29,11 +34,15 @@ export function PlayerView({
   state,
   stories,
   positionSec,
+  durationSec,
+  progress,
   onLeave,
   onDim,
   onTogglePause,
   onPrevious,
   onNext,
+  onSeek,
+  onActivity,
 }: Props) {
   const { height } = useWindowDimensions();
   const orbSize = Math.min(240, Math.round(height * 0.28));
@@ -42,10 +51,10 @@ export function PlayerView({
   const next = nextIndex === null ? null : stories[nextIndex];
   if (story === undefined) return null;
 
-  const total = story.durationSec;
-  const fraction = total > 0 ? Math.min(1, Math.max(0, positionSec / total)) : 0;
-  const elapsed = formatDuration(positionSec);
-  const totalLabel = formatDuration(total);
+  // The bar can be dragged while a story plays: not without a length and not in the pause after a
+  // story (progress is exactly 1 then). A drag while the stream is still opening is harmless: the
+  // engine ignores a seek it cannot make and the thumb goes back to `progress`.
+  const seekable = durationSec > 0 && progress < 1;
 
   return (
     <View style={styles.root}>
@@ -60,29 +69,14 @@ export function PlayerView({
             {story.title}
           </Text>
           <Text style={styles.style}>{styleCopy[story.style].label}</Text>
-          <View
-            accessible
-            accessibilityLabel={strings.player.a11y.progress(elapsed, totalLabel)}
-            style={styles.progressBlock}
-          >
-            <View style={styles.track}>
-              <View style={[styles.fillBox, { width: `${Math.round(fraction * 1000) / 10}%` }]}>
-                <Svg width="100%" height="100%" preserveAspectRatio="none">
-                  <Defs>
-                    <LinearGradient id="playerFill" x1="0" y1="0" x2="1" y2="0">
-                      <Stop offset="0" stopColor={colors.accent} />
-                      <Stop offset="1" stopColor={colors.accentEnd} />
-                    </LinearGradient>
-                  </Defs>
-                  <Rect width="100%" height="100%" fill="url(#playerFill)" fillOpacity={0.8} />
-                </Svg>
-              </View>
-            </View>
-            <View style={styles.times}>
-              <Text style={styles.time}>{elapsed}</Text>
-              <Text style={styles.time}>{totalLabel}</Text>
-            </View>
-          </View>
+          <SeekBar
+            progress={progress}
+            positionSec={positionSec}
+            durationSec={durationSec}
+            enabled={seekable}
+            onSeek={onSeek}
+            onActivity={onActivity}
+          />
           <View style={styles.controls}>
             <Pressable
               accessibilityRole="button"
@@ -119,15 +113,25 @@ export function PlayerView({
           <View style={styles.spacer} />
         ) : (
           <View style={styles.nextWrap}>
-            <View style={styles.nextCard}>
-              <Text style={styles.nextEyebrow}>{strings.player.nextEyebrow}</Text>
-              <Text numberOfLines={2} style={styles.nextTitle}>
-                {next.title}
-              </Text>
-              <Text style={styles.nextMeta}>
-                {strings.player.nextMeta(styleCopy[next.style].label, Math.round(next.durationSec / 60))}
-              </Text>
-            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={strings.player.a11y.nextCard(next.title)}
+              onPress={onNext}
+              style={({ pressed }) => [styles.nextCard, pressed && styles.pressed]}
+            >
+              <View style={styles.nextTexts}>
+                <Text style={styles.nextEyebrow}>{strings.player.nextEyebrow}</Text>
+                <Text numberOfLines={1} style={styles.nextTitle}>
+                  {next.title}
+                </Text>
+                <Text style={styles.nextMeta}>
+                  {strings.player.nextMeta(styleCopy[next.style].label, Math.round(next.durationSec / 60))}
+                </Text>
+              </View>
+              <View style={styles.nextArrow}>
+                <Icon name="chevronRight" size={18} strokeWidth={1.6} />
+              </View>
+            </Pressable>
           </View>
         )}
       </SafeAreaView>
@@ -142,16 +146,6 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: spacing.huge, alignItems: 'center' },
   title: { color: colors.text, fontSize: 29, lineHeight: 35, textAlign: 'center' },
   style: { marginTop: 8, color: colors.muted, fontSize: 15 },
-  progressBlock: { alignSelf: 'stretch', marginTop: 30 },
-  track: {
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: colors.segmentOff,
-    overflow: 'hidden',
-  },
-  fillBox: { position: 'absolute', left: 0, top: 0, bottom: 0 },
-  times: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
-  time: { color: colors.muted, fontSize: 13, fontVariant: ['tabular-nums'] },
   controls: {
     marginTop: 14,
     flexDirection: 'row',
@@ -173,10 +167,22 @@ const styles = StyleSheet.create({
   spacer: { flex: 1 },
   nextWrap: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 24, paddingBottom: 30 },
   nextCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.hairline,
     paddingVertical: spacing.lg,
-    gap: 5,
+  },
+  nextTexts: { flex: 1, minWidth: 0, gap: 5 },
+  nextArrow: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nextEyebrow: {
     color: colors.accent,
