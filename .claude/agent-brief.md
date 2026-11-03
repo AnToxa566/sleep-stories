@@ -15,12 +15,12 @@ Read this file first. It replaces reading AGENTS.md, ARCHITECTURE.md and SECURIT
 | Layers, tags, imports | ARCHITECTURE.md section 3 |
 | API, database, local stack, TLS | section 4 |
 | Tables and ownership | section 5 |
-| Jobs and generation | section 6 |
-| Mobile app, styling, session on the device | section 7 |
+| Jobs and generation, the user-facing queue API, `POST /api/listens` and `/queue/continue` | section 6 |
+| Mobile app, styling, session on the device, the stories player ("The stories player", "The end of the night") | section 7 |
 | Auth | section 8 |
 | Look and copy | section 9 |
 | Rejected and deferred ideas | section 10 |
-| Open problems (not yours to decide) | section 11 |
+| Open problems (not yours to decide); items 14 and 33 cover listens and the limits of continue | section 11 |
 
 ## Rules in one line each (source: AGENTS.md)
 
@@ -34,7 +34,7 @@ Architecture:
 7. Only libraries named in ARCHITECTURE.md. A new dependency needs the owner's approval first.
 8. UI is dark-only, no pure white, Russian copy in one strings module, one primary action per screen.
 9. Anything under "Known open problems" is the owner's decision: stop and ask.
-10. Nothing that costs money starts on its own: `write_story` and `render_audio` are created only by an explicit action of the person (main button, «Создать сейчас», «Повторить»), never by onboarding, the top-up, queue edits or a tap on a topic. Only `suggest_topics` is automatic. 5 generations per person per rolling 24 hours, checked on the server under the `users` row lock (ARCHITECTURE.md section 6, "Generation is explicit"). The queue edits (add, replace, «Другая история») and `GET /api/topics` create no job. `POST /api/queue/collect` («Собрать подборку», a tap) creates only `suggest_topics`, within 3 per 24 hours. `architecture.spec.ts` enforces where story job payloads and the `users` row lock (`lockUserRow`) may be written; on the client `features/today/queue-rule-10.spec.ts` limits where the generate mutations may be named (a text scan; it cannot see an effect inside a component).
+10. Nothing that costs money starts on its own: `write_story` and `render_audio` are created only by an explicit action of the person (main button, «Создать сейчас», «Повторить»), never by onboarding, the top-up, queue edits or a tap on a topic. Only `suggest_topics` is automatic. 5 generations per person per rolling 24 hours, checked on the server under the `users` row lock (ARCHITECTURE.md section 6, "Generation is explicit"). The queue edits (add, replace, «Другая история») and `GET /api/topics` create no job. `POST /api/queue/collect` («Собрать подборку», a tap) and `POST /api/queue/continue` (the tap during the waves in the player) create only `suggest_topics`, within 3 per 24 hours; `POST /api/listens` creates no job. `architecture.spec.ts` enforces where story job payloads and the `users` row lock (`lockUserRow`) may be written; on the client `features/today/queue-rule-10.spec.ts` limits where the generate mutations may be named (a text scan; it cannot see an effect inside a component).
 
 Security:
 1. Provider keys only on the server (Secret Manager, or a git-ignored env file locally). Never in the mobile app, contracts, logs, prompts or error responses.
@@ -59,4 +59,4 @@ Security:
 
 ## Open problems today (run the command in step 3 for the current list)
 
-Audio library for the stories player (expo-audio is decided only for the onboarding voice sample), TTS provider, background audio on iOS, the Prisma CLI's unverified TLS, rotation of the pinned Supabase CA, the Cloud Tasks queue, the Scheduler and the production deployment (job chaining, stuck jobs and double delivery are decided in cycle 3b-1; the handlers and the trigger after onboarding are done in cycle 3b-2; the Scheduler cadence is still open), duplicate listens, account deletion, shutdown hooks, rating placement, orphaned audio, packaging of the built API, quotas and cost control, sign-in providers, email confirmation and account enumeration, session edge cases (item 27), who refills the queue (onboarding and the button «Собрать подборку» are the triggers today; the automatic refill and the Scheduler cadence are open), how the app learns when everything is ready (item 30), two people with one topic and different voices (item 31), how the app learns the allowance (item 32).
+Which audio library the stories player keeps (it is built on expo-audio, with no config plugin and no lock-screen controls; background and lock-screen behaviour is the owner's call), TTS provider, background audio on iOS, the Prisma CLI's unverified TLS, rotation of the pinned Supabase CA, the Cloud Tasks queue, the Scheduler and the production deployment (job chaining, stuck jobs and double delivery are decided in cycle 3b-1; the handlers and the trigger after onboarding are done in cycle 3b-2; the Scheduler cadence is still open), duplicate listens (and a listen lost to a kill), account deletion, shutdown hooks, rating placement, orphaned audio, packaging of the built API, quotas and cost control, sign-in providers, email confirmation and account enumeration, session edge cases (item 27), who refills the queue (onboarding, the button «Собрать подборку» and the tap during the waves are the triggers today; the automatic refill and the Scheduler cadence are open), how the app learns when everything is ready (item 30), two people with one topic and different voices (item 31), how the app learns the allowance (item 32).
