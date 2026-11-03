@@ -15,12 +15,12 @@ Read this file first. It replaces reading AGENTS.md, ARCHITECTURE.md and SECURIT
 | Layers, tags, imports | ARCHITECTURE.md section 3 |
 | API, database, local stack, TLS | section 4 |
 | Tables and ownership | section 5 |
-| Jobs and generation, the user-facing queue API, `POST /api/listens` and `/queue/continue` | section 6 |
+| Jobs and generation, the user-facing queue API, `POST /api/listens`, `/queue/continue` and `/queue/rebuild`; the definition of heard | section 6 |
 | Mobile app, styling, session on the device, the stories player ("The stories player", "The end of the night") | section 7 |
 | Auth | section 8 |
 | Look and copy | section 9 |
 | Rejected and deferred ideas | section 10 |
-| Open problems (not yours to decide); items 14 and 33 cover listens and the limits of continue | section 11 |
+| Open problems (not yours to decide); items 14 and 33 cover listens and the limits of continue and rebuild; 34 and 35 are the owner's thoughts, not decisions | section 11 |
 
 ## Rules in one line each (source: AGENTS.md)
 
@@ -34,7 +34,7 @@ Architecture:
 7. Only libraries named in ARCHITECTURE.md. A new dependency needs the owner's approval first.
 8. UI is dark-only, no pure white, Russian copy in one strings module, one primary action per screen.
 9. Anything under "Known open problems" is the owner's decision: stop and ask.
-10. Nothing that costs money starts on its own: `write_story` and `render_audio` are created only by an explicit action of the person (main button, «Создать сейчас», «Повторить»), never by onboarding, the top-up, queue edits or a tap on a topic. Only `suggest_topics` is automatic. 5 generations per person per rolling 24 hours, checked on the server under the `users` row lock (ARCHITECTURE.md section 6, "Generation is explicit"). The queue edits (add, replace, «Другая история») and `GET /api/topics` create no job. `POST /api/queue/collect` («Собрать подборку», a tap) and `POST /api/queue/continue` (the tap during the waves in the player) create only `suggest_topics`, within 3 per 24 hours; `POST /api/listens` creates no job. `architecture.spec.ts` enforces where story job payloads and the `users` row lock (`lockUserRow`) may be written; on the client `features/today/queue-rule-10.spec.ts` limits where the generate mutations may be named (a text scan; it cannot see an effect inside a component).
+10. Nothing that costs money starts on its own: `write_story` and `render_audio` are created only by an explicit action of the person (main button, «Создать сейчас», «Повторить»), never by onboarding, the top-up, queue edits or a tap on a topic. Only `suggest_topics` is automatic. 5 generations per person per rolling 24 hours, checked on the server under the `users` row lock (ARCHITECTURE.md section 6, "Generation is explicit"). The queue edits (add, replace, «Другая история») and `GET /api/topics` create no job. `POST /api/queue/collect` («Собрать подборку», a tap) and `POST /api/queue/continue` (the tap during the waves in the player) create only `suggest_topics`, within 5 per 24 hours; `POST /api/queue/rebuild` («Пересобрать очередь», a tap) does the same and replaces the whole queue; `POST /api/listens` creates no job and no longer touches the queue. `architecture.spec.ts` enforces where story job payloads and the `users` row lock (`lockUserRow`) may be written; on the client `features/today/queue-rule-10.spec.ts` limits where the generate mutations may be named (a text scan; it cannot see an effect inside a component).
 
 Security:
 1. Provider keys only on the server (Secret Manager, or a git-ignored env file locally). Never in the mobile app, contracts, logs, prompts or error responses.
