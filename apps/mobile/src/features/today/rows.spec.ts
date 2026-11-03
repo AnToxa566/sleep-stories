@@ -23,12 +23,21 @@ describe('deriveRow', () => {
       title: 'Лис и звёздная карта',
       styleLabel: 'Факты',
       state: 'ready',
+      heard: false,
       durationText: '2:31',
       statusLabel: null,
       statusDetail: null,
       action: null,
       statusText: '2:31',
     });
+  });
+
+  it('carries the heard flag of every state, and changes nothing else', () => {
+    for (const item of [ready, notReady, creating, failed]) {
+      const heardRow = deriveRow({ ...item, heard: true });
+      expect(heardRow.heard).toBe(true);
+      expect({ ...heardRow, heard: false }).toEqual(deriveRow(item));
+    }
   });
 
   it('offers the hint sheet on a not-ready item', () => {

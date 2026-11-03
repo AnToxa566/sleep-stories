@@ -13,7 +13,8 @@ const PATHS = {
   // Bottom bar (design frame 2a): moon, compass, sliders.
   moon: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
   compass: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM15.5 8.5l-2 5-5 2 2-5z',
-  sliders: 'M4 7h10M18 7h2M4 17h4M12 17h8M16 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM10 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
+  sliders:
+    'M4 7h10M18 7h2M4 17h4M12 17h8M16 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM10 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
   // Toasts and the item menu (frames 2a·8 to 2a·11).
   close: 'M6 6l12 12M18 6L6 18',
   refresh: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4',
@@ -31,6 +32,12 @@ const PATHS = {
   touch:
     'M10 13V5.5a1.5 1.5 0 0 1 3 0V12M13 11.5a1.5 1.5 0 0 1 3 0V13M16 12.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-1a6 6 0 0 1-4.6-2.2L5 17a1.5 1.5 0 0 1 2.3-1.9L10 18M6.5 6.5a5 5 0 0 1 8-3.5',
   circleDashed: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z',
+  // The small chevron on a filter chip (frame s-topics).
+  chevronDown: 'M7 10l5 5 5-5',
+  // ⋯ of the queue header (frame 2a·16): three dots, drawn as zero-length round-capped strokes
+  // so they stay in one stroked path. The design's dots have a radius of 1.6, so the stroke is
+  // 3.2 wide whatever strokeWidth is asked for.
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
 } as const;
 
 export type IconName = keyof typeof PATHS;
@@ -49,7 +56,7 @@ export function Icon({ name, size = 22, color = colors.textSoft, strokeWidth = 1
       <Path
         d={PATHS[name]}
         stroke={color}
-        strokeWidth={strokeWidth}
+        strokeWidth={name === 'more' ? 3.2 : strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
         // The dashed circle marks a story that is not created yet (frames 2a·6, 2a·8, 2a·9).

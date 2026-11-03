@@ -14,7 +14,7 @@ import type { TopicFilter } from './topic-filter';
 export const topicsUserKey = (userId: string | null) => ['topics', userId] as const;
 
 export const topicsQueryKey = (userId: string | null, filter: TopicFilter) =>
-  ['topics', userId, filter.style, filter.readyOnly] as const;
+  ['topics', userId, filter.style, filter.ready, filter.heard] as const;
 
 // The list with `inQueue` set for the given topics. Used for the optimistic add. Other
 // topics, and the order, are untouched.

@@ -383,3 +383,34 @@ export function useCollectQueue(
     onSettled: () => settle(queryClient, key),
   });
 }
+
+// POST /queue/rebuild: «Пересобрать очередь» in the ⋯ menu of the queue. The server replaces
+// the whole queue with up to 3 unheard stories (ready first, then ones without audio, then the
+// person's own topics); when fewer are found it also tops the queue up (`suggest_topics`,
+// within the daily cap) and the answer may carry `collecting`.
+// It creates no story job and spends no generation (rule 10), but it is an explicit action:
+// call it only from the person's tap. Not optimistic: the screen shows the server's answer.
+// Every topic list is read again afterwards, because the rows' `inQueue` and order changed.
+// `onRebuilt(response)` is for the toast «Пересобрали очередь» (only when the new queue has items).
+export function useRebuildQueue(
+  callbacks: QueueMutationCallbacks & {
+    onRebuilt?: (response: QueueResponse) => void;
+  } = {},
+) {
+  const queryClient = useQueryClient();
+  const key = useQueueKey();
+  const userId = useSessionStore((state) => state.userId);
+  return useMutation<QueueResponse, unknown, void, SnapshotContext>({
+    mutationKey: QUEUE_MUTATION_KEY,
+    mutationFn: () =>
+      apiFetch({ method: 'POST', path: '/queue/rebuild', responseSchema: QueueResponseSchema }),
+    onMutate: onMutateSnapshot(queryClient, key),
+    onSuccess: (response) => {
+      commit(queryClient, key, response);
+      void queryClient.invalidateQueries({ queryKey: topicsUserKey(userId) });
+      callbacks.onRebuilt?.(response);
+    },
+    onError: onErrorRefetch(queryClient, key, callbacks),
+    onSettled: () => settle(queryClient, key),
+  });
+}

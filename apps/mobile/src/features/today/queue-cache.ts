@@ -6,6 +6,7 @@ import { ApiContractError, ApiError, ApiUnavailableError } from '../../api/api-c
 import { strings } from '../../strings';
 import { hasCreating } from './main-button';
 import { removeItem } from './queue-edit';
+import { pluralRu } from './plural';
 
 // Pure helpers for the queue query: the cache key, the polling rule, optimistic cache
 // updates and the error mapping. Nothing here imports React Native, Expo or React, so it is
@@ -34,6 +35,26 @@ export function queueRefetchInterval(data: QueueResponse | undefined): number | 
 // suggestion running (the pool was empty and the daily cap of suggestions is used up).
 export function isNothingToCollect(response: QueueResponse): boolean {
   return response.items.length === 0 && !response.collecting;
+}
+
+// The toast after «Пересобрать очередь»: «Пересобрали очередь» over «3 истории, которые вы ещё
+// не слышали». Null when the new queue is empty: nothing is announced then, and the empty-queue
+// state («Собираем подборку», from `collecting`) speaks for itself. No undo.
+export function rebuiltToast(
+  response: QueueResponse,
+): { readonly label: string; readonly title: string; readonly kind: 'replace' } | null {
+  const count = response.items.length;
+  if (count === 0) return null;
+  const copy = strings.today.rebuilt;
+  return {
+    label: copy.label,
+    title: copy.title(
+      count,
+      pluralRu(count, strings.today.nouns.story),
+      pluralRu(count, copy.which),
+    ),
+    kind: 'replace',
+  };
 }
 
 // The queue without the item (optimistic remove). `generations` is unchanged.

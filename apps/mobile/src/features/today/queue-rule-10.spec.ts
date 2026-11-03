@@ -15,6 +15,10 @@ const GENERATE =
 
 const COLLECT = /useCollectQueue\b|\/queue\/collect/;
 
+// POST /queue/rebuild («Пересобрать очередь» in the ⋯ menu) replaces the queue and may start a
+// topic suggestion, never a story job. A tap, like «Собрать подборку».
+const REBUILD = /useRebuildQueue\b|\/queue\/rebuild/;
+
 const DEFINITION = 'features/today/queue-queries.ts';
 
 // POST /queue/continue (the touch during the waves after the last story) may create at most a
@@ -88,6 +92,20 @@ describe('rule 10 in the mobile app: generate is a tap, never automatic', () => 
     expect(text.slice(start)).not.toMatch(GENERATE);
   });
 
+  it('keeps «Пересобрать очередь» a tap too, and a route that is not a story job route', () => {
+    const offenders = sources
+      .filter((source) => source.path !== DEFINITION && !isScreenOrComponent(source.path))
+      .filter((source) => REBUILD.test(source.text))
+      .map((source) => source.path);
+    expect(offenders).toEqual([]);
+
+    const text = sources.find((source) => source.path === DEFINITION)?.text ?? '';
+    const start = text.indexOf('export function useRebuildQueue');
+    expect(start).toBeGreaterThan(-1);
+    expect(text).toContain("path: '/queue/rebuild'");
+    expect(text.slice(start)).not.toMatch(GENERATE);
+  });
+
   it('names the continue mutation and path only in the player feature', () => {
     const offenders = sources
       .filter((source) => !source.path.startsWith('features/player/'))
@@ -100,19 +118,22 @@ describe('rule 10 in the mobile app: generate is a tap, never automatic', () => 
     expect(text).toContain("path: '/queue/continue'");
   });
 
-  it('keeps the player free of any generate or collect mutation or path', () => {
+  it('keeps the player free of any generate, collect or rebuild mutation or path', () => {
     const own = sources.filter(
       (source) =>
         source.path.startsWith('features/player/') || source.path === 'app/(app)/player.tsx',
     );
     expect(own.length).toBeGreaterThan(0);
     const offenders = own
-      .filter((source) => GENERATE.test(source.text) || COLLECT.test(source.text))
+      .filter(
+        (source) =>
+          GENERATE.test(source.text) || COLLECT.test(source.text) || REBUILD.test(source.text),
+      )
       .map((source) => source.path);
     expect(offenders).toEqual([]);
   });
 
-  it('keeps «Темы» and «Замена» free of any generate or collect mutation', () => {
+  it('keeps «Темы» and «Замена» free of any generate, collect or rebuild mutation', () => {
     const own = sources.filter(
       (source) =>
         source.path.startsWith('features/topics/') ||
@@ -121,7 +142,10 @@ describe('rule 10 in the mobile app: generate is a tap, never automatic', () => 
     );
     expect(own.length).toBeGreaterThan(0);
     const offenders = own
-      .filter((source) => GENERATE.test(source.text) || COLLECT.test(source.text))
+      .filter(
+        (source) =>
+          GENERATE.test(source.text) || COLLECT.test(source.text) || REBUILD.test(source.text),
+      )
       .map((source) => source.path);
     expect(offenders).toEqual([]);
   });

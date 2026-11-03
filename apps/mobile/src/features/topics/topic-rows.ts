@@ -10,6 +10,8 @@ export interface TopicRowView {
   readonly styleLabel: string;
   readonly state: TopicRow['state'];
   readonly inQueue: boolean;
+  // The person has heard this story: the title is muted and the data line ends with «✓ Прослушана».
+  readonly heard: boolean;
   // «2:31» for a ready topic, otherwise null.
   readonly durationText: string | null;
   // The status word of a creating or failed topic, otherwise null.
@@ -28,6 +30,7 @@ export function deriveTopicRow(topic: TopicRow): TopicRowView {
     styleLabel: styleCopy[topic.style].label,
     state: topic.state,
     inQueue: topic.inQueue,
+    heard: topic.heard,
   };
   switch (topic.state) {
     case 'ready':

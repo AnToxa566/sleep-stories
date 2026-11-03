@@ -8,7 +8,7 @@ import { HintSheet } from '../../../features/today/HintSheet';
 import { ItemMenuSheet } from '../../../features/today/ItemMenuSheet';
 import { captionInterests } from '../../../features/today/interest-caption';
 import { deriveMainButton } from '../../../features/today/main-button';
-import { isNothingToCollect } from '../../../features/today/queue-cache';
+import { isNothingToCollect, rebuiltToast } from '../../../features/today/queue-cache';
 import { titleOf } from '../../../features/today/queue-edit';
 import {
   useAnotherStory,
@@ -16,10 +16,12 @@ import {
   useGenerateAll,
   useGenerateOne,
   useQueue,
+  useRebuildQueue,
   useRemoveQueueItem,
   useReorderQueue,
 } from '../../../features/today/queue-queries';
 import { QueueList } from '../../../features/today/QueueList';
+import { QueueMenuSheet } from '../../../features/today/QueueMenuSheet';
 import { deriveHintText, deriveMenu, type MenuView } from '../../../features/today/rows';
 import { TodayMainButton } from '../../../features/today/TodayMainButton';
 import { useCollectingProgress } from '../../../features/today/use-collecting-progress';
@@ -99,6 +101,17 @@ export default function Home() {
     },
   });
   const collectMutate = collect.mutate;
+  // «Пересобрать очередь» (⋯ menu): replaces the queue with unheard stories; a topic suggestion
+  // at most, never a story job. An empty answer shows no toast: the empty-queue state with
+  // «Собираем подборку» (from `collecting`) takes over.
+  const rebuild = useRebuildQueue({
+    onError: showErrorToast,
+    onRebuilt: (response) => {
+      const toast = rebuiltToast(response);
+      if (toast !== null) showToast(toast);
+    },
+  });
+  const rebuildMutate = rebuild.mutate;
   const generateAll = useGenerateAll({ onError: showErrorToast });
   const generateOne = useGenerateOne({ onError: showErrorToast });
   const generating = generateAll.isPending || generateOne.isPending;
@@ -114,6 +127,7 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuSnapshot, setMenuSnapshot] = useState<MenuSnapshot | null>(null);
   const [hintOpen, setHintOpen] = useState(false);
+  const [queueMenuOpen, setQueueMenuOpen] = useState(false);
 
   const openMenu = useCallback((itemId: string) => {
     const current = dataRef.current;
@@ -129,6 +143,8 @@ export default function Home() {
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const openHint = useCallback(() => setHintOpen(true), []);
   const closeHint = useCallback(() => setHintOpen(false), []);
+  const openQueueMenu = useCallback(() => setQueueMenuOpen(true), []);
+  const closeQueueMenu = useCallback(() => setQueueMenuOpen(false), []);
 
   const liveMenuIndex =
     menuSnapshot && items ? items.findIndex((item) => item.id === menuSnapshot.itemId) : -1;
@@ -153,17 +169,27 @@ export default function Home() {
     if (collect.isPending) return;
     collectMutate();
   }, [collect.isPending, collectMutate]);
+  const onQueueMenuRebuild = useCallback(() => {
+    setQueueMenuOpen(false);
+    if (rebuild.isPending) return;
+    rebuildMutate();
+  }, [rebuild.isPending, rebuildMutate]);
   const removeById = useCallback((itemId: string) => removeMutate(itemId), [removeMutate]);
   const reorderIds = useCallback((ids: string[]) => reorderMutate(ids), [reorderMutate]);
 
   // Navigation only: none of these creates a story or spends a generation.
-  // `navigate`, not `push`: «Темы» is a tab, so it is switched to, never stacked. «Добавить»
+  // `navigate`, not `push`: «Темы» is a tab, so it is switched to, never stacked. «Добавить истории»
   // leaves the filter of «Темы» as it was; «готовые истории» asks for «Готовые» through `ready`.
   const openTopics = useCallback(() => router.navigate('/topics'), [router]);
   const openReadyTopics = useCallback(
     () => router.navigate({ pathname: '/topics', params: { ready: '1' } }),
     [router],
   );
+
+  const onQueueMenuAdd = useCallback(() => {
+    setQueueMenuOpen(false);
+    openTopics();
+  }, [openTopics]);
 
   const menuItemId = menuSnapshot?.itemId ?? null;
   const onMenuCreateNow = () => {
@@ -210,7 +236,7 @@ export default function Home() {
           onOpenReady={openReadyTopics}
         />
       ) : null}
-      {hasItems ? <QueueTitle onAdd={openTopics} /> : null}
+      {hasItems ? <QueueTitle onOpenMenu={openQueueMenu} busy={rebuild.isPending} /> : null}
     </View>
   );
 
@@ -262,6 +288,12 @@ export default function Home() {
         onChooseFromTopics={onMenuChooseFromTopics}
         onRemove={onMenuRemove}
       />
+      <QueueMenuSheet
+        visible={queueMenuOpen}
+        onClose={closeQueueMenu}
+        onAdd={onQueueMenuAdd}
+        onRebuild={onQueueMenuRebuild}
+      />
       <HintSheet
         visible={hintOpen}
         onClose={closeHint}
@@ -283,20 +315,22 @@ function Greeting() {
   );
 }
 
-// «Очередь на ночь» and «Добавить», which opens the topics screen.
-function QueueTitle({ onAdd }: { onAdd: () => void }) {
+// «Очередь на ночь» and the ⋯ button, which opens the queue menu (design frames 2a·15, 2a·16).
+// While a rebuild is running the button is inactive and dimmed: a calm busy state.
+function QueueTitle({ onOpenMenu, busy }: { onOpenMenu: () => void; busy: boolean }) {
   return (
     <View style={styles.queueTitleWrap}>
       <View style={styles.queueTitle}>
         <Text style={styles.queueEyebrow}>{strings.today.queue.title}</Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={strings.today.queue.add}
-          onPress={onAdd}
-          style={styles.add}
+          accessibilityLabel={strings.today.queueMenu.open}
+          accessibilityState={{ disabled: busy, busy }}
+          disabled={busy}
+          onPress={onOpenMenu}
+          style={[styles.more, busy && styles.moreBusy]}
         >
-          <Icon name="plus" size={16} color={colors.accent} />
-          <Text style={styles.addLabel}>{strings.today.queue.add}</Text>
+          <Icon name="more" size={20} color={colors.textSoft} />
         </Pressable>
       </View>
       <View style={styles.rule} />
@@ -348,8 +382,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontWeight: '500',
   },
-  add: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  addLabel: { color: colors.textSoft, fontSize: typeSizes.small },
+  // 44 x 44 target; the negative margin keeps the dots on the right edge of the column.
+  more: {
+    width: 44,
+    height: 44,
+    marginRight: -12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreBusy: { opacity: 0.4 },
   rule: { height: 1, backgroundColor: colors.hairline },
   failed: { marginTop: 34, gap: 12 },
   failedTitle: { color: colors.text, fontSize: 21, fontWeight: '500' },

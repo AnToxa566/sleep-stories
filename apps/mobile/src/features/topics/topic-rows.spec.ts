@@ -27,6 +27,14 @@ describe('deriveTopicRow', () => {
     expect(row.statusLabel).toBeNull();
   });
 
+  it('carries the heard flag and changes nothing else', () => {
+    const plain = topic(1, 'ready');
+    const heardRow = deriveTopicRow({ ...plain, heard: true });
+    expect(heardRow.heard).toBe(true);
+    expect(deriveTopicRow(plain).heard).toBe(false);
+    expect({ ...heardRow, heard: false }).toEqual(deriveTopicRow(plain));
+  });
+
   it('offers the hint for a topic that is not ready', () => {
     const row = deriveTopicRow(topic(1, 'not_ready'));
     expect(row).toMatchObject({ hint: true, durationText: null, statusLabel: null });

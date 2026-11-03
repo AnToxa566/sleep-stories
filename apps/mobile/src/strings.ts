@@ -144,7 +144,6 @@ export const strings = {
 
     queue: {
       title: 'Очередь на ночь',
-      add: 'Добавить',
       remove: 'Убрать',
     },
 
@@ -156,6 +155,30 @@ export const strings = {
       creatingEstimate: '~2 мин',
       failed: 'Не удалось',
       retry: 'Повторить',
+      // PASS 2: «✓ Прослушана» in the data line of a queue row (a check icon, then this text).
+      heard: 'Прослушана',
+    },
+
+    // PASS 2: the ⋯ menu of the queue header (design frame 2a·16): a sheet titled
+    // «Очередь на ночь» with two rows. The rebuild row has a subtitle; there is no undo.
+    queueMenu: {
+      open: 'Действия с очередью',
+      title: 'Очередь на ночь',
+      // The design's wording (frame 2a·16).
+      add: 'Добавить истории',
+      rebuild: 'Пересобрать очередь',
+      rebuildHint: 'Только непрослушанные истории',
+    },
+
+    // PASS 2: the toast after «Пересобрать очередь» (design 2a toast, label + title, no «Вернуть»):
+    // «Пересобрали очередь» over «3 истории, которые вы ещё не слышали». The pronoun agrees with
+    // the noun («1 история, которую»), so both are declined by the caller with pluralRu:
+    // rebuilt.title(n, pluralRu(n, nouns.story), pluralRu(n, rebuilt.which)).
+    rebuilt: {
+      label: 'Пересобрали очередь',
+      which: ['которую', 'которые', 'которые'],
+      title: (count: number, storiesNoun: string, whichWord: string) =>
+        `${count} ${storiesNoun}, ${whichWord} вы ещё не слышали`,
     },
 
     menu: {
@@ -220,7 +243,38 @@ export const strings = {
     title: 'Темы',
     chips: {
       all: 'Все',
-      ready: 'Готовые',
+    },
+    // The two filter chips under the heading (design frames s-topics, s-topics-filter, s-replace).
+    // Each opens a sheet with one choice of three. `chip` is the label while the filter is off,
+    // `short` the label of the chip while a choice is on (the chip is then highlighted), and
+    // choosing «Все» resets it.
+    filters: {
+      ready: {
+        chip: 'Готовность',
+        title: 'Готовность',
+        options: {
+          all: 'Все',
+          ready: 'Только готовые',
+          not: 'Только неготовые',
+        },
+        short: {
+          ready: 'Готовые',
+          not: 'Неготовые',
+        },
+      },
+      heard: {
+        chip: 'Прослушивание',
+        title: 'Прослушивание',
+        options: {
+          all: 'Все',
+          new: 'Только непрослушанные',
+          heard: 'Только прослушанные',
+        },
+        short: {
+          new: 'Непрослушанные',
+          heard: 'Прослушанные',
+        },
+      },
     },
     empty: 'Под этот фильтр пока ничего нет',
     row: {
@@ -228,6 +282,8 @@ export const strings = {
       creating: 'Создаётся',
       creatingEstimate: '~2 мин',
       failed: 'Не удалось',
+      // PASS 2: «✓ Прослушана» in the data line of a topic row (a check icon, then this text).
+      heard: 'Прослушана',
     },
     // The plate above the bottom bar: «В очереди: 3» and the link to «Сегодня».
     plate: {

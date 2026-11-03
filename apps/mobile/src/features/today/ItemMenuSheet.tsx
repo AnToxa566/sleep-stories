@@ -25,7 +25,7 @@ type EntryProps = {
   chevron?: boolean;
 };
 
-function Entry({ icon, entry, onPress, tone = 'normal', chevron = false }: EntryProps) {
+export function Entry({ icon, entry, onPress, tone = 'normal', chevron = false }: EntryProps) {
   const dim = !entry.enabled;
   const color = dim ? colors.placeholder : tone === 'accent' ? colors.accent : colors.textSoft;
   // «Создать сейчас · 1 из 3» keeps its detail on the right; the others under the label.

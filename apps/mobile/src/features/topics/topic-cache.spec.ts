@@ -31,9 +31,12 @@ function item(n: number, topicN: number): QueueItem {
 describe('topics cache keys', () => {
   it('separates accounts and filters, and the user key is their prefix', () => {
     expect(topicsUserKey('a')).not.toEqual(topicsUserKey('b'));
-    const key = topicsQueryKey('a', { ...DEFAULT_FILTER, readyOnly: true });
+    const key = topicsQueryKey('a', { ...DEFAULT_FILTER, ready: 'ready' });
     expect(key.slice(0, 2)).toEqual(topicsUserKey('a'));
     expect(key).not.toEqual(topicsQueryKey('a', DEFAULT_FILTER));
+    expect(topicsQueryKey('a', { ...DEFAULT_FILTER, heard: 'new' })).not.toEqual(
+      topicsQueryKey('a', { ...DEFAULT_FILTER, heard: 'heard' }),
+    );
   });
 });
 
@@ -90,7 +93,7 @@ describe('toastForTopicError', () => {
 
 describe('optimistic add and its rollback', () => {
   const filterA = topicsQueryKey('a', DEFAULT_FILTER);
-  const filterB = topicsQueryKey('a', { ...DEFAULT_FILTER, readyOnly: true });
+  const filterB = topicsQueryKey('a', { ...DEFAULT_FILTER, ready: 'ready' });
   const other = topicsQueryKey('b', DEFAULT_FILTER);
 
   function client(): QueryClient {

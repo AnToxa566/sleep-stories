@@ -6,6 +6,7 @@ import {
   queueQueryKey,
   isNothingToCollect,
   queueRefetchInterval,
+  rebuiltToast,
   shouldRefetchAfterError,
   toastForError,
   withOrder,
@@ -114,5 +115,28 @@ describe('shouldRefetchAfterError', () => {
     expect(shouldRefetchAfterError(new ApiError(400, 'validation_failed'))).toBe(false);
     expect(shouldRefetchAfterError(new ApiError(401, 'unauthorized'))).toBe(false);
     expect(shouldRefetchAfterError(new Error('x'))).toBe(false);
+  });
+});
+
+describe('rebuiltToast', () => {
+  const answer = (count: number, collecting = false) => ({
+    items: Array.from({ length: count }, (_, n) => item(n + 1)),
+    collecting,
+    generations: { left: 5, limit: 5 },
+  });
+
+  it('declines the noun and the pronoun with the count', () => {
+    expect(rebuiltToast(answer(1))).toEqual({
+      label: 'Пересобрали очередь',
+      title: '1 история, которую вы ещё не слышали',
+      kind: 'replace',
+    });
+    expect(rebuiltToast(answer(2))?.title).toBe('2 истории, которые вы ещё не слышали');
+    expect(rebuiltToast(answer(3))?.title).toBe('3 истории, которые вы ещё не слышали');
+  });
+
+  it('says nothing for an empty queue, collecting or not', () => {
+    expect(rebuiltToast(answer(0, true))).toBeNull();
+    expect(rebuiltToast(answer(0, false))).toBeNull();
   });
 });

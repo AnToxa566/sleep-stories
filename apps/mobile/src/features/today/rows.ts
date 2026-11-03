@@ -16,6 +16,8 @@ export interface RowView {
   readonly title: string;
   readonly styleLabel: string;
   readonly state: QueueItemState;
+  // The person has heard this story: the title is muted and the data line ends with «✓ Прослушана».
+  readonly heard: boolean;
   // «2:31» for a ready item, otherwise null.
   readonly durationText: string | null;
   // The status word of a creating or failed item («Создаётся», «Не удалось»), otherwise null.
@@ -34,6 +36,7 @@ export function deriveRow(item: QueueItem): RowView {
     title: item.title,
     styleLabel: styleCopy[item.style].label,
     state: item.state,
+    heard: item.heard,
   };
 
   switch (item.state) {

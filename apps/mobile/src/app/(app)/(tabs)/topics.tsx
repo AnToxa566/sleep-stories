@@ -12,6 +12,7 @@ import {
   READY_PARAM,
   filterFromParams,
   readyParamRequested,
+  withReady,
   type TopicFilter,
 } from '../../../features/topics/topic-filter';
 import {
@@ -49,15 +50,15 @@ export default function Topics() {
   const router = useRouter();
   const focused = useIsFocused();
   const params = useLocalSearchParams<{ [READY_PARAM]?: string | string[] }>();
-  // The filter starts from the route («готовые истории» on «Сегодня» opens it with «Готовые»).
+  // The filter starts from the route («готовые истории» on «Сегодня» opens it with «Только готовые»).
   const [filter, setFilter] = useState<TopicFilter>(() => filterFromParams(params[READY_PARAM]));
   const readyParam = params[READY_PARAM];
   // The screen is already mounted when «готовые истории» is tapped, so the parameter arrives
-  // later: turn «Готовые» on and clear it. The effect sets a filter and a route parameter only;
+  // later: choose «Только готовые» and clear it. The effect sets a filter and a route parameter only;
   // it starts nothing and costs nothing (AGENTS.md architecture rule 10).
   useEffect(() => {
     if (!readyParamRequested(readyParam)) return;
-    setFilter((current) => ({ ...current, readyOnly: true }));
+    setFilter((current) => withReady(current, 'ready'));
     // The merge keeps the key with the value undefined, which the hook reports as absent.
     router.setParams({ [READY_PARAM]: undefined });
   }, [readyParam, router]);

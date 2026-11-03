@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { strings } from '../../strings';
 import { colors, minTouchTarget, spacing, typeSizes } from '../../theme/tokens';
+import { HeardMark } from '../../ui/HeardMark';
 import { Icon } from '../../ui/icons';
 import type { TopicRowView } from './topic-rows';
 
@@ -20,7 +21,7 @@ type BodyProps = {
 function TopicRowBody({ view, onOpenHint }: BodyProps) {
   return (
     <View style={styles.texts}>
-      <Text style={styles.title} numberOfLines={1}>
+      <Text style={[styles.title, view.heard && styles.titleHeard]} numberOfLines={1}>
         {view.title}
       </Text>
       <View style={styles.meta}>
@@ -47,6 +48,7 @@ function TopicRowBody({ view, onOpenHint }: BodyProps) {
           </>
         ) : null}
         {view.state === 'failed' ? <Text style={styles.metaText}>{view.statusLabel}</Text> : null}
+        {view.heard ? <HeardMark label={strings.topics.row.heard} /> : null}
       </View>
     </View>
   );
@@ -124,6 +126,8 @@ const styles = StyleSheet.create({
   },
   texts: { flex: 1, minWidth: 0, gap: 5 },
   title: { color: colors.text, fontSize: 17, fontWeight: '500' },
+  // A heard story: the title is quieter, nothing is disabled.
+  titleHeard: { color: colors.muted },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 20 },
   metaText: { color: colors.muted, fontSize: typeSizes.small, fontVariant: ['tabular-nums'] },
   hint: { flexDirection: 'row', alignItems: 'center', gap: 5 },
