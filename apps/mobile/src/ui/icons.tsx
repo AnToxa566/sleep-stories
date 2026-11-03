@@ -25,6 +25,11 @@ const PATHS = {
   // «Создать и начать» and the empty-state actions (frames 2a, 2a·3, 2a·4): a four-point spark.
   sparkle:
     'M12 3.5c.6 4.6 3.9 7.9 8.5 8.5-4.6.6-7.9 3.9-8.5 8.5-.6-4.6-3.9-7.9-8.5-8.5 4.6-.6 7.9-3.9 8.5-8.5z',
+  // The player (frame 3a): previous and next story, and the hand of «Нажмите в любом месте» (3c).
+  skipPrevious: 'M6 5v14M18 5.5l-9 6.5 9 6.5z',
+  skipNext: 'M18 5v14M6 5.5l9 6.5-9 6.5z',
+  touch:
+    'M10 13V5.5a1.5 1.5 0 0 1 3 0V12M13 11.5a1.5 1.5 0 0 1 3 0V13M16 12.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-1a6 6 0 0 1-4.6-2.2L5 17a1.5 1.5 0 0 1 2.3-1.9L10 18M6.5 6.5a5 5 0 0 1 8-3.5',
   circleDashed: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z',
 } as const;
 

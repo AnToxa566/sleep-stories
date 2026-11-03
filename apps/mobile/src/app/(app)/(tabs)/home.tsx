@@ -185,7 +185,11 @@ export default function Home() {
 
   const mainView = data ? deriveMainButton(data.items, data.generations) : null;
   const onMainPress = () => {
-    // «Начать» does nothing yet (playback is not built); only 'generate-all' costs money.
+    // «Начать» opens the player on the ready items (it costs nothing); only 'generate-all' costs money.
+    if (mainView?.action === 'start-player') {
+      router.push('/player');
+      return;
+    }
     if (mainView?.action !== 'generate-all' || generating) return;
     generateAllMutate(undefined, {
       onSuccess: () => showToast({ label: strings.today.toasts.creating, kind: 'create' }),

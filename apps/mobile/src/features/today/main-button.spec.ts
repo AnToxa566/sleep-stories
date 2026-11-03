@@ -44,13 +44,13 @@ describe('deriveMainButton', () => {
     expect(deriveMainButton([item('creating'), item('failed')], gens(0))?.kind).toBe('creating');
   });
 
-  it('offers «Начать» that does nothing when everything is ready', () => {
+  it('offers «Начать», which opens the player, when everything is ready', () => {
     const view = deriveMainButton([item('ready', 151), item('ready', 184), item('ready', 203)], gens(2));
     expect(view).toMatchObject({
       kind: 'start',
       label: 'Начать',
       disabled: false,
-      action: 'none',
+      action: 'start-player',
       showsProgress: false,
     });
     // (151 + 184 + 203) / 60 = 8.97 -> 9

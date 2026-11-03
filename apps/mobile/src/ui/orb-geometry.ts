@@ -74,3 +74,35 @@ export function conicWedges(options: {
   }
   return wedges;
 }
+
+// Sizes and offsets of the Orb layers, from the design (glow inset -20%, sheen inset 3%, dark
+// disc inset 11%). The disc never changes size; only the coloured layers breathe.
+export function orbLayout(size: number) {
+  return {
+    glowSize: size * 1.4,
+    glowOffset: -size * 0.2,
+    sheenSize: size * 0.94,
+    sheenOffset: size * 0.03,
+    discRadius: size * 0.39,
+  };
+}
+
+// Opacity of the whole coloured part (glow, ring, sheen): 3a full, 3b dimmed, 3d gone.
+// `asleep` wins over `dim`.
+export const ORB_DIM_OPACITY = 0.18;
+export function colourOpacity(state: { dim?: boolean; asleep?: boolean }): number {
+  if (state.asleep) return 0;
+  return state.dim ? ORB_DIM_OPACITY : 1;
+}
+
+// How the coloured layers breathe and shimmer. The scale is applied to the coloured group
+// only (never the disc); the glow's own opacity drifts between the two values, so the colour
+// seems to shimmer. Periods differ so the layers do not move in step.
+export const ORB_BREATH = {
+  scaleMax: 1.07,
+  breatheMs: 7_000,
+  glowOpacity: { min: 0.28, max: 0.5 },
+  glowShimmerMs: 5_000,
+  sheenOpacity: { min: 0.55, max: 1 },
+  sheenShimmerMs: 3_500,
+} as const;

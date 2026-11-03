@@ -1,4 +1,14 @@
-import { colorAt, conicWedges, hexToRgba, toRgbaString, type ConicStop } from './orb-geometry';
+import {
+  colorAt,
+  colourOpacity,
+  conicWedges,
+  hexToRgba,
+  ORB_BREATH,
+  ORB_DIM_OPACITY,
+  orbLayout,
+  toRgbaString,
+  type ConicStop,
+} from './orb-geometry';
 
 const redToBlue: ConicStop[] = [
   { at: 0, color: hexToRgba('#FF0000') },
@@ -60,5 +70,44 @@ describe('conicWedges', () => {
   it('widens wedges by overlapDeg so an opaque ring has no seams', () => {
     const wedges = conicWedges({ stops: redToBlue, count: 4, cx: 50, cy: 50, radius: 40, overlapDeg: 1 });
     expect(wedges[0].d).not.toBe('M 50 50 L 50.00 10.00 A 40 40 0 0 1 90.00 50.00 Z');
+  });
+});
+
+describe('orbLayout', () => {
+  it('keeps the design proportions', () => {
+    const l = orbLayout(100);
+    expect(l.glowSize).toBeCloseTo(140);
+    expect(l.glowOffset).toBeCloseTo(-20);
+    expect(l.sheenSize).toBeCloseTo(94);
+    expect(l.sheenOffset).toBeCloseTo(3);
+    expect(l.discRadius).toBeCloseTo(39);
+  });
+
+  it('scales the disc with size only, never with the breathing', () => {
+    expect(orbLayout(200).discRadius).toBeCloseTo(orbLayout(100).discRadius * 2);
+  });
+});
+
+describe('colourOpacity', () => {
+  it('is full by default, dimmed for dim and gone for asleep', () => {
+    expect(colourOpacity({})).toBe(1);
+    expect(colourOpacity({ dim: true })).toBe(ORB_DIM_OPACITY);
+    expect(colourOpacity({ asleep: true })).toBe(0);
+  });
+
+  it('lets asleep win over dim', () => {
+    expect(colourOpacity({ dim: true, asleep: true })).toBe(0);
+  });
+});
+
+describe('ORB_BREATH', () => {
+  it('breathes by a small amount and shimmers inside 0..1', () => {
+    expect(ORB_BREATH.scaleMax).toBeGreaterThan(1);
+    expect(ORB_BREATH.scaleMax).toBeLessThan(1.15);
+    for (const range of [ORB_BREATH.glowOpacity, ORB_BREATH.sheenOpacity]) {
+      expect(range.min).toBeGreaterThan(0);
+      expect(range.max).toBeLessThanOrEqual(1);
+      expect(range.min).toBeLessThan(range.max);
+    }
   });
 });

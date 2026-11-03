@@ -18,8 +18,9 @@ export interface MainButtonView {
   readonly label: string;
   readonly disabled: boolean;
   // 'generate-all' is the ONLY action that may start paid generation from this button
-  // (AGENTS.md architecture rule 10). 'none' does nothing; «Начать» does nothing yet.
-  readonly action: 'none' | 'generate-all';
+  // (AGENTS.md architecture rule 10). 'start-player' opens the player with the ready items of the
+  // queue and costs nothing. 'none' does nothing.
+  readonly action: 'none' | 'generate-all' | 'start-player';
   // True while the progress fill is shown (kind 'creating').
   readonly showsProgress: boolean;
   readonly caption: MainButtonCaption;
@@ -69,7 +70,7 @@ export function deriveMainButton(
       kind: 'start',
       label: copy.mainButton.start,
       disabled: false,
-      action: 'none',
+      action: 'start-player',
       showsProgress: false,
       caption: plainCaption(
         copy.captions.allReady(

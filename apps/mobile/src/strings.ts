@@ -254,6 +254,36 @@ export const strings = {
     confirm: 'Заменить',
   },
 
+  // The stories player (design frames 3a to 3d).
+  player: {
+    // «Дальше» card under the controls.
+    nextEyebrow: 'Дальше',
+    // «История · 3 мин»
+    nextMeta: (styleLabel: string, minutes: number) => `${styleLabel} · ${minutes} мин`,
+    // 3c: the waves, and the touch that continues.
+    wavesTitle: 'Вы спите?',
+    wavesBody: 'Если нет — коснитесь экрана в любом месте, и истории продолжатся',
+    wavesTap: 'Нажмите в любом месте',
+    // Shown instead of the hint while the request for more stories is in flight.
+    continuing: 'Ищем истории…',
+    // 3d: the only text of the asleep screen (the design's «Засыпаю» label is not used).
+    asleep: 'Спокойной ночи',
+    // Toast on «Сегодня» when a touch during the waves found nothing ready.
+    noneReady: 'Готовых историй не нашлось — нужна генерация',
+    a11y: {
+      leave: 'Выйти из плеера',
+      dim: 'Приглушить экран',
+      previous: 'Сначала',
+      next: 'Следующая история',
+      play: 'Играть',
+      pause: 'Пауза',
+      progress: (elapsed: string, total: string) => `${elapsed} из ${total}`,
+      undim: 'Вернуться к плееру',
+      continueStories: 'Продолжить истории',
+      wake: 'Перейти на «Сегодня»',
+    },
+  },
+
   gate: {
     errorTitle: 'Не удалось загрузить данные',
     errorBody: 'Проверьте интернет и повторите',

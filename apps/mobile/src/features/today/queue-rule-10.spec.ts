@@ -17,6 +17,11 @@ const COLLECT = /useCollectQueue\b|\/queue\/collect/;
 
 const DEFINITION = 'features/today/queue-queries.ts';
 
+// POST /queue/continue (the touch during the waves after the last story) may create at most a
+// topic suggestion on the server. Only the player feature may name it.
+const CONTINUE = /useContinueQueue\b|\/queue\/continue/;
+const PLAYER_QUERIES = 'features/player/player-queries.ts';
+
 // A user action may call the mutations: the screen and the components under features/today.
 function isScreenOrComponent(path: string): boolean {
   return path === 'app/(app)/(tabs)/home.tsx' || (path.startsWith('features/today/') && path.endsWith('.tsx'));
@@ -81,6 +86,30 @@ describe('rule 10 in the mobile app: generate is a tap, never automatic', () => 
     expect(text).toContain("path: '/queue/collect'");
     // From the hook to the end of the module: no story job route may be named there.
     expect(text.slice(start)).not.toMatch(GENERATE);
+  });
+
+  it('names the continue mutation and path only in the player feature', () => {
+    const offenders = sources
+      .filter((source) => !source.path.startsWith('features/player/'))
+      .filter((source) => CONTINUE.test(source.text))
+      .map((source) => source.path);
+    expect(offenders).toEqual([]);
+
+    const text = sources.find((source) => source.path === PLAYER_QUERIES)?.text ?? '';
+    expect(text).toMatch(/export function useContinueQueue\b/);
+    expect(text).toContain("path: '/queue/continue'");
+  });
+
+  it('keeps the player free of any generate or collect mutation or path', () => {
+    const own = sources.filter(
+      (source) =>
+        source.path.startsWith('features/player/') || source.path === 'app/(app)/player.tsx',
+    );
+    expect(own.length).toBeGreaterThan(0);
+    const offenders = own
+      .filter((source) => GENERATE.test(source.text) || COLLECT.test(source.text))
+      .map((source) => source.path);
+    expect(offenders).toEqual([]);
   });
 
   it('keeps «Темы» and «Замена» free of any generate or collect mutation', () => {
