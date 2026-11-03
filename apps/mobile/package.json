@@ -16,6 +16,7 @@
     "expo-audio": "*",
     "expo-crypto": "*",
     "expo-file-system": "*",
+    "expo-keep-awake": "*",
     "expo-linking": "*",
     "expo-router": "*",
     "expo-secure-store": "*",
