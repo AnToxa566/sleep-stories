@@ -9,6 +9,7 @@
     "@expo/metro": "*",
     "@expo/vector-icons": "*",
     "@hookform/resolvers": "*",
+    "@react-native-community/slider": "*",
     "@supabase/supabase-js": "*",
     "@tanstack/react-query": "*",
     "@testing-library/react-native": "*",
