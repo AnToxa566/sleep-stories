@@ -17,6 +17,7 @@
     "expo": "*",
     "expo-audio": "*",
     "expo-crypto": "*",
+    "expo-dev-client": "*",
     "expo-file-system": "*",
     "expo-font": "*",
     "expo-keep-awake": "*",
