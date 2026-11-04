@@ -1,18 +1,18 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type Animated } from 'react-native';
 import { Text } from '../../ui/typography';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { strings } from '../../strings';
 import { colors, radii, sizes, typeSizes } from '../../theme/tokens';
 import { Icon } from '../../ui/icons';
 import { PrimaryButton } from '../../ui/PrimaryButton';
 import { SecondaryButton } from '../../ui/SecondaryButton';
 import { SkeletonRows } from '../../ui/SkeletonRows';
+import { ProgressFill } from './ProgressFill';
 
 type Props = {
   // The server says a topic suggestion is running (`collecting` in the queue answer).
   collecting: boolean;
-  // 0..1, the estimated fill of the «Собираем…» pill.
-  progress: number;
+  // 0..1, the fake fill of the «Собираем…» pill.
+  progress: Animated.Value;
   // «Три истории на темы: …», or null while the interests load or when there are none.
   caption: string | null;
   // True while the request of «Собрать подборку» is in flight.
@@ -55,17 +55,7 @@ export function EmptyQueue({
             accessibilityState={{ disabled: true, busy: true }}
             style={styles.pill}
           >
-            <View style={[styles.fillBox, { width: `${Math.round(progress * 100)}%` }]}>
-              <Svg width="100%" height="100%" preserveAspectRatio="none">
-                <Defs>
-                  <LinearGradient id="collectingFill" x1="0" y1="0" x2="1" y2="0">
-                    <Stop offset="0" stopColor={colors.accent} stopOpacity={0.16} />
-                    <Stop offset="1" stopColor={colors.accentEnd} stopOpacity={0.26} />
-                  </LinearGradient>
-                </Defs>
-                <Rect width="100%" height="100%" fill="url(#collectingFill)" />
-              </Svg>
-            </View>
+            <ProgressFill progress={progress} gradientId="collectingFill" />
             <Text style={styles.pillLabel}>{copy.collectingPill}</Text>
           </View>
         </>
@@ -109,7 +99,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fillBox: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   pillLabel: { color: colors.textSoft, fontSize: typeSizes.input, fontWeight: '500' },
   actions: { marginTop: 28, gap: 12 },
   caption: {

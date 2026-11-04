@@ -40,9 +40,9 @@ describe('deriveTopicRow', () => {
     expect(row).toMatchObject({ hint: true, durationText: null, statusLabel: null });
   });
 
-  it('shows «Создаётся · ~2 мин» for a topic being made', () => {
+  it('shows «Создаётся · ~3 мин» for a topic being made', () => {
     const row = deriveTopicRow(topic(1, 'creating'));
-    expect(row).toMatchObject({ statusLabel: 'Создаётся', statusDetail: '~2 мин', hint: false });
+    expect(row).toMatchObject({ statusLabel: 'Создаётся', statusDetail: '~3 мин', hint: false });
   });
 
   it('shows plain «Не удалось» for a failed topic, with no action', () => {

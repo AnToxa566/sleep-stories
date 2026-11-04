@@ -22,7 +22,7 @@ export interface RowView {
   readonly durationText: string | null;
   // The status word of a creating or failed item («Создаётся», «Не удалось»), otherwise null.
   readonly statusLabel: string | null;
-  // «~2 мин» for a creating item, otherwise null.
+  // «~3 мин» for a creating item, otherwise null.
   readonly statusDetail: string | null;
   readonly action: RowAction | null;
   // One line for the menu header: «Факты · Не готова».

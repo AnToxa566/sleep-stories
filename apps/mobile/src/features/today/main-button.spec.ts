@@ -37,7 +37,7 @@ describe('deriveMainButton', () => {
       action: 'none',
       showsProgress: true,
     });
-    expect(view?.caption).toEqual({ text: 'Начнём сами, когда всё будет готово', link: null });
+    expect(view?.caption).toEqual({ text: 'Когда всё будет готово, можно начинать', link: null });
   });
 
   it('creating wins over a shortage', () => {
@@ -67,25 +67,25 @@ describe('deriveMainButton', () => {
   it('starts generating all when the allowance covers it', () => {
     const view = deriveMainButton([item('ready'), item('not_ready'), item('failed')], gens(3));
     expect(view).toMatchObject({
-      kind: 'create-and-start',
-      label: 'Создать и начать',
+      kind: 'create',
+      label: 'Создать',
       disabled: false,
       action: 'generate-all',
     });
-    expect(view?.caption.text).toBe('Займёт ~2 мин · 2 генерации из 3 оставшихся');
+    expect(view?.caption.text).toBe('Займёт ~3 мин · 2 генерации из 3 оставшихся');
   });
 
   it('allows exactly enough generations and agrees with a single remaining one', () => {
     const view = deriveMainButton([item('not_ready')], gens(1));
     expect(view?.action).toBe('generate-all');
-    expect(view?.caption.text).toBe('Займёт ~2 мин · 1 генерация из 1 оставшейся');
+    expect(view?.caption.text).toBe('Займёт ~3 мин · 1 генерация из 1 оставшейся');
   });
 
   it('is inactive with a shortage caption and a «готовые истории» link when left < need', () => {
     const view = deriveMainButton([item('ready'), item('not_ready'), item('not_ready')], gens(1));
     expect(view).toMatchObject({
       kind: 'create-blocked',
-      label: 'Создать и начать',
+      label: 'Создать',
       disabled: true,
       action: 'none',
     });

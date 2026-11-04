@@ -54,7 +54,7 @@ describe('strings', () => {
       'Темы',
       'Настройки',
     ]);
-    expect(strings.today.mainButton.createAndStart).toBe('Создать и начать');
+    expect(strings.today.mainButton.create).toBe('Создать');
     expect(strings.today.empty.collectButton).toBe('Собрать подборку');
     expect(strings.today.empty.chooseButton).toBe('Выбрать истории');
     expect(strings.today.empty.collectingPill).toBe('Собираем…');
@@ -62,7 +62,7 @@ describe('strings', () => {
       'Три истории на темы: космос, мифы',
     );
     expect(strings.today.errors.nothingToCollect).toBe('Пока не из чего собрать. Загляните позже');
-    expect(strings.today.captions.creating).toBe('Начнём сами, когда всё будет готово');
+    expect(strings.today.captions.creating).toBe('Когда всё будет готово, можно начинать');
     expect(strings.today.errors.notEnoughGenerations).toBe('Генераций не хватает');
   });
 });

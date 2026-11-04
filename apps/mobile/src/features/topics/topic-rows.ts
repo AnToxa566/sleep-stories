@@ -16,7 +16,7 @@ export interface TopicRowView {
   readonly durationText: string | null;
   // The status word of a creating or failed topic, otherwise null.
   readonly statusLabel: string | null;
-  // «~2 мин» for a creating topic, otherwise null.
+  // «~3 мин» for a creating topic, otherwise null.
   readonly statusDetail: string | null;
   // True for «Не готова»: the row offers the hint sheet.
   readonly hint: boolean;

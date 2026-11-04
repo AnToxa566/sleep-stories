@@ -42,7 +42,7 @@ import { ToastHost } from '../../../ui/ToastHost';
 // screen stays mounted while «Темы» is open (so its toasts show only while it is focused).
 //
 // MONEY (AGENTS.md architecture rule 10): `generateAll` and `generateOne` are called only from
-// press handlers below: the main button («Создать и начать»), «Создать сейчас» in the item menu
+// press handlers below: the main button («Создать»), «Создать сейчас» in the item menu
 // and «Повторить» on a failed row. No effect, mount, poll or timer on this screen calls them.
 
 const showErrorToast = (message: string) => showToast({ label: message });

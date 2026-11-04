@@ -120,18 +120,18 @@ export const strings = {
 
     mainButton: {
       start: 'Начать',
-      createAndStart: 'Создать и начать',
+      create: 'Создать',
       creating: 'Создаётся…',
     },
 
     captions: {
-      creating: 'Начнём сами, когда всё будет готово',
+      creating: 'Когда всё будет готово, можно начинать',
       // «3 истории · 12 мин»
       allReady: (count: number, storiesNoun: string, minutes: number) =>
         `${count} ${storiesNoun} · ${minutes} мин`,
-      // «Займёт ~2 мин · 2 генерации из 3 оставшихся»
+      // «Займёт ~3 мин · 2 генерации из 3 оставшихся»
       willCreate: (need: number, generationsNoun: string, left: number, remainingWord: string) =>
-        `Займёт ~2 мин · ${need} ${generationsNoun} из ${left} ${remainingWord}`,
+        `Займёт ~3 мин · ${need} ${generationsNoun} из ${left} ${remainingWord}`,
       remainingOne: 'оставшейся',
       remainingMany: 'оставшихся',
       // «Нужно 3 генерации, осталось 1. Можно выбрать готовые истории.»
@@ -152,7 +152,7 @@ export const strings = {
       position: (position: string) => `История ${position}`,
       notReady: 'Не готова',
       creating: 'Создаётся',
-      creatingEstimate: '~2 мин',
+      creatingEstimate: '~3 мин',
       failed: 'Не удалось',
       retry: 'Повторить',
       // PASS 2: «✓ Прослушана» in the data line of a queue row (a check icon, then this text).
@@ -195,7 +195,7 @@ export const strings = {
       title: 'Эта история ещё не готова',
       dismiss: 'Понятно',
       body: (left: number, limit: number) =>
-        `Её нужно создать — это займёт 1–2 минуты и потратит 1 генерацию. Сейчас осталось ${left} из ${limit}.`,
+        `Её нужно создать — это займёт около 3 минут и потратит 1 генерацию. Сейчас осталось ${left} из ${limit}.`,
     },
 
     toasts: {
@@ -280,7 +280,7 @@ export const strings = {
     row: {
       notReady: 'Не готова',
       creating: 'Создаётся',
-      creatingEstimate: '~2 мин',
+      creatingEstimate: '~3 мин',
       failed: 'Не удалось',
       // PASS 2: «✓ Прослушана» in the data line of a topic row (a check icon, then this text).
       heard: 'Прослушана',

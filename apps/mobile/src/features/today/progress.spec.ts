@@ -1,59 +1,80 @@
-import type { QueueItem } from '@sleep-stories/contracts';
-import { estimateProgress, nextCollectingSince, nextCreatingSince, PROGRESS_CAP } from './progress';
-
-const ID = '00000000-0000-4000-8000-000000000001';
-const item = (state: 'creating' | 'not_ready'): QueueItem => ({
-  id: ID,
-  topicId: ID,
-  title: 'Тема',
-  style: 'facts',
-  heard: false,
-  state,
-});
+import {
+  COLLECT_FAKE_MS,
+  estimateProgress,
+  GENERATION_FAKE_MS,
+  nextSinceTrack,
+  PROGRESS_CAP,
+  PROGRESS_CREEP,
+  SINCE_GRACE_MS,
+  type SinceTrack,
+} from './progress';
 
 describe('estimateProgress', () => {
-  it('starts at zero and never goes below it', () => {
-    expect(estimateProgress(1000, 1000)).toBe(0);
-    expect(estimateProgress(1000, 0)).toBe(0);
-    expect(estimateProgress(Number.NaN, 1000)).toBe(0);
+  it('uses the agreed durations and cap', () => {
+    expect(GENERATION_FAKE_MS).toBe(180_000);
+    expect(COLLECT_FAKE_MS).toBe(30_000);
+    expect(PROGRESS_CAP).toBe(0.95);
   });
 
-  it('rises monotonically and stays under the cap', () => {
-    let previous = 0;
-    for (let seconds = 1; seconds <= 3600; seconds += 7) {
-      const value = estimateProgress(0, seconds * 1000);
-      expect(value).toBeGreaterThanOrEqual(previous);
-      expect(value).toBeLessThanOrEqual(PROGRESS_CAP);
-      previous = value;
-    }
-    expect(PROGRESS_CAP).toBe(0.92);
-    expect(estimateProgress(0, 10 * 3600 * 1000)).toBeCloseTo(PROGRESS_CAP, 5);
+  it('starts at zero and bad input gives zero', () => {
+    expect(estimateProgress(1000, 1000, 30_000)).toBe(0);
+    expect(estimateProgress(1000, 0, 30_000)).toBe(0);
+    expect(estimateProgress(Number.NaN, 1000, 30_000)).toBe(0);
+    expect(estimateProgress(0, Number.POSITIVE_INFINITY, 30_000)).toBe(0);
+    expect(estimateProgress(0, 1000, 0)).toBe(0);
+    expect(estimateProgress(0, 1000, -5)).toBe(0);
+    expect(estimateProgress(0, 1000, Number.NaN)).toBe(0);
   });
 
-  it('is well on its way after the promised ~2 minutes', () => {
-    const value = estimateProgress(0, 120_000);
-    expect(value).toBeGreaterThan(0.7);
-    expect(value).toBeLessThan(PROGRESS_CAP);
+  it.each([COLLECT_FAKE_MS, GENERATION_FAKE_MS])(
+    'is monotonic, near the cap at %i ms and never reaches 1',
+    (duration) => {
+      let previous = 0;
+      for (let ms = 0; ms <= duration * 20; ms += duration / 100) {
+        const value = estimateProgress(0, ms, duration);
+        expect(value).toBeGreaterThanOrEqual(previous);
+        expect(value).toBeLessThan(PROGRESS_CAP + PROGRESS_CREEP);
+        previous = value;
+      }
+      expect(estimateProgress(0, duration, duration)).toBeCloseTo(PROGRESS_CAP, 6);
+      expect(estimateProgress(0, duration * 1000, duration)).toBeLessThan(1);
+      expect(estimateProgress(0, duration * 1000, duration)).toBeGreaterThan(PROGRESS_CAP);
+    },
+  );
+
+  it('moves visibly all the way to the stated time (no stall after the first seconds)', () => {
+    // Every quarter second in the last 20 s before the cap still gains something.
+    const before = estimateProgress(0, GENERATION_FAKE_MS - 20_250, GENERATION_FAKE_MS);
+    const after = estimateProgress(0, GENERATION_FAKE_MS - 20_000, GENERATION_FAKE_MS);
+    expect(after).toBeGreaterThan(before);
+    // The fill is already well on its way after a third of the time.
+    expect(estimateProgress(0, GENERATION_FAKE_MS / 3, GENERATION_FAKE_MS)).toBeGreaterThan(0.5);
   });
 });
 
-describe('nextCreatingSince', () => {
-  it('starts when a creating item first appears and keeps the earlier time', () => {
-    expect(nextCreatingSince(null, [item('creating')], 500)).toBe(500);
-    expect(nextCreatingSince(200, [item('creating')], 500)).toBe(200);
+describe('nextSinceTrack', () => {
+  const track = (since: number, lastActive: number): SinceTrack => ({ since, lastActive });
+
+  it('starts at the first sighting and keeps the earlier start while active', () => {
+    expect(nextSinceTrack(null, true, 500)).toEqual({ since: 500, lastActive: 500 });
+    expect(nextSinceTrack(track(200, 300), true, 900)).toEqual({ since: 200, lastActive: 900 });
   });
 
-  it('resets when nothing is creating', () => {
-    expect(nextCreatingSince(200, [item('not_ready')], 500)).toBeNull();
-    expect(nextCreatingSince(null, [], 500)).toBeNull();
+  it('keeps the start through a brief gap (a refetch or poll without the creating item)', () => {
+    const gap = nextSinceTrack(track(200, 1000), false, 1000 + SINCE_GRACE_MS);
+    expect(gap).toEqual(track(200, 1000));
+    // ...and the same fill goes on when the item comes back.
+    expect(nextSinceTrack(gap, true, 1000 + SINCE_GRACE_MS + 10)?.since).toBe(200);
   });
-});
 
-describe('nextCollectingSince', () => {
-  it('starts when collecting is first seen, keeps the time, resets when it stops', () => {
-    expect(nextCollectingSince(null, true, 500)).toBe(500);
-    expect(nextCollectingSince(500, true, 900)).toBe(500);
-    expect(nextCollectingSince(500, false, 900)).toBeNull();
-    expect(nextCollectingSince(null, false, 900)).toBeNull();
+  it('starts over only after nothing was active for longer than the grace', () => {
+    expect(nextSinceTrack(track(200, 1000), false, 1000 + SINCE_GRACE_MS + 1)).toBeNull();
+    expect(nextSinceTrack(null, false, 5000)).toBeNull();
+    const fresh = nextSinceTrack(null, true, 20_000);
+    expect(fresh?.since).toBe(20_000);
+  });
+
+  it('does not reset a running fill after a long silence while still active (background)', () => {
+    expect(nextSinceTrack(track(200, 300), true, 600_000)?.since).toBe(200);
   });
 });

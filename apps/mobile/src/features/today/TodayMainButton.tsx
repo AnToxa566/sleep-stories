@@ -1,15 +1,15 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type Animated } from 'react-native';
 import { Text } from '../../ui/typography';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { colors, radii, sizes, typeSizes } from '../../theme/tokens';
 import { Icon } from '../../ui/icons';
 import { PrimaryButton } from '../../ui/PrimaryButton';
 import type { MainButtonView } from './main-button';
+import { ProgressFill } from './ProgressFill';
 
 type Props = {
   view: MainButtonView;
-  // 0..1, the estimated fill of the «Создаётся…» button.
-  progress: number;
+  // 0..1, the fake fill of the «Создаётся…» button.
+  progress: Animated.Value;
   // True while the request of the main button is in flight.
   busy: boolean;
   onPress: () => void;
@@ -22,7 +22,7 @@ type Props = {
 // pill with a growing fill while creating, a dim outlined pill when the allowance is short.
 // The caption's «готовые истории» link opens the topics screen on the ready filter.
 export function TodayMainButton({ view, progress, busy, onPress, onOpenReady }: Props) {
-  const active = view.kind === 'start' || view.kind === 'create-and-start';
+  const active = view.kind === 'start' || view.kind === 'create';
   return (
     <View style={styles.wrap}>
       {active ? (
@@ -39,19 +39,7 @@ export function TodayMainButton({ view, progress, busy, onPress, onOpenReady }: 
           accessibilityState={{ disabled: true, busy: view.showsProgress }}
           style={styles.outlined}
         >
-          {view.showsProgress ? (
-            <View style={[styles.fillBox, { width: `${Math.round(progress * 100)}%` }]}>
-              <Svg width="100%" height="100%" preserveAspectRatio="none">
-                <Defs>
-                  <LinearGradient id="creatingFill" x1="0" y1="0" x2="1" y2="0">
-                    <Stop offset="0" stopColor={colors.accent} stopOpacity={0.16} />
-                    <Stop offset="1" stopColor={colors.accentEnd} stopOpacity={0.26} />
-                  </LinearGradient>
-                </Defs>
-                <Rect width="100%" height="100%" fill="url(#creatingFill)" />
-              </Svg>
-            </View>
-          ) : null}
+          {view.showsProgress ? <ProgressFill progress={progress} gradientId="creatingFill" /> : null}
           {view.kind === 'create-blocked' ? (
             <Icon name="sparkle" size={18} color={colors.placeholder} strokeWidth={1.8} />
           ) : null}
@@ -87,7 +75,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
   },
-  fillBox: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   label: { color: colors.textSoft, fontSize: typeSizes.input, fontWeight: '500' },
   labelDim: { color: colors.placeholder },
   caption: {

@@ -16,7 +16,7 @@ type BodyProps = {
   onOpenHint?: () => void;
 };
 
-// Title and the meta line: style, then the duration, «Не готова» (a button), «Создаётся · ~2 мин»
+// Title and the meta line: style, then the duration, «Не готова» (a button), «Создаётся · ~3 мин»
 // or plain «Не удалось». A failed story is retried on «Сегодня» only: retrying spends a
 // generation, and this list creates nothing (AGENTS.md rule 10).
 function TopicRowBody({ view, onOpenHint }: BodyProps) {

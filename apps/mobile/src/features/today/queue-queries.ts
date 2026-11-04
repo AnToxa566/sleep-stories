@@ -219,7 +219,7 @@ function onErrorRefetch(
   };
 }
 
-// POST /queue/generate: the main button «Создать и начать». SPENDS THE ALLOWANCE. Call it
+// POST /queue/generate: the main button «Создать». SPENDS THE ALLOWANCE. Call it
 // only from the person's tap (rule 10); the server starts every item that needs it, or
 // none (429 generation_limit_reached when fewer generations are left than items).
 export function useGenerateAll(callbacks: QueueMutationCallbacks = {}) {

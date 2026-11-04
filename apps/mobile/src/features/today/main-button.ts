@@ -4,7 +4,7 @@ import { pluralRu } from './plural';
 
 type Generations = QueueResponse['generations'];
 
-export type MainButtonKind = 'creating' | 'start' | 'create-and-start' | 'create-blocked';
+export type MainButtonKind = 'creating' | 'start' | 'create' | 'create-blocked';
 
 // The sentence under the button. `link` is the «готовые истории» link that follows
 // `text` in the shortage captions, and `link.tail` is the full stop after it.
@@ -86,8 +86,8 @@ export function deriveMainButton(
   const needNoun = pluralRu(need, copy.nouns.generation);
   if (left >= need) {
     return {
-      kind: 'create-and-start',
-      label: copy.mainButton.createAndStart,
+      kind: 'create',
+      label: copy.mainButton.create,
       disabled: false,
       action: 'generate-all',
       showsProgress: false,
@@ -104,7 +104,7 @@ export function deriveMainButton(
 
   return {
     kind: 'create-blocked',
-    label: copy.mainButton.createAndStart,
+    label: copy.mainButton.create,
     disabled: true,
     action: 'none',
     showsProgress: false,

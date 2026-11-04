@@ -51,9 +51,9 @@ describe('deriveRow', () => {
   it('shows the creating status with an estimate and no action', () => {
     const row = deriveRow(creating);
     expect(row.statusLabel).toBe('Создаётся');
-    expect(row.statusDetail).toBe('~2 мин');
+    expect(row.statusDetail).toBe('~3 мин');
     expect(row.action).toBeNull();
-    expect(row.statusText).toBe('Создаётся · ~2 мин');
+    expect(row.statusText).toBe('Создаётся · ~3 мин');
   });
 
   it('offers a retry on a failed item', () => {
@@ -106,7 +106,7 @@ describe('deriveMenu', () => {
 describe('deriveHintText', () => {
   it('names the allowance from the server', () => {
     expect(deriveHintText(gens(2, 5))).toBe(
-      'Её нужно создать — это займёт 1–2 минуты и потратит 1 генерацию. Сейчас осталось 2 из 5.',
+      'Её нужно создать — это займёт около 3 минут и потратит 1 генерацию. Сейчас осталось 2 из 5.',
     );
     expect(deriveHintText(gens(0, 4))).toContain('осталось 0 из 4');
   });
