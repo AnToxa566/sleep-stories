@@ -1,7 +1,8 @@
 import type { QueueItem } from '@sleep-stories/contracts';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
+import { Text } from '../../ui/typography';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HintSheet } from '../../features/today/HintSheet';
 import { formatPosition } from '../../features/today/plural';

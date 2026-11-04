@@ -1,5 +1,6 @@
 import type { Ref } from 'react';
-import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { StyleSheet, View, type TextInput as NativeTextInput, type TextInputProps } from 'react-native';
+import { Text, TextInput } from './typography';
 import { colors, sizes, spacing, typeSizes } from '../theme/tokens';
 
 type Props = Omit<TextInputProps, 'style' | 'placeholderTextColor' | 'accessibilityLabel'> & {
@@ -7,7 +8,7 @@ type Props = Omit<TextInputProps, 'style' | 'placeholderTextColor' | 'accessibil
   label: string;
   error?: string | null;
   // Lets a form focus this field from another one (email "next" -> password).
-  inputRef?: Ref<TextInput>;
+  inputRef?: Ref<NativeTextInput>;
 };
 
 // A hairline-underlined input. Everything else (secureTextEntry, keyboardType,

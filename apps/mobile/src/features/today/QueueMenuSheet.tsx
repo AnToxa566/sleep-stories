@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../../ui/typography';
 import { strings } from '../../strings';
 import { colors, typeSizes } from '../../theme/tokens';
 import { BottomSheet } from '../../ui/BottomSheet';

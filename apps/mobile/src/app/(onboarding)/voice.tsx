@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../ui/typography';
 import { useVoices } from '../../api/queries';
 import { OnboardingHeader } from '../../features/onboarding/OnboardingHeader';
 import { useOnboardingStore } from '../../features/onboarding/onboarding-store';

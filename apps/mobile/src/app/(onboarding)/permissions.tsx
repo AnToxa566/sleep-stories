@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../../ui/typography';
 import { useCompleteOnboarding } from '../../api/queries';
 import { OnboardingHeader } from '../../features/onboarding/OnboardingHeader';
 import { onboardingErrorMessage } from '../../features/onboarding/onboarding-errors';

@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../ui/typography';
 import { strings } from '../../strings';
 import { colors, minTouchTarget, spacing } from '../../theme/tokens';
 import { BackButton } from '../../ui/BackButton';

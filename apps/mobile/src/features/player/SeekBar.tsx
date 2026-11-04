@@ -1,6 +1,7 @@
 import Slider from '@react-native-community/slider';
 import { useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../../ui/typography';
 import { strings } from '../../strings';
 import { colors } from '../../theme/tokens';
 import { formatDuration } from '../today/plural';

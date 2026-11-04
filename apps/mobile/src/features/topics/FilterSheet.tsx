@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../../ui/typography';
 import { colors } from '../../theme/tokens';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { SelectRow } from '../../ui/SelectRow';

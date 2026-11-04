@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Text } from '../../ui/typography';
 import Svg, { Circle, G } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { strings } from '../../strings';

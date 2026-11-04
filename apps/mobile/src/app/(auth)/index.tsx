@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../ui/typography';
 import { strings } from '../../strings';
 import { colors, spacing, typeSizes } from '../../theme/tokens';
 import { Orb } from '../../ui/Orb';

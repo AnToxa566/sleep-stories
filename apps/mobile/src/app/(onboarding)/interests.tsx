@@ -1,7 +1,8 @@
 import { CUSTOM_INTEREST_MAX_LENGTH, StoryStyleSchema } from '@sleep-stories/contracts';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../../ui/typography';
 import { useInterests } from '../../api/queries';
 import { resolveInterestEntry } from '../../features/onboarding/catalogue-match';
 import { displayCustomTitle } from '../../features/onboarding/display-title';

@@ -1,6 +1,7 @@
 import { useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../../ui/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useInterests, useMe } from '../../../api/queries';
 import { EmptyQueue } from '../../../features/today/EmptyQueue';

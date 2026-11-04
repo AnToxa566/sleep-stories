@@ -1,6 +1,7 @@
 import type { QueueItem } from '@sleep-stories/contracts';
 import { memo, useCallback, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Text } from '../../ui/typography';
 import { Gesture, GestureDetector, type PanGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useReorderableDrag } from 'react-native-reorderable-list';

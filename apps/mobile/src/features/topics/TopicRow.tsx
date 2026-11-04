@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../ui/typography';
 import { strings } from '../../strings';
 import { colors, minTouchTarget, spacing, typeSizes } from '../../theme/tokens';
 import { HeardMark } from '../../ui/HeardMark';

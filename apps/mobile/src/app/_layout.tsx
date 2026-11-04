@@ -8,9 +8,10 @@ import { useMe } from '../api/queries';
 import { registerSignOutCleanup, useSessionStore } from '../features/auth/session-store';
 import { resolveGate, toMeState } from '../features/gate/resolve-gate';
 import { useOnboardingStore } from '../features/onboarding/onboarding-store';
+import { useOnestFonts } from '../theme/load-fonts';
 import { stackScreenOptions } from '../ui/stack-options';
 
-// Keep the native splash up until the gate knows where to go. Module scope, as required:
+// Keep the native splash up until the gate knows where to go and the fonts are ready. Module scope, as required:
 // it must run before the first render.
 void SplashScreen.preventAutoHideAsync();
 
@@ -36,18 +37,20 @@ export default function RootLayout() {
 function Gate() {
   const status = useSessionStore((state) => state.status);
   const me = useMe();
+  const fontsReady = useOnestFonts();
   const gate = resolveGate(
     status,
     toMeState({ status: me.status, data: me.data, error: me.error }),
   );
 
   useEffect(() => {
-    if (gate !== 'splash') void SplashScreen.hideAsync();
-  }, [gate]);
+    if (gate !== 'splash' && fontsReady) void SplashScreen.hideAsync();
+  }, [gate, fontsReady]);
 
   // Render nothing while undecided: the native splash is still showing, and no screen
-  // (least of all the sign-in screen) flashes at a user who is already signed in.
-  if (gate === 'splash') return null;
+  // (least of all the sign-in screen) flashes at a user who is already signed in. Nothing is
+  // drawn before the fonts are ready either, so no text appears in the system font first.
+  if (gate === 'splash' || !fontsReady) return null;
 
   return (
     <Stack screenOptions={stackScreenOptions}>

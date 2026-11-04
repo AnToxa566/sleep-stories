@@ -6,6 +6,7 @@
     "eas-build-post-install": "cd ../../ && node tools/scripts/eas-build-post-install.mjs . apps/mobile"
   },
   "dependencies": {
+    "@expo-google-fonts/onest": "*",
     "@expo/metro": "*",
     "@expo/vector-icons": "*",
     "@hookform/resolvers": "*",
@@ -17,6 +18,7 @@
     "expo-audio": "*",
     "expo-crypto": "*",
     "expo-file-system": "*",
+    "expo-font": "*",
     "expo-keep-awake": "*",
     "expo-linking": "*",
     "expo-router": "*",
