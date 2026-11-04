@@ -1,6 +1,7 @@
 import type { ContinueResponse, QueueItem } from '@sleep-stories/contracts';
 import {
   NightEngine,
+  EXTERNAL_JUMP_SEC,
   RECOVERY_PROGRESS_SEC,
   REQUEST_TIMEOUT_MS,
   type AudioPlayerLike,
@@ -22,6 +23,9 @@ class FakePlayer implements AudioPlayerLike {
   playing = false;
   removed = false;
   seeks: number[] = [];
+  // The lock-screen calls the engine made on this player, in order.
+  lockScreen: unknown[][] = [];
+  clearedLockScreen = 0;
   private listener: ((status: PlayerStatusLike) => void) | null = null;
   constructor(readonly url: string) {}
   play() {
@@ -32,6 +36,12 @@ class FakePlayer implements AudioPlayerLike {
   }
   remove() {
     this.removed = true;
+  }
+  setActiveForLockScreen(...args: unknown[]) {
+    this.lockScreen.push(args);
+  }
+  clearLockScreenControls() {
+    this.clearedLockScreen += 1;
   }
   // When set, a seek stays pending until `landSeeks()`; the position does not move meanwhile.
   holdSeeks = false;
@@ -139,6 +149,7 @@ function setup(count = 3, options: { fetchedAt?: number } = {}): Harness {
       storyPlayers.push(player);
       return player;
     }),
+    lockScreenMetadata: jest.fn((story: PlayerStory) => ({ title: story.title, artist: 'App' })),
     createWavesPlayer: jest.fn(() => {
       const player = new FakePlayer('waves');
       wavesPlayers.push(player);
@@ -673,6 +684,8 @@ describe('NightEngine: errors after progress', () => {
     h.storyPlayers[0].status({ error: 'expired' });
     await flush();
     const retry = h.storyPlayers[1];
+    // Real updates come every half second; steps bigger than EXTERNAL_JUMP_SEC would be a scrub.
+    retry.status({ currentTime: 72 });
     retry.currentTime = 70 + RECOVERY_PROGRESS_SEC;
     retry.status();
     retry.status({ error: 'expired again' });
@@ -1305,5 +1318,290 @@ describe('NightEngine: «Предыдущая» after a reported finish', () => 
     h.engine.leave();
     expect(h.deps.reportListen).toHaveBeenCalledTimes(1);
     expect(h.deps.reportListen).toHaveBeenCalledWith(ID(1), 30);
+  });
+});
+
+describe('NightEngine: the lock screen control', () => {
+  it('makes each story player the lock-screen player with the title, the app name and no skip buttons', async () => {
+    const h = await started();
+    expect(h.storyPlayers[0].lockScreen).toEqual([
+      [true, { title: 'Story 1', artist: 'App' }, { showSeekForward: false, showSeekBackward: false }],
+    ]);
+    h.storyPlayers[0].finish();
+    await flush();
+    await endPause(h);
+    expect(h.storyPlayers[1].lockScreen).toEqual([
+      [true, { title: 'Story 2', artist: 'App' }, { showSeekForward: false, showSeekBackward: false }],
+    ]);
+  });
+
+  it('activates the same player once more when its duration becomes known, and only once', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status({ duration: 0 });
+    player.status({ duration: 0 });
+    expect(player.lockScreen).toHaveLength(1);
+    player.status({ duration: 185 });
+    player.status({ duration: 185 });
+    expect(player.lockScreen).toHaveLength(2);
+    expect(player.lockScreen[1]).toEqual(player.lockScreen[0]);
+    expect(player.clearedLockScreen).toBe(0);
+  });
+
+  it('does not re-activate a player that is gone, and starts over for the next story', async () => {
+    const h = await started();
+    const first = h.storyPlayers[0];
+    const stale = first.lockScreen.length;
+    first.status({ duration: 185, didJustFinish: true, playing: false });
+    await flush();
+    expect(first.lockScreen).toHaveLength(stale);
+    await endPause(h);
+    const second = h.storyPlayers[1];
+    second.status({ duration: 190 });
+    expect(second.lockScreen).toHaveLength(2);
+    expect(first.lockScreen).toHaveLength(stale);
+    expect(h.storyPlayers.filter((p) => !p.removed)).toHaveLength(1);
+  });
+
+  it('never activates a second story player while the first is still the active one', async () => {
+    const h = await started();
+    h.engine.pressNext();
+    await flush();
+    const [first, second] = h.storyPlayers;
+    expect(first.clearedLockScreen).toBe(1);
+    first.status({ duration: 185 });
+    expect(first.lockScreen).toHaveLength(1);
+    expect(second.lockScreen).toHaveLength(1);
+  });
+
+  it('does not put the silence of a pause or the waves on the lock screen', async () => {
+    const h = await started(1);
+    h.storyPlayers[0].finish();
+    await flush();
+    expect(h.silencePlayers[0].lockScreen).toEqual([]);
+    await endPause(h);
+    expect(h.wavesPlayers[0].lockScreen).toEqual([]);
+  });
+
+  it('clears the control when the story player is released, on every way out', async () => {
+    const ended = await started();
+    ended.storyPlayers[0].finish();
+    await flush();
+    expect(ended.storyPlayers[0].clearedLockScreen).toBe(1);
+
+    const next = await started();
+    next.engine.pressNext();
+    await flush();
+    expect(next.storyPlayers[0].clearedLockScreen).toBe(1);
+
+    const left = await started();
+    left.engine.leave();
+    expect(left.storyPlayers[0].clearedLockScreen).toBe(1);
+
+    const disposed = await started();
+    disposed.engine.dispose();
+    expect(disposed.storyPlayers[0].clearedLockScreen).toBe(1);
+  });
+
+  it('keeps playing when the lock screen cannot be set up', async () => {
+    const h = setup();
+    h.deps.lockScreenMetadata.mockImplementation(() => {
+      throw new Error('no service');
+    });
+    await h.engine.start();
+    expect(h.storyPlayers[0].playing).toBe(true);
+    expect(h.engine.getView().state.mode).toBe('playing');
+  });
+});
+
+describe('NightEngine: pause and play from the lock screen', () => {
+  // What the lock screen does: the native player changes state on its own and reports it.
+  const nativePause = (player: FakePlayer) => {
+    player.playing = false;
+    player.status();
+  };
+  const nativePlay = (player: FakePlayer) => {
+    player.playing = true;
+    player.status();
+  };
+
+  it('a native pause sets paused in the view, a native play clears it, and the player is not commanded again', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status();
+    const pause = jest.spyOn(player, 'pause');
+    const play = jest.spyOn(player, 'play');
+    nativePause(player);
+    expect(h.engine.getView().state.paused).toBe(true);
+    nativePlay(player);
+    expect(h.engine.getView().state.paused).toBe(false);
+    expect(pause).not.toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it('does not take the start of the stream for a pause', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    // play() was commanded, native has not started yet.
+    player.playing = false;
+    player.status();
+    player.status();
+    expect(h.engine.getView().state.paused).toBe(false);
+    nativePlay(player);
+    expect(h.engine.getView().state.paused).toBe(false);
+    // Now that the start is confirmed, a pause is the person's.
+    nativePause(player);
+    expect(h.engine.getView().state.paused).toBe(true);
+  });
+
+  it('does not count buffering as a pause', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status();
+    player.playing = false;
+    player.status({ isBuffering: true });
+    expect(h.engine.getView().state.paused).toBe(false);
+  });
+
+  it('does not take a seek in flight for a pause', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status();
+    player.holdSeeks = true;
+    h.engine.seekTo(60);
+    player.playing = false;
+    player.status();
+    expect(h.engine.getView().state.paused).toBe(false);
+  });
+
+  it('does not take the end of a story or the pause after it for a pause', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status();
+    player.finish();
+    await flush();
+    expect(h.engine.getView().state.paused).toBe(false);
+    await endPause(h);
+    expect(h.engine.getView().state.paused).toBe(false);
+    expect(h.storyPlayers[1].playing).toBe(true);
+  });
+
+  it('does not feed back the in-app button: events that predate the command change nothing', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status();
+    h.engine.togglePause();
+    expect(h.engine.getView().state.paused).toBe(true);
+    // A tick that was already on its way, still playing.
+    player.status({ playing: true });
+    expect(h.engine.getView().state.paused).toBe(true);
+    // The pause lands.
+    player.status({ playing: false });
+    expect(h.engine.getView().state.paused).toBe(true);
+    h.engine.togglePause();
+    player.status({ playing: false });
+    expect(h.engine.getView().state.paused).toBe(false);
+    player.status({ playing: true });
+    expect(h.engine.getView().state.paused).toBe(false);
+    // And the lock screen works again after the confirmations.
+    nativePause(player);
+    expect(h.engine.getView().state.paused).toBe(true);
+  });
+
+  it('a story paused in the app resumed on the lock screen is no longer paused', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status();
+    h.engine.togglePause();
+    player.status();
+    nativePlay(player);
+    expect(h.engine.getView().state.paused).toBe(false);
+  });
+
+  it('a native pause while the interface is dimmed brings the player view back; a paused story does not dim again', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status();
+    h.engine.moon();
+    expect(h.engine.getView().state.mode).toBe('dim');
+    nativePause(player);
+    expect(h.engine.getView().state.mode).toBe('playing');
+    expect(h.engine.getView().state.paused).toBe(true);
+    h.engine.idle();
+    expect(h.engine.getView().state.mode).toBe('playing');
+    nativePlay(player);
+    h.engine.idle();
+    expect(h.engine.getView().state.mode).toBe('dim');
+  });
+
+  it('a story that starts after a paused one is playing, not paused', async () => {
+    const h = await started();
+    const first = h.storyPlayers[0];
+    first.status();
+    nativePause(first);
+    h.engine.pressNext();
+    await flush();
+    const second = h.storyPlayers[1];
+    expect(second.playing).toBe(true);
+    expect(h.engine.getView().state.paused).toBe(false);
+    second.status();
+    nativePause(second);
+    expect(h.engine.getView().state.paused).toBe(true);
+  });
+});
+
+describe('NightEngine: a scrub on the lock screen', () => {
+  it('moves the position and does not count the jump as playback progress for the retry', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status({ currentTime: 10 });
+    // A failure after some progress: one retry, resuming at 10.
+    player.status({ error: 'boom' });
+    await flush();
+    const retry = h.storyPlayers[1];
+    retry.status({ currentTime: 10 });
+    // The person scrubs far forward on the lock screen.
+    retry.status({ currentTime: 10 + EXTERNAL_JUMP_SEC + 60 });
+    expect(h.engine.getView().positionSec).toBe(10 + EXTERNAL_JUMP_SEC + 60);
+    // The retry is still spent: the jump did not re-arm it, so the next error skips the story.
+    retry.status({ error: 'boom again' });
+    await flush();
+    expect(h.engine.getView().state.index).toBe(1);
+  });
+
+  it('still re-arms the retry after real playback past the jump', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status({ currentTime: 10 });
+    player.status({ error: 'boom' });
+    await flush();
+    const retry = h.storyPlayers[1];
+    retry.status({ currentTime: 10 });
+    retry.status({ currentTime: 100 });
+    retry.status({ currentTime: 102 });
+    retry.status({ currentTime: 100 + RECOVERY_PROGRESS_SEC });
+    // Re-armed: the next error is retried (a third player for the same story), not skipped.
+    retry.status({ error: 'boom later' });
+    await flush();
+    expect(h.storyPlayers).toHaveLength(3);
+    expect(h.engine.getView().state.index).toBe(0);
+  });
+
+  it('a backward scrub moves the position back too', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status({ currentTime: 100, duration: 185 });
+    player.status({ currentTime: 20, duration: 185 });
+    expect(h.engine.getView().positionSec).toBe(20);
+  });
+
+  it('does not treat a seek of its own as an external jump', async () => {
+    const h = await started();
+    const player = h.storyPlayers[0];
+    player.status({ currentTime: 10 });
+    h.engine.seekTo(100);
+    await flush();
+    player.status({ currentTime: 100.3 });
+    expect(h.engine.getView().positionSec).toBeCloseTo(100.3);
   });
 });

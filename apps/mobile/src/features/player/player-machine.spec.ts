@@ -207,3 +207,32 @@ describe('player machine: the waves and sleep', () => {
     });
   });
 });
+
+describe('player machine: pause and play from outside the app', () => {
+  it('a native pause pauses the story and a native play resumes it', () => {
+    const paused = run(three, { type: 'nativePaused' });
+    expect(paused).toMatchObject({ mode: 'playing', paused: true });
+    expect(run(paused, { type: 'nativePlayed' })).toMatchObject({ mode: 'playing', paused: false });
+  });
+
+  it('a native pause in the dimmed look brings the player view back, and the story does not dim again while paused', () => {
+    const dim = run(three, { type: 'moon' });
+    const paused = run(dim, { type: 'nativePaused' });
+    expect(paused).toMatchObject({ mode: 'playing', paused: true });
+    expect(run(paused, { type: 'idle' })).toBe(paused);
+  });
+
+  it('a native play keeps the dimmed look', () => {
+    const dimPaused = run(three, { type: 'togglePause' }, { type: 'moon' });
+    expect(dimPaused).toMatchObject({ mode: 'dim', paused: true });
+    expect(run(dimPaused, { type: 'nativePlayed' })).toMatchObject({ mode: 'dim', paused: false });
+  });
+
+  it('are ignored in the waves and in the asleep look', () => {
+    const waves = run(three, { type: 'storyEnded' }, { type: 'storyEnded' }, { type: 'storyEnded' });
+    expect(run(waves, { type: 'nativePaused' })).toBe(waves);
+    expect(run(waves, { type: 'nativePlayed' })).toBe(waves);
+    const asleep = run(waves, { type: 'wavesEnded' });
+    expect(run(asleep, { type: 'nativePaused' })).toBe(asleep);
+  });
+});

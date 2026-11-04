@@ -66,17 +66,22 @@ export function useNightSession(): NightEngine | null {
       return;
     }
 
-    // Plays in the silent mode of iOS and keeps going with the screen off where the platform
-    // allows it. Sustained background playback also needs the audio config plugin and lock-screen
-    // controls, which are not set up (ARCHITECTURE.md section 11, item 1).
-    setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true }).catch(
-      () => undefined,
-    );
+    // Plays in the silent mode of iOS and keeps going with the screen off. Sustained background
+    // playback on Android needs the lock-screen control of the story player (night-engine.ts) and
+    // the `expo-audio` config plugin in app.json; the control needs `doNotMix` (expo-audio docs):
+    // other apps' audio stops while the night plays. A device test is still to be done
+    // (ARCHITECTURE.md section 11, item 1).
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
+      interruptionMode: 'doNotMix',
+    }).catch(() => undefined);
 
     let exited = false;
     const created: NightEngine = new NightEngine(
       {
         createStoryPlayer: (url) => createAudioPlayer({ uri: url }, { updateInterval: STORY_UPDATE_MS }),
+        lockScreenMetadata: (story) => ({ title: story.title, artist: strings.auth.appName }),
         createWavesPlayer: () => createAudioPlayer(WAVES_SOURCE, { updateInterval: WAVES_UPDATE_MS }),
         createSilencePlayer: () => createAudioPlayer(SILENCE_SOURCE, { updateInterval: WAVES_UPDATE_MS }),
         reportListen: postListenReport,

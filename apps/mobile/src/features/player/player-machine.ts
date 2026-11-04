@@ -34,6 +34,10 @@ export type PlayerEvent =
   // paused and nothing is continued.
   | { readonly type: 'touch' }
   | { readonly type: 'togglePause' }
+  // The story was paused or resumed outside the app (the lock screen, headphones, audio focus).
+  // Not a button press: the engine already sees the native player in that state.
+  | { readonly type: 'nativePaused' }
+  | { readonly type: 'nativePlayed' }
   // The story played to its end (a native event).
   | { readonly type: 'storyEnded' }
   // «Следующая». The state changes exactly as when the story ends.
@@ -112,6 +116,14 @@ export function playerReducer(state: PlayerState, event: PlayerEvent): PlayerSta
       return state;
     case 'togglePause':
       return state.mode === 'playing' ? { ...state, paused: !state.paused } : state;
+    case 'nativePaused':
+      // A paused story does not dim: when the dimmed look was on, the player view comes back, so
+      // the person who unlocks the phone sees the paused story and its play button.
+      return state.mode === 'playing' || state.mode === 'dim'
+        ? { ...state, mode: 'playing', paused: true }
+        : state;
+    case 'nativePlayed':
+      return state.mode === 'playing' || state.mode === 'dim' ? { ...state, paused: false } : state;
     case 'storyEnded':
       return advance(state);
     case 'nextPressed':

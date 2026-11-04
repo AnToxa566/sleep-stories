@@ -53,8 +53,6 @@ export const colors = {
   // Player looks (designs 3b and 3d): the dimmed page, the asleep page and the very dim grey of
   // the asleep text. Darker than `base` on purpose.
   playRing: 'rgba(233,227,250,0.5)',
-  // The glow under the thumb of the time bar (design 3a).
-  thumbGlow: 'rgba(255,140,130,0.5)',
   dimBase: '#040308',
   asleepBase: '#050409',
   asleepText: 'rgba(169,161,210,0.38)',

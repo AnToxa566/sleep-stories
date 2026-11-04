@@ -49,6 +49,22 @@ import {
 // pause between stories (the person asked for the move); «Следующая» on the last story takes the
 // same pause before the waves as the end of the last story does.
 //
+// THE LOCK SCREEN. Each story player is made the active lock-screen player (play/pause and the
+// scrub bar of the system media control; ARCHITECTURE.md section 7, "The lock screen"). The
+// silence of a pause and the waves are not: their controls would show a stale title, and the
+// control disappears while a story player is released (expo-audio unregisters the active player
+// on release; `clearLockScreenControls` is called first to be explicit). What the person does
+// there arrives as ordinary native playback status events, so no separate channel exists:
+//   - a pause or play on the lock screen shows up as `playing` changing with no command of ours
+//     behind it; the engine then tells the machine (`nativePaused` / `nativePlayed`) so that the
+//     in-app button and the idle dimming follow. `expectPlaying` is the command we issued and
+//     have not seen acknowledged yet: until the native state agrees with it, contradicting
+//     events are the old state, not the person (no feedback loop with the in-app button).
+//     Buffering, a seek in flight, the end of the story and the start of a stream are not pauses.
+//   - a scrub on the lock screen shows up as a position jump that no `seekTo` of ours explains:
+//     the position follows it, and `progressFrom` moves to it so the jump is not counted as
+//     playback progress by the retry re-arming.
+//
 // In the pause between stories the machine still shows the story that ended (its bar full); the
 // index moves on when the next story actually starts. In the pause before the waves the machine
 // is already in `waves`, and the countdown keeps its full length until the waves audio starts.
@@ -60,6 +76,23 @@ export interface PlayerStatusLike {
   readonly playing: boolean;
   readonly didJustFinish: boolean;
   readonly error: string | null;
+  // True while the stream stalls or a seek is loading. `playing` is false then on iOS, which is
+  // not a pause by the person. Absent in older fakes: treated as false.
+  readonly isBuffering?: boolean;
+}
+
+// The metadata of the system media control: the story title and the app name, never story text.
+export interface LockScreenMetadata {
+  readonly title: string;
+  readonly artist: string;
+}
+
+// The options of expo-audio's setActiveForLockScreen. Play/pause and the scrub bar are always
+// there; these two add skip buttons. Both keys are always sent: on Android the native record
+// requires them.
+export interface LockScreenOptions {
+  readonly showSeekForward: boolean;
+  readonly showSeekBackward: boolean;
 }
 
 // The part of expo-audio's AudioPlayer the engine uses.
@@ -70,6 +103,14 @@ export interface AudioPlayerLike {
   pause(): void;
   remove(): void;
   seekTo(seconds: number): Promise<void>;
+  // The lock-screen control. Only the player of a story has it set up; the others (silence,
+  // waves) do not implement it as far as the engine is concerned.
+  setActiveForLockScreen?(
+    active: boolean,
+    metadata?: { title?: string; artist?: string },
+    options?: { showSeekForward?: boolean; showSeekBackward?: boolean },
+  ): void;
+  clearLockScreenControls?(): void;
   addListener(
     eventName: 'playbackStatusUpdate',
     listener: (status: PlayerStatusLike) => void,
@@ -82,6 +123,8 @@ export type NightExit = 'leave' | 'woke' | 'none-ready' | 'error';
 export interface NightDeps {
   createStoryPlayer(url: string): AudioPlayerLike;
   createWavesPlayer(): AudioPlayerLike;
+  // What the lock screen shows for a story.
+  lockScreenMetadata(story: PlayerStory): LockScreenMetadata;
   // A player of the bundled silent file (SILENCE_FILE_SEC long).
   createSilencePlayer(): AudioPlayerLike;
   // POST /api/listens. Must never reject and must not wait long (the caller times it out).
@@ -124,6 +167,14 @@ export const RECOVERY_PROGRESS_SEC = 5;
 // only while the screen is on, and a request that outlives it is simply dropped.
 export const REQUEST_TIMEOUT_MS = 15_000;
 
+// A position change between two status events bigger than this is not playback (updates come
+// every 0.5 s): it is a scrub on the lock screen or the like. A late batch of events in the
+// background can look like a jump too; the only cost then is that the retry re-arms 5 s later.
+export const EXTERNAL_JUMP_SEC = 3;
+
+// The lock screen shows play/pause and the scrub bar, no skip buttons (owner, 2026-11-03).
+const LOCK_SCREEN_OPTIONS: LockScreenOptions = { showSeekForward: false, showSeekBackward: false };
+
 // A seek has landed when the native position is within this many seconds of its target.
 const SEEK_LANDED_SEC = 1;
 
@@ -146,6 +197,13 @@ export class NightEngine {
   // The target of a seek that has not landed yet, and which seek it is.
   private seekTarget: number | null = null;
   private seekId = 0;
+  // The play state we asked the story player for and have not seen confirmed yet (see the
+  // lock-screen note above); null when nothing is waiting.
+  private expectPlaying: boolean | null = null;
+  // The lock-screen session of the current story player was (re)built with a known duration.
+  // The first activation happens right after play(), before the stream is parsed, so the session
+  // may have been built without a duration; the first status that reports one rebuilds it once.
+  private lockScreenHasDuration = false;
 
   // The silent player of a pause, and which pause it is.
   private gapPlayer: AudioPlayerLike | null = null;
@@ -207,6 +265,7 @@ export class NightEngine {
     try {
       if (this.state.paused) player.pause();
       else player.play();
+      if (player === this.storyPlayer) this.expectPlaying = !this.state.paused;
     } catch {
       // The player may be gone; the next status event or the next story sorts it out.
     }
@@ -342,6 +401,7 @@ export class NightEngine {
     this.storyEnded = false;
     this.reported = false;
     this.seekTarget = null;
+    this.expectPlaying = null;
   }
 
   // `alreadyReported`: this play of the story was already reported as finished, so it is not
@@ -382,7 +442,12 @@ export class NightEngine {
         this.onStoryStatus(token, status),
       );
       if (resumeAtSec > 0) void player.seekTo(resumeAtSec).catch(() => undefined);
-      if (!this.state.paused) player.play();
+      if (!this.state.paused) {
+        player.play();
+        this.expectPlaying = true;
+      }
+      this.lockScreenHasDuration = false;
+      this.activateLockScreen(player, story);
     } catch {
       void this.onStoryError(token);
     }
@@ -403,6 +468,10 @@ export class NightEngine {
       return;
     }
     if (Number.isFinite(status.currentTime) && !this.seekStillLanding(status.currentTime)) {
+      // A jump that none of our seeks explains (a scrub on the lock screen) is not progress.
+      if (Math.abs(status.currentTime - this.position) > EXTERNAL_JUMP_SEC) {
+        this.progressFrom = status.currentTime;
+      }
       this.position = status.currentTime;
     }
     if (Number.isFinite(status.duration) && status.duration > 0) this.nativeDuration = status.duration;
@@ -411,11 +480,51 @@ export class NightEngine {
       return;
     }
     if (status.playing) this.failures = 0;
+    this.refreshLockScreenDuration(status);
+    this.followNativePlayState(status);
     // Real progress after a retry re-arms the retry for the next error.
     if (this.retried && this.position >= this.progressFrom + RECOVERY_PROGRESS_SEC) {
       this.retried = false;
     }
     this.emit();
+  }
+
+  // A pause or play pressed outside the app (the lock screen, headphones, audio focus) changes
+  // the native play state without a command of ours. Follow it in the machine, not in the player:
+  // the player already did it.
+  private followNativePlayState(status: PlayerStatusLike): void {
+    if (this.expectPlaying !== null) {
+      // Our own command is still on its way: events that contradict it are the old state.
+      if (status.playing === this.expectPlaying) this.expectPlaying = null;
+      return;
+    }
+    if (this.storyEnded || this.gap !== null || this.seekTarget !== null) return;
+    if (status.isBuffering === true) return;
+    // The machine already agrees with the player.
+    if (status.playing !== this.state.paused) return;
+    this.send({ type: status.playing ? 'nativePlayed' : 'nativePaused' });
+  }
+
+  // The system media control reads the duration when the session is built (expo-audio has no
+  // duration in its metadata record and rebuilds the session only on setActiveForLockScreen).
+  // If the stream's duration became known after that, activate the same player once more so the
+  // control gets it. If the native player never reports a duration (an MP3 without a seek header
+  // that ExoPlayer cannot measure), nothing happens here and the control stays as it was.
+  private refreshLockScreenDuration(status: PlayerStatusLike): void {
+    if (this.lockScreenHasDuration || this.storyPlayer === null) return;
+    if (!Number.isFinite(status.duration) || status.duration <= 0) return;
+    this.lockScreenHasDuration = true;
+    const story = this.stories[this.state.index];
+    if (story === undefined) return;
+    this.activateLockScreen(this.storyPlayer, story);
+  }
+
+  private activateLockScreen(player: AudioPlayerLike, story: PlayerStory): void {
+    try {
+      player.setActiveForLockScreen?.(true, this.deps.lockScreenMetadata(story), LOCK_SCREEN_OPTIONS);
+    } catch {
+      // No lock-screen control is not a reason to stop the story.
+    }
   }
 
   // The story played to its end. The bar is full from here until the next story starts.
@@ -655,6 +764,13 @@ export class NightEngine {
   private releaseStoryPlayer(): void {
     this.storyToken += 1;
     this.seekTarget = null;
+    this.expectPlaying = null;
+    this.lockScreenHasDuration = false;
+    try {
+      this.storyPlayer?.clearLockScreenControls?.();
+    } catch {
+      // Already released.
+    }
     release(this.storyPlayer, this.storySubscription);
     this.storyPlayer = null;
     this.storySubscription = null;
