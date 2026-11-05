@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#2C1969"
+        "backgroundColor": "#2E2468"
       },
       "package": "com.antoxa566.mobile"
     },
@@ -34,7 +34,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#09070F"
+          "backgroundColor": "#1A1438"
         }
       ]
     ],
