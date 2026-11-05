@@ -37,6 +37,7 @@ The request gives you the exact files to review, the checks that apply (numbers 
 15. Verification: did the author show pass or fail output, or only describe it?
 16. Idempotency and error paths for generation work: duplicate story on retry, partial rows after failure.
 17. RLS on every new table: `ENABLE ROW LEVEL SECURITY` in the same migration, and no `CREATE POLICY` anywhere.
+18. Slice shape: the reviewed change stays within the ceiling (10 to 12 significant files or about 400 lines of logic) and does not mix unrelated changes, so it can be reverted whole.
 
 ## Severity
 

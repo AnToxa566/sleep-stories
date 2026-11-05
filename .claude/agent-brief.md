@@ -12,6 +12,7 @@ Read this file first. It replaces reading AGENTS.md, ARCHITECTURE.md and SECURIT
 
 | Topic | Where |
 |---|---|
+| The owner's short map of modules, invariants and decisions (planner and architect read it) | MAP.md |
 | Layers, tags, imports | ARCHITECTURE.md section 3 |
 | API, database, local stack, TLS | section 4 |
 | Tables and ownership | section 5 |
@@ -47,6 +48,19 @@ Security:
 8. The database stores storage paths, never signed URLs.
 9. No secrets, tokens, emails or story text in logs.
 10. Text a person typed, and stories made from it, are never shown to anyone else; reuse only topics with no `requested` `user_topics` row.
+
+## Slices and reviewability (source: AGENTS.md, "Slices and reviewability")
+
+1. Every feature is cut into vertical slices (data, API, UI). Target up to 8 significant files per slice; ceiling 10 to 12 files or about 400 changed lines of logic. The real test: the owner can read the change in one sitting.
+2. Not counted: styles, pure boilerplate, generated files, lockfile, snapshots, mass trivial renames, tests (name them in the report), `.md` documents. Always counted: migrations and core files.
+3. Over the ceiling: stop and cut BEFORE writing code, or justify and ask the owner. Cut along meaning; every slice leaves typecheck and unit tests green. No mechanical "10 files here, the rest next".
+4. No code before a plan: files to touch, one line each (what and why), marked `core` or `boilerplate`; the owner approves.
+5. After each slice, a report in Russian: was, is now, why; reading order; the 1 to 3 files with logic or risk; files that can be skimmed. Also "MAP.md: update needed, yes or no, and why".
+6. One slice, one commit; the slice's own doc changes go in the same commit. The owner commits unless they wrote "commit the slices yourself".
+7. Core (= risk tier `high`): `apps/api/prisma/**`; `apps/api/src/app/{auth,config,providers,internal,users,me}/**`; the generation start and limits (`queue/generation-start*`, `generation-limits*`, `generation-jobs*`, `prisma/lock-user-row.ts`, `generation/**` and the prompts) and the client generate, collect and rebuild mutations; `packages/contracts/src/**`; `architecture.spec.ts`, `queue-rule-10.spec.ts`, the boundary rules in `eslint.config.mjs`; `apps/mobile/src/features/auth/**` and the auth header in `apps/mobile/src/api`; `features/player/night-engine.ts` and `player-machine.ts`; a new dependency, `app.json`, `eas.json`; `AGENTS.md`, `ARCHITECTURE.md`, `SECURITY.md`, `MAP.md`, `.claude/**`. Core: small slices, explain in detail. Boilerplate (`ui`, `theme`, `strings.ts`, screen layout, presentational components) is `low`: short diff, minimal review.
+8. `MAP.md` (at most 180 lines) is the owner's map. Update it only for a new module or boundary, a new invariant, or an architectural decision made or changed; delete what is stale. Planner and architect read it; other agents need not.
+
+When you change one of these lines, change AGENTS.md too.
 
 ## Working rules
 

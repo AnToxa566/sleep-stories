@@ -67,6 +67,47 @@ This is the target layout. Create folders when first needed, not before.
 - Do not commit unless the owner asks. Commit types: `chore` (scaffolding, tooling, dependencies, configuration; workspace setup is always `chore`), `feat` (functionality and anything that changes behaviour), `docs`, `build` (CI, containers, deployment), `refactor` (structure changes with no behavioural difference).
 - When a rule is claimed to be enforced by tooling, prove it by breaking it on purpose (add the forbidden import, confirm lint fails, remove it).
 
+## Slices and reviewability
+
+The owner works alone and must stay the owner of the architecture: every change has to be readable and understood before it is committed. Speed comes from small slices, not from big diffs. These rules apply in every mode (`lite`, `standard`, `full`). Only a typo, a one-line config edit or a rename skips them.
+
+**Size of a slice**
+1. Split every feature into vertical slices (for example data, then API, then UI). Never build a feature in one pass.
+2. Target: up to 8 significant files per slice. Ceiling: 10 to 12 significant files or about 400 changed lines of logic.
+3. The real test is "the owner can read the change in one sitting"; the numbers approximate it. The ceiling gives room so that a whole feature is not split because of an 11th file.
+4. Not counted: style files, pure boilerplate, generated files, the lockfile, snapshots, mass trivial renames or prop threading, tests (name them in the report), and `.md` documents. Always counted: migrations and every core file.
+5. Over the ceiling: stop and cut BEFORE writing code, or say why it cannot be cut and ask the owner.
+6. Cut along meaning, not by count. Every slice leaves the project working: typecheck and the unit tests of the affected projects pass. No mechanical "10 files here, the rest in the next commit" when that breaks a whole.
+
+**Plan before code**
+7. Before any non-trivial feature write no code. List the files to touch, one line each: what changes and why, marked `core` or `boilerplate`. Boilerplate files of one kind may share a line. If the significant files exceed the ceiling, cut the plan into slices and propose their order. The owner approves the plan before generation starts.
+
+**Review by meaning**
+8. After each slice, report to the owner in Russian: what was, what is now, why; the order to read the change in; the 1 to 3 files that hold logic or risk; the files that can be skimmed in the diff. Lead the owner to those files; do not ask them to open everything.
+9. Zones. Core: slow down, smaller slices, explain in detail, the owner reads line by line and does not accept what they do not understand. Boilerplate: a short diff and a minimal review. The core zone is the planner's `high` tier; boilerplate is `low`; `medium` follows the numbers above.
+
+**Commits**
+10. One finished slice is one commit with a clear message, never a mix of unrelated changes, so that a slice can be reverted whole and cheaply. The documentation changes that belong to the slice (ARCHITECTURE.md, MAP.md and the like) go into the same commit. A `docs` commit is for documentation not tied to code. Commit types stay as in Conventions.
+11. Commits are still made by the owner. If the owner writes "commit the slices yourself" in the request, the executor commits each slice after its checks pass and the report is written; otherwise it stops after each slice and waits.
+
+**Core zone (owner-approved 2026-11-05; change it only with the owner)**
+- Data: `apps/api/prisma/**` (schema, migrations, RLS, seed).
+- Access and keys: `apps/api/src/app/auth/**`, `config/**`, `providers/**`, `internal/**`, `users/**`, `me/**`.
+- Money and generation: everything that creates `write_story` or `render_audio` jobs or counts the limit of 5 per 24 hours (`queue/generation-start*`, `queue/generation-limits*`, `queue/generation-jobs*`, `prisma/lock-user-row.ts`, `generation/**` with the prompts); on the client, the generate, collect and rebuild mutations.
+- Contracts: `packages/contracts/src/**` (the specs excluded).
+- Guard tests: `architecture.spec.ts`, `queue-rule-10.spec.ts`, the boundary rules in `eslint.config.mjs`.
+- Session on the device: `apps/mobile/src/features/auth/**` and the auth header in `apps/mobile/src/api`.
+- The night player's logic: `apps/mobile/src/features/player/night-engine.ts` and `player-machine.ts` (state that is hard to debug without a phone).
+- Dependencies and native build: a new dependency in `package.json`, `apps/mobile/app.json`, `apps/mobile/eas.json`.
+- The rules themselves: `AGENTS.md`, `ARCHITECTURE.md`, `SECURITY.md`, `MAP.md`, `.claude/**`.
+
+Boilerplate is everything visible on screen and cheap to fix: `apps/mobile/src/ui`, `theme`, `strings.ts`, screen layout, plain presentational components, configuration with no effect on data or access.
+
+**The project map**
+12. `MAP.md` is the owner's text map: modules, invariants, key decisions and why. It points to ARCHITECTURE.md; it does not copy it. Invariants are named by their rule numbers here, not restated.
+13. Update `MAP.md` only when a new module or boundary appears, an invariant is added, or an architectural decision is made or changed. Not after every feature and not for details visible in the code. Every report on a slice says "MAP.md: update needed, yes or no, and why".
+14. Keep `MAP.md` at or below 180 lines. Delete what is out of date instead of piling it up. Detail lives in ARCHITECTURE.md sections that `MAP.md` links to. If the map grows too fast or passes 180 lines, tell the owner and propose to compress or split it.
+
 ## Commands
 
 ```sh
@@ -129,11 +170,11 @@ Non-trivial work runs through subagents in `.claude/agents/`, driven by the `/fe
 
 How it runs:
 
-1. `planner` (read-only) returns a one-screen plan with a risk tier per step, the checks, the flags and a mode recommendation with a rough token cost. A person approves it before any file is touched.
-2. `executor` (the only agent that writes) implements one step at a time with a fast check after each (typecheck and the unit test of what changed), and runs the full pass (lint, typecheck, test, plus build and integration tests when the API changed) once, at the end. Steps marked independent may run in parallel in the same working tree, in separate directories (no git worktrees: they lack `node_modules` and the git-ignored env files).
+1. `planner` (read-only) returns a plan cut into slices ("Slices and reviewability"): per slice a table of files with what and why and `core` or `boilerplate`, a risk tier, the checks, the flags and a mode recommendation with a rough token cost. A person approves it before any file is touched.
+2. `executor` (the only agent that writes) implements one slice at a time with a fast check after each step (typecheck and the unit test of what changed). At the end of a slice it runs typecheck and test of the affected projects, measures the slice (`git diff --numstat` minus the uncounted files), writes the report for the owner and stops (or commits, if the owner allowed it). The full pass (lint, typecheck, test, plus build and integration tests when the API changed) runs once, at the last slice of the feature, and also in any slice that touches a migration. Steps marked independent may run in parallel in the same working tree, in separate directories (no git worktrees: they lack `node_modules` and the git-ignored env files).
 3. `reviewer` (read-only, fresh context) reads the listed files only, runs no `nx`, reports at most 8 findings and ends with `VERDICT: APPROVED` or `VERDICT: CHANGES_REQUESTED`. At most two rounds; the second looks only at the fixes.
 4. `architect` (read-only, full mode only) checks structural fit once, with the same verdict format. No loop.
-5. The final report carries a token table (one row per subagent run) so the cost of the cycle is visible.
+5. The final report carries a token table (one row per subagent run) so the cost of the cycle is visible, and the "MAP.md: update needed" line.
 
 Every agent starts from `.claude/agent-brief.md`: the rules in one line each, a map of ARCHITECTURE.md by section, and the output rules below. It replaces reading AGENTS.md, ARCHITECTURE.md and SECURITY.md whole (about 22k tokens). When a rule here changes, change the matching line in the brief. A person makes the commit. Small changes (a typo, a one-line config edit, a rename) skip the cycle.
 
@@ -141,7 +182,7 @@ Every agent starts from `.claude/agent-brief.md`: the rules in one line each, a 
 
 - Never print a whole file, a long log or a whole diff. Use `grep`, `sed -n`, `head`, `tail`, `git diff --stat`.
 - Filter Nx output to its result lines. Do not add `--skip-nx-cache` unless a cached result is suspect.
-- Run the full check pass once at the end of a feature, not after every step.
+- Run the full check pass once at the end of a feature, not after every step. After each slice only typecheck and test of the affected projects.
 - A native Expo module's behaviour is checked against its native source as well as its types (the `expo-crypto` case, ARCHITECTURE.md section 8).
 
 Many tools write their own managed block into this file. Write above it, never inside it, and never remove the markers.

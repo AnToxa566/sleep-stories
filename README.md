@@ -88,11 +88,12 @@ Expo Go (the build for Expo SDK 57, from expo.dev/go) is enough for the current 
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, boundaries, data model, decisions with reasoning, what is deferred, and the open problems |
 | [SECURITY.md](SECURITY.md) | Threat model, security rules, and the pre-launch checklist |
+| [MAP.md](MAP.md) | A short text map for the owner: modules, invariants, key decisions and why, with links into ARCHITECTURE.md |
 | [AGENTS.md](AGENTS.md) | Rules and conventions for coding agents (`CLAUDE.md` points to it) |
 
 ## Development workflow
 
-Non-trivial changes go through a four-role cycle defined in `.claude/`: a read-only planner, an executor, an adversarial reviewer in a fresh context, and an architect. Run it with `/feature <task>` in Claude Code. The plan is approved by a person before any file is touched, and the commit is made by a person after both verdicts. Details are in [AGENTS.md](AGENTS.md).
+Non-trivial changes go through a four-role cycle defined in `.claude/`: a read-only planner, an executor, an adversarial reviewer in a fresh context, and an architect. Run it with `/feature <task>` in Claude Code. Work is cut into small slices (target 8 files, ceiling 10 to 12, one commit each) and every slice comes with a short reading guide. The plan is approved by a person before any file is touched, and the commit is made by a person after both verdicts. Details are in [AGENTS.md](AGENTS.md).
 
 ## Current state
 

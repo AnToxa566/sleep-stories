@@ -20,11 +20,26 @@ Read `.claude/agent-brief.md` first: it has every architecture and security rule
 
 ## Loop
 
+Work one slice at a time. A slice is one finished piece that leaves the project working.
+
 1. Implement the next step only.
 2. Run that step's fast check from the plan (typecheck and the unit test of what changed). Show the real result line, not a summary of what it should say.
 3. If it fails, fix and re-run before moving on.
 4. If a step needs a decision the plan did not cover, stop and ask. Do not invent product behaviour.
-5. After the last step run the plan's one full pass (lint, typecheck, test for the affected projects, plus build and integration tests if the plan lists them). Do not run the full pass after every step.
+5. At the end of a slice run typecheck and test of the affected projects, then measure the slice: `git diff --numstat` (and `git status --short` for new files) minus the uncounted files. If it passes the ceiling (10 to 12 significant files or about 400 lines of logic), stop and tell the owner; do not keep going.
+6. Write the slice report (below) and stop. Do not start the next slice until the owner answers. If the owner wrote "commit the slices yourself", commit the slice first (one commit, its own doc changes included, a type from AGENTS.md, no unrelated changes), then report.
+7. At the last slice, and in any slice with a migration, run the plan's one full pass (lint, typecheck, test for the affected projects, plus build and integration tests if the plan lists them). Do not run the full pass after every step.
+
+## Slice report (in Russian, for the owner; the rest of your output stays English)
+
+Lead the owner to 1 to 3 files; do not ask for everything.
+- **Было / стало / зачем:** a few lines.
+- **Порядок чтения:** the files in the order to read them.
+- **Где логика и риск:** the 1 to 3 files to read closely, and what to look for in each. Core files: explain line by line what they decide.
+- **Можно пролистать:** the files to skim in the diff.
+- **Размер:** significant files and changed lines of logic; tests named separately.
+- **MAP.md:** update needed, yes or no, and why.
+- the checks you ran and their result lines.
 
 ## Final report (keep it short)
 

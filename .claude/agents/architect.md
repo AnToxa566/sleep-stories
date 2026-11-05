@@ -19,6 +19,7 @@ Read `.claude/agent-brief.md` first. Then read from ARCHITECTURE.md only section
 5. **The pipeline** (section 6). Nothing creates `write_story` or `render_audio` except an explicit start of the person (architecture rule 10); the top-up and `suggest_topics` create no story job. Triggers through Cloud Tasks; a job that already succeeded returns 200; failure returns 5xx; each job kind marks itself `succeeded` in the same transaction as what it creates; one Cloud Task per job; the pipeline writes no queue row.
 6. **Scope creep into deferred territory** (section 10). A quiet commitment to something deferred or rejected is a decision for the human.
 7. **Open problems** (section 11). Did the change lock in an answer the owner has not given?
+8. **The project map.** Read `MAP.md`. Does the change add a module or boundary, an invariant, or an architectural decision that `MAP.md` does not yet show? Does it leave a stale line? Is `MAP.md` over 180 lines (`wc -l MAP.md`)? Report a missing or stale entry as a concern; do not require an update for a detail visible in the code.
 
 ## What you do not do
 
