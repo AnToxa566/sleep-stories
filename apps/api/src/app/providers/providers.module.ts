@@ -30,7 +30,19 @@ import { TtsProvider } from './tts/tts.provider';
         config: ConfigService<Env, true>,
         secret: LocalDispatchSecret,
         httpAdapterHost: HttpAdapterHost,
-      ) => createJobQueue(config.get('JOB_QUEUE', { infer: true }), secret, httpAdapterHost),
+      ) =>
+        createJobQueue(
+          {
+            JOB_QUEUE: config.get('JOB_QUEUE', { infer: true }),
+            INTERNAL_OIDC_AUDIENCE: config.get('INTERNAL_OIDC_AUDIENCE', { infer: true }),
+            INTERNAL_OIDC_SERVICE_ACCOUNT: config.get('INTERNAL_OIDC_SERVICE_ACCOUNT', { infer: true }),
+            GCP_PROJECT_ID: config.get('GCP_PROJECT_ID', { infer: true }),
+            CLOUD_TASKS_LOCATION: config.get('CLOUD_TASKS_LOCATION', { infer: true }),
+            CLOUD_TASKS_QUEUE: config.get('CLOUD_TASKS_QUEUE', { infer: true }),
+          },
+          secret,
+          httpAdapterHost,
+        ),
     },
   ],
   exports: [StorageService, LlmProvider, TtsProvider, JobQueue, LocalDispatchSecret],

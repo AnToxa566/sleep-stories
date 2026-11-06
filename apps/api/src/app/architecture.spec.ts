@@ -9,6 +9,9 @@ import { join, relative, sep } from 'node:path';
 //    payload written with `kind: 'write_story'` / `kind: 'render_audio'` anywhere else.
 // 2. The lock on a person's `users` row is taken through `lockUserRow` only, so the query
 //    text and the order of locks have one owner.
+// 3. The Cloud Tasks SDK (`@google-cloud/tasks`) is imported only by the Cloud Tasks adapter
+//    (AGENTS.md architecture rules 2 and 6). Only this SDK is scanned: no generic allow-list
+//    for every SDK (owner, 2026-11-06).
 //
 // This is a text scan, not a proof: it catches the usual way to break the rules (copying the
 // payload or the lock query into a new file) and not an exotic one (building the string in
@@ -21,11 +24,16 @@ const STORY_JOB_KIND = /kind\s*:\s*['"`](?:write_story|render_audio)['"`]/;
 // `FOR UPDATE` within a short distance after `FROM users`, across lines.
 const USERS_ROW_LOCK = /FROM\s+users\b[\s\S]{0,200}?FOR\s+UPDATE/i;
 
+// The package name between quotes, whatever opens it: `from '...'`, `import('...')`,
+// `require('...')`, `import type ... from '...'`, or a sub-path of the package.
+const CLOUD_TASKS_SDK = /['"`]@google-cloud\/tasks(?:\/[^'"`]*)?['"`]/;
+
 const STORY_JOB_KIND_ALLOWED = [
   'app/queue/generation-start-plan.ts',
   'app/internal/handlers/write-story.handler.ts',
 ];
 const USERS_ROW_LOCK_ALLOWED = ['app/prisma/lock-user-row.ts'];
+const CLOUD_TASKS_SDK_ALLOWED = ['app/providers/job-queue/cloud-tasks-job-queue.ts'];
 
 function isSkipped(path: string): boolean {
   const parts = path.split('/');
@@ -62,7 +70,7 @@ describe('architecture rules kept by a scan of apps/api/src', () => {
   it('finds source files to scan (the scan is not empty)', () => {
     const scanned = listSources(SRC_ROOT).filter((full) => !isSkipped(relative(SRC_ROOT, full)));
     expect(scanned.length).toBeGreaterThan(20);
-    for (const path of [...STORY_JOB_KIND_ALLOWED, ...USERS_ROW_LOCK_ALLOWED]) {
+    for (const path of [...STORY_JOB_KIND_ALLOWED, ...USERS_ROW_LOCK_ALLOWED, ...CLOUD_TASKS_SDK_ALLOWED]) {
       expect(readFileSync(join(SRC_ROOT, path), 'utf8').length).toBeGreaterThan(0);
     }
   });
@@ -80,6 +88,11 @@ describe('architecture rules kept by a scan of apps/api/src', () => {
   it('locks the users row only through lockUserRow', () => {
     expect(sourcesMatching(USERS_ROW_LOCK, USERS_ROW_LOCK_ALLOWED)).toEqual([]);
     expect(USERS_ROW_LOCK.test(readFileSync(join(SRC_ROOT, USERS_ROW_LOCK_ALLOWED[0]), 'utf8'))).toBe(true);
+  });
+
+  it('imports @google-cloud/tasks only in the Cloud Tasks adapter', () => {
+    expect(sourcesMatching(CLOUD_TASKS_SDK, CLOUD_TASKS_SDK_ALLOWED)).toEqual([]);
+    expect(CLOUD_TASKS_SDK.test(readFileSync(join(SRC_ROOT, CLOUD_TASKS_SDK_ALLOWED[0]), 'utf8'))).toBe(true);
   });
 });
 
@@ -125,6 +138,30 @@ describe('the patterns of the scan', () => {
       'SELECT 1 FROM user_topics WHERE user_id = ${userId}::uuid FOR UPDATE',
     ]) {
       expect(USERS_ROW_LOCK.test(sample)).toBe(false);
+    }
+  });
+
+  it('match every way of importing the Cloud Tasks SDK', () => {
+    for (const sample of [
+      "import { CloudTasksClient } from '@google-cloud/tasks';",
+      'import { v2 } from "@google-cloud/tasks";',
+      "import type { protos } from '@google-cloud/tasks'",
+      "const sdk = await import('@google-cloud/tasks');",
+      "const sdk = require(`@google-cloud/tasks`);",
+      "import { protos } from '@google-cloud/tasks/build/protos/protos';",
+    ]) {
+      expect(CLOUD_TASKS_SDK.test(sample)).toBe(true);
+    }
+  });
+
+  it('do not match other packages or mentions in prose', () => {
+    for (const sample of [
+      "import { Storage } from '@google-cloud/storage';",
+      "import { x } from '@google-cloud/tasks-extra';",
+      "// uses @google-cloud/tasks for the queue",
+      "import { x } from 'google-gax';",
+    ]) {
+      expect(CLOUD_TASKS_SDK.test(sample)).toBe(false);
     }
   });
 });

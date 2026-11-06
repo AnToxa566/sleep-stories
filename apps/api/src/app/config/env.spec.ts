@@ -22,6 +22,9 @@ const CLOUD_TASKS = {
   JOB_QUEUE: 'cloud-tasks',
   INTERNAL_OIDC_AUDIENCE: AUDIENCE,
   INTERNAL_OIDC_SERVICE_ACCOUNT: SERVICE_ACCOUNT,
+  GCP_PROJECT_ID: 'sleep-stories-513914',
+  CLOUD_TASKS_LOCATION: 'europe-west1',
+  CLOUD_TASKS_QUEUE: 'generation-jobs',
 };
 const SERVICE_ROLE_KEY = 'fake-service-role-key-for-unit-tests';
 function validateEnv(config: Record<string, unknown>) {
@@ -561,6 +564,61 @@ describe('JOB_QUEUE', () => {
       const env = validateEnv({ ...base, JOB_QUEUE: 'local' });
       expect(env.INTERNAL_OIDC_AUDIENCE).toBeUndefined();
       expect(env.INTERNAL_OIDC_SERVICE_ACCOUNT).toBeUndefined();
+    });
+
+    it.each(['GCP_PROJECT_ID', 'CLOUD_TASKS_LOCATION', 'CLOUD_TASKS_QUEUE'])(
+      'requires %s, one error for each missing queue address variable',
+      (name) => {
+        expect(failureMessage({ ...base, ...CLOUD_TASKS, [name]: undefined })).toContain(
+          `${name} is required when JOB_QUEUE=cloud-tasks`,
+        );
+        const none = failureMessage({
+          ...base,
+          JOB_QUEUE: 'cloud-tasks',
+          INTERNAL_OIDC_AUDIENCE: AUDIENCE,
+          INTERNAL_OIDC_SERVICE_ACCOUNT: SERVICE_ACCOUNT,
+        });
+        expect(none).toContain('GCP_PROJECT_ID is required');
+        expect(none).toContain('CLOUD_TASKS_LOCATION is required');
+        expect(none).toContain('CLOUD_TASKS_QUEUE is required');
+      },
+    );
+
+    it('does not require the queue address for none or local, and keeps it as written when set', () => {
+      const env = validateEnv({ ...base, JOB_QUEUE: 'local' });
+      expect(env.GCP_PROJECT_ID).toBeUndefined();
+      expect(env.CLOUD_TASKS_LOCATION).toBeUndefined();
+      expect(env.CLOUD_TASKS_QUEUE).toBeUndefined();
+      const set = validateEnv({ ...base, ...CLOUD_TASKS });
+      expect(set.GCP_PROJECT_ID).toBe('sleep-stories-513914');
+      expect(set.CLOUD_TASKS_LOCATION).toBe('europe-west1');
+      expect(set.CLOUD_TASKS_QUEUE).toBe('generation-jobs');
+    });
+
+    it.each([
+      ['GCP_PROJECT_ID', ''],
+      ['GCP_PROJECT_ID', 'Sleep-Stories-1'],
+      ['GCP_PROJECT_ID', 'sleep_stories_1'],
+      ['GCP_PROJECT_ID', '1sleep-stories'],
+      ['GCP_PROJECT_ID', 'sleep-stories-'],
+      ['GCP_PROJECT_ID', 'abcd'],
+      ['GCP_PROJECT_ID', 'a'.repeat(31)],
+      ['CLOUD_TASKS_LOCATION', ''],
+      ['CLOUD_TASKS_LOCATION', 'Europe-West1'],
+      ['CLOUD_TASKS_LOCATION', 'europe west1'],
+      ['CLOUD_TASKS_QUEUE', ''],
+      ['CLOUD_TASKS_QUEUE', 'queue/name'],
+      ['CLOUD_TASKS_QUEUE', 'queue name'],
+      ['CLOUD_TASKS_QUEUE', 'queue_name'],
+      ['CLOUD_TASKS_QUEUE', 'q'.repeat(101)],
+    ])('rejects %s=%j without echoing it', (name, value) => {
+      for (const config of [{ ...base, ...CLOUD_TASKS, [name]: value }, { ...base, [name]: value }]) {
+        const message = failureMessage(config);
+        expect(message).toContain(`${name} must be`);
+        if (value !== '') {
+          expect(message).not.toContain(value);
+        }
+      }
     });
   });
 

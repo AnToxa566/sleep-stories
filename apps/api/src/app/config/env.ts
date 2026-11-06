@@ -59,8 +59,8 @@ function isCloudRunOrProduction(env: {
 //   paid work; a job stays pending until a sweep or a later run picks it up.
 // - local: the API posts to its own /internal endpoint with a per-boot secret.
 //   Development only.
-// - cloud-tasks: the production path. Accepted here; the module bootstrap refuses it
-//   until it is implemented.
+// - cloud-tasks: the production path (CloudTasksJobQueue). Needs the OIDC pair and the
+//   queue address (GCP_PROJECT_ID, CLOUD_TASKS_LOCATION, CLOUD_TASKS_QUEUE).
 // `none` and `local` are refused on Cloud Run and in production: a silent no-op queue
 // there would lose every job, and the local credential must not exist there.
 export const JOB_QUEUE_MODES = ['none', 'local', 'cloud-tasks'] as const;
@@ -81,6 +81,27 @@ export function internalOidcAudienceProblem(value: string): string | null {
   }
   return null;
 }
+
+// The Cloud Tasks queue address (ARCHITECTURE.md section 12). Required with
+// JOB_QUEUE=cloud-tasks; a value that is set is shape-checked in any mode.
+const CLOUD_TASKS_SETTINGS = ['GCP_PROJECT_ID', 'CLOUD_TASKS_LOCATION', 'CLOUD_TASKS_QUEUE'] as const;
+const CLOUD_TASKS_SETTING_SHAPES: Record<
+  (typeof CLOUD_TASKS_SETTINGS)[number],
+  { pattern: RegExp; description: string }
+> = {
+  GCP_PROJECT_ID: {
+    pattern: /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/,
+    description: '6 to 30 lowercase letters, digits or hyphens, starting with a letter and not ending with a hyphen',
+  },
+  CLOUD_TASKS_LOCATION: {
+    pattern: /^[a-z][a-z0-9-]{2,38}[a-z0-9]$/,
+    description: 'a region name such as europe-west1',
+  },
+  CLOUD_TASKS_QUEUE: {
+    pattern: /^[A-Za-z0-9-]{1,100}$/,
+    description: '1 to 100 letters, digits or hyphens (Cloud Tasks queue ids allow no underscore)',
+  },
+};
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
@@ -259,6 +280,15 @@ export const envSchema = z
     // Cloud Scheduler sign as. Neither is secret, but the messages still omit them.
     INTERNAL_OIDC_AUDIENCE: z.string().optional(),
     INTERNAL_OIDC_SERVICE_ACCOUNT: z.string().optional(),
+    // Where the Cloud Tasks queue lives (JOB_QUEUE=cloud-tasks only; required then,
+    // ignored otherwise). Not secrets. Shapes follow the Google rules: a project id is 6 to
+    // 30 lowercase letters, digits and hyphens, starting with a letter and not ending with a
+    // hyphen; a location is such a name as `europe-west1`; a queue id is letters, digits,
+    // and hyphens, at most 100. Checked here so a typo crashes the boot, not
+    // the first enqueue (which is swallowed by design).
+    GCP_PROJECT_ID: optionalString,
+    CLOUD_TASKS_LOCATION: optionalString,
+    CLOUD_TASKS_QUEUE: optionalString,
     ...databaseTlsShape,
   })
   .superRefine((env, ctx) => {
@@ -311,7 +341,11 @@ export const envSchema = z
       });
     }
     if (env.JOB_QUEUE === 'cloud-tasks') {
-      for (const name of ['INTERNAL_OIDC_AUDIENCE', 'INTERNAL_OIDC_SERVICE_ACCOUNT'] as const) {
+      for (const name of [
+        'INTERNAL_OIDC_AUDIENCE',
+        'INTERNAL_OIDC_SERVICE_ACCOUNT',
+        ...CLOUD_TASKS_SETTINGS,
+      ] as const) {
         if (env[name] === undefined) {
           ctx.addIssue({
             code: 'custom',
@@ -319,6 +353,17 @@ export const envSchema = z
             message: `${name} is required when JOB_QUEUE=cloud-tasks`,
           });
         }
+      }
+    }
+    // Shape checks run whenever a value is present, so a bad value never waits for the mode.
+    for (const name of CLOUD_TASKS_SETTINGS) {
+      const value = env[name];
+      if (value !== undefined && !CLOUD_TASKS_SETTING_SHAPES[name].pattern.test(value)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [name],
+          message: `${name} must be ${CLOUD_TASKS_SETTING_SHAPES[name].description}`,
+        });
       }
     }
   })

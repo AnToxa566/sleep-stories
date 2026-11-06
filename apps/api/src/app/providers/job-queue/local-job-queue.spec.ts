@@ -1,7 +1,5 @@
 import { Logger } from '@nestjs/common';
 import type { HttpAdapterHost } from '@nestjs/core';
-import { createJobQueue } from './job-queue.factory';
-import { NoopJobQueue } from './job-queue';
 import { LocalDispatchSecret } from './local-dispatch-secret';
 import { LocalJobQueue } from './local-job-queue';
 import type { FetchFunction } from './local-job-queue';
@@ -201,23 +199,5 @@ describe('LocalJobQueue', () => {
     await settle();
     expect(unref).toHaveBeenCalledTimes(1);
     spy.mockRestore();
-  });
-});
-
-describe('createJobQueue', () => {
-  const secret = new LocalDispatchSecret();
-
-  it('none gives the no-op queue', () => {
-    expect(createJobQueue('none', secret, listening)).toBeInstanceOf(NoopJobQueue);
-  });
-
-  it('local gives the local queue', () => {
-    expect(createJobQueue('local', secret, listening)).toBeInstanceOf(LocalJobQueue);
-  });
-
-  it('cloud-tasks refuses to boot with a fixed message', () => {
-    expect(() => createJobQueue('cloud-tasks', secret, listening)).toThrow(
-      'JOB_QUEUE=cloud-tasks is not implemented yet; the Cloud Tasks queue arrives with the deployment cycle',
-    );
   });
 });

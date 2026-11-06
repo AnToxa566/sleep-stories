@@ -62,6 +62,7 @@
     "@expo/metro": "~56.0.0",
     "@expo/metro-runtime": "~57.0.16",
     "@expo/vector-icons": "~15.1.0",
+    "@google-cloud/tasks": "7.3.0",
     "@hookform/resolvers": "5.9.1",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "4.0.4",
