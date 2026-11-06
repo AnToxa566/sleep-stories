@@ -76,7 +76,8 @@ The apps never import each other (A-1). Contracts stay framework-free: no React 
 | No microphone; a touch continues the night, the screen stays on and dims | The background-audio spike showed the microphone path is not workable | §7, §10 |
 | Encrypted persistent session on the device | The session survives restarts without keeping a token in plain storage | §8 |
 | `expo-audio` for the player, with a lock-screen control per story | Chosen 2026-11-03; the long-run library is still the owner's choice | §7, §11 item 1 |
+| Private, Android-only, one user in practice; cheapest option everywhere (Cloud Run scale-to-zero, one instance, europe-west1; Supabase Free; local APK builds; deploy and migrate by a button) | The app is made for the owner's wife; scale problems are solved when they appear | §12 |
 
 ## 7. Not decided and not built
 
-Open problems are the owner's decisions; stop and ask (A-9, §11). Deferred and rejected ideas are in §10 (series of stories, mood filters, Sentry, Redis, SQLite, microphone). Not built yet: deployment, CI, password reset, email confirmation, Apple and Google sign-in, the Cloud Tasks queue and Scheduler, settings, ratings, a history of listens, the typed-topics field.
+Open problems are the owner's decisions; stop and ask (A-9, §11). Deferred and rejected ideas are in §10 (series of stories, mood filters, Sentry, Redis, SQLite, microphone). Not built yet: deployment, CI, password reset, email confirmation, Google sign-in, the Cloud Tasks queue and Scheduler, settings, ratings, a history of listens, the typed-topics field.

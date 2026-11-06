@@ -12,10 +12,10 @@ Sleep Stories is built around that one scenario. Tonight's queue (usually two or
 
 ## Engineering problems worth solving here
 
-- **Staying alive in the background.** Audio has to keep playing with the screen off, and after the last story the app must open the microphone and listen. Both iOS and Android restrict exactly this. It is the riskiest part of the project and is still an open spike (see [Known open problems](ARCHITECTURE.md#11-known-open-problems)).
+- **Staying alive in the background.** Audio has to keep playing with the screen off, and after the last story the app must open the microphone and listen. Android restricts exactly this. It is the riskiest part of the project and is still an open spike (see [Known open problems](ARCHITECTURE.md#11-known-open-problems)).
 - **A durable, cheap generation pipeline.** Topic, LLM text, TTS audio, storage: driven by a queue with retries and rate limits on Cloud Run, where the person decides which stories to make (each one spends a small daily allowance), and the choice of topics is automatic.
 - **Hearing one word without sending your room to the cloud.** The answer to "Вы спите?" is detected on the device. Microphone audio is never uploaded.
-- **A phone that stays quiet.** Silencing notifications from inside the app needs a native module and explicit permission on Android, and is not possible at all on iOS.
+- **A phone that stays quiet.** Silencing notifications from inside the app needs a native module and explicit permission on Android.
 - **Personalisation from behaviour and ratings, not forms.** How long a person listened to each story, and an optional rating of -1 or 1, are recorded per user and story from day one, so recommendations can be added later without a data migration.
 
 ## Stack
@@ -26,7 +26,7 @@ Sleep Stories is built around that one scenario. Tonight's queue (usually two or
 | Mobile | Expo (React Native), TanStack Query, Zustand + MMKV |
 | API | NestJS on Google Cloud Run |
 | Database | Supabase Postgres, Prisma |
-| Auth | Supabase Auth (email, Google, Apple) |
+| Auth | Supabase Auth (email, Google) |
 | Background jobs | Google Cloud Tasks + Cloud Scheduler |
 | Text generation | Anthropic SDK, behind an `LlmProvider` interface |
 | Speech synthesis | Provider chosen after listening to Russian samples, behind a `TtsProvider` interface |
@@ -46,7 +46,7 @@ packages/contracts    Zod schemas shared by both apps (@sleep-stories/contracts)
 
 ## Getting started
 
-Developed on Node.js 22 with npm. Running on an iOS simulator needs Xcode (macOS); an Android emulator needs Android Studio.
+Developed on Node.js 22 with npm. An Android emulator needs Android Studio.
 
 ```sh
 npm install
@@ -73,7 +73,6 @@ npx nx prisma-migrate-status api
 
 # Mobile
 npx nx start mobile        # Metro bundler with a QR code for Expo Go
-npx nx run-ios mobile      # iOS simulator
 npx nx run-android mobile  # Android emulator
 
 # Last: stop the local stack after work. Its ports (54321 to 54324) are open on all network interfaces.
@@ -100,7 +99,7 @@ Non-trivial changes go through a four-role cycle defined in `.claude/`: a read-o
 - `apps/api`: NestJS app with Supabase JWT verification, `GET /api/me` and `PUT /api/me/onboarding`, on Prisma 7. The 14-table schema, migrations and a placeholder seed are in `apps/api/prisma`.
 - `apps/mobile`: Expo Router app with email sign-up and sign-in (the session survives a restart), a three-step onboarding and a placeholder Home with logout.
 - `packages/contracts`: the shared Zod schemas.
-- Not done: password reset, email confirmation, Apple and Google sign-in, audio, story generation, deployment, CI.
+- Not done: password reset, email confirmation, Google sign-in, audio, story generation, deployment, CI.
 
 ---
 

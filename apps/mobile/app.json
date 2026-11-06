@@ -9,14 +9,14 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.antoxa566.mobile"
+      "bundleIdentifier": "com.antoxa566.sleepstories"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#2E2468"
       },
-      "package": "com.antoxa566.mobile"
+      "package": "com.antoxa566.sleepstories"
     },
     "plugins": [
       "expo-router",

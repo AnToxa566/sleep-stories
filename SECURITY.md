@@ -81,13 +81,13 @@ These are non-negotiable and are copied verbatim into the executor agent.
 - [ ] The API rejects a request that names another user's id; verified with two test accounts
 - [ ] Missing required configuration crashes the process at boot; verified by starting it without a secret
 - [ ] No provider key appears in the mobile bundle; verified by searching the built bundle
-- [ ] The built app declares no microphone permission (no `RECORD_AUDIO` in the Android manifest, no `NSMicrophoneUsageDescription` in `Info.plist`) while the microphone is unused; verified in the built APK and IPA
+- [ ] The built app declares no microphone permission (no `RECORD_AUDIO` in the Android manifest) while the microphone is unused; verified in the built APK
 - [ ] Only if the microphone is reopened: nothing on the microphone audio path opens a network connection, and no recording file is left on the device; verified by reading the code path, by watching network traffic and by listing the app's files after a night
 - [ ] What an EAS build archive contains has been inspected, and no secret or server-only file is in it
 - [ ] Logs contain no tokens, emails or story text; verified by reading real log output
 - [ ] Email confirmation is on in the cloud Supabase project (it is off in the local stack); verified by signing up and being refused sign-in before confirming the address. This is also the fix for account enumeration: verified by signing up with an existing address and with a new one, and getting the same screen and the same text for both (the app must not show "account already exists")
-- [ ] Sign-in providers are configured with allowlisted redirect URIs; the App Store sign-in expectation is checked
+- [ ] Sign-in providers are configured with allowlisted redirect URIs
 - [ ] The Supabase project is not on a plan that pauses for inactivity
 - [ ] `npm audit` results have been reviewed and the remaining findings accepted explicitly
 - [ ] Module-boundary lint rule is on and proven by violating it on purpose
-- [ ] In-app account deletion works end to end (the Supabase auth user and the `users` row with its cascade); the App Store expects it
+- [ ] In-app account deletion works end to end (the Supabase auth user and the `users` row with its cascade)
