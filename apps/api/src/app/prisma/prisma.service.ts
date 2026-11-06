@@ -21,8 +21,12 @@ import { resolveDatabaseSsl } from './database-tls';
 //   DATABASE_URL; otherwise `?sslmode=disable` would silently switch TLS off.
 // - connectionTimeoutMillis 10000: fail a stuck connect instead of hanging a
 //   Cloud Run request. Costs a spurious failure if the pooler is slow to answer.
-// - Pool size is left at the pg default (10). How it relates to Cloud Run
-//   concurrency is an open problem (ARCHITECTURE.md section 11).
+// - Pool size is set explicitly: see DATABASE_POOL_MAX below.
+// Equal to the pg default (10), written down so a change of the library default cannot
+// change the number of connections silently. One Cloud Run instance means at most this
+// many connections to the pooler; raising the instance limit multiplies it.
+const DATABASE_POOL_MAX = 10;
+
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
@@ -34,6 +38,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         connectionString: config.get('DATABASE_URL', { infer: true }),
         ssl,
         connectionTimeoutMillis: 10_000,
+        max: DATABASE_POOL_MAX,
       }),
     });
     if (ssl === false) {
@@ -64,5 +69,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async onModuleDestroy(): Promise<void> {
     await this.$disconnect();
+    // A fixed line, no ids: the container smoke test reads it to prove that SIGTERM
+    // reaches the shutdown hooks.
+    this.logger.log('Database connection closed');
   }
 }

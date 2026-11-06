@@ -3,42 +3,10 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/api/src",
   "projectType": "application",
-  "tags": ["scope:api"],
+  "tags": [
+    "scope:api"
+  ],
   "targets": {
-    "prune-lockfile": {
-      "dependsOn": [
-        "build"
-      ],
-      "cache": true,
-      "executor": "@nx/js:prune-lockfile",
-      "outputs": [
-        "{workspaceRoot}/dist/apps/api/package.json",
-        "{workspaceRoot}/dist/apps/api/package-lock.json"
-      ],
-      "options": {
-        "buildTarget": "build"
-      }
-    },
-    "copy-workspace-modules": {
-      "dependsOn": [
-        "build"
-      ],
-      "cache": true,
-      "outputs": [
-        "{workspaceRoot}/dist/apps/api/workspace_modules"
-      ],
-      "executor": "@nx/js:copy-workspace-modules",
-      "options": {
-        "buildTarget": "build"
-      }
-    },
-    "prune": {
-      "dependsOn": [
-        "prune-lockfile",
-        "copy-workspace-modules"
-      ],
-      "executor": "nx:noop"
-    },
     "serve": {
       "continuous": true,
       "executor": "@nx/js:node",
@@ -193,12 +161,37 @@
       "dependsOn": [
         "^build",
         "prisma-generate"
+      ],
+      "inputs": [
+        "...",
+        {
+          "externalDependencies": [
+            "prisma",
+            "@prisma/client"
+          ]
+        }
       ]
     },
     "lint": {
       "dependsOn": [
         "prisma-generate"
       ]
+    },
+    "docker-build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker build -f apps/api/Dockerfile -t sleep-stories-api:local .",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": false
+    },
+    "docker-smoke": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bash apps/api/scripts/docker-smoke.sh",
+        "cwd": "{workspaceRoot}"
+      },
+      "cache": false
     }
   }
 }

@@ -1,0 +1,38 @@
+# The build context is the repository root (apps/api/Dockerfile). Everything the image
+# does not need is excluded, and above all every file that could hold a secret: a
+# COPY of the repository must not be able to carry an env file into a layer.
+
+# Secrets and local environment files, in any directory
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.jks
+**/*.keystore
+**/service-account*.json
+
+# Version control, tooling and agent files
+.git
+.gitignore
+.claude
+.nx
+.vscode
+.idea
+.DS_Store
+**/.DS_Store
+
+# Built output and installed packages are rebuilt inside the image
+node_modules
+**/node_modules
+dist
+tmp
+out-tsc
+coverage
+
+# Not part of the API image
+design
+apps/mobile
+apps/api/supabase
+apps/api/src/generated
+**/*.md
