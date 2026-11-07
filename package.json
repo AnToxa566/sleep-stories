@@ -7,6 +7,8 @@
     "db:down": "nx supabase-stop api",
     "api": "nx serve api",
     "api:build": "nx build api",
+    "image:push": "bash infra/push-image.sh",
+    "image:deploy": "bash infra/deploy.sh $(git rev-parse --short=12 HEAD)",
     "mobile": "nx start mobile",
     "mobile:ios": "nx run-ios mobile",
     "mobile:android": "nx run-android mobile",
