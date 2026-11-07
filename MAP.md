@@ -36,6 +36,12 @@ The apps never import each other (A-1). Contracts stay framework-free: no React 
 | `prisma` | The Prisma service, TLS pinning, `lockUserRow` (the one place that locks the `users` row) |
 | `config`, `validation`, `errors` | Zod-checked env that fails at boot; response validation that fails closed; one error body shape (S-5) |
 
+## 3b. Deployment scripts (`infra/`, §12)
+
+| Piece | Responsible for |
+|---|---|
+| `infra/*.sh`, `infra/README.md` | Bash scripts for Google Cloud, with the runbook: foundation (`bootstrap.sh`, `set-secret.sh`), image and deploy (`push-image.sh`, `deploy.sh`), live checks (`smoke.sh`), alerts and a budget (`alerts.sh`). Every `gcloud` call goes through one wrapper (`lib.sh`); `DRY_RUN=1` prints and runs nothing; `check.sh` is the offline check. Checked offline; first run by the owner on 2026-11-07 (deployment reported working) |
+
 ## 4. Mobile modules (`apps/mobile/src`, §7 to §9)
 
 | Folder | Responsible for |
@@ -76,8 +82,9 @@ The apps never import each other (A-1). Contracts stay framework-free: no React 
 | No microphone; a touch continues the night, the screen stays on and dims | The background-audio spike showed the microphone path is not workable | §7, §10 |
 | Encrypted persistent session on the device | The session survives restarts without keeping a token in plain storage | §8 |
 | `expo-audio` for the player, with a lock-screen control per story | Chosen 2026-11-03; the long-run library is still the owner's choice | §7, §11 item 1 |
+| Alerts and a budget do not stop spending; the Google Cloud ceiling is `--max-instances=1` | A Google Cloud budget only sends email; provider spend is bounded only by the vendor limits and the 5-per-day allowance. Two log alerts (enqueue failed, Scheduler sweep failed) cover the failures nobody would see; vendor limits are set by hand | §12 |
 | Private, Android-only, one user in practice; cheapest option everywhere (Cloud Run scale-to-zero, one instance, europe-west1; Supabase Free; local APK builds; deploy and migrate by a button) | The app is made for the owner's wife; scale problems are solved when they appear | §12 |
 
 ## 7. Not decided and not built
 
-Open problems are the owner's decisions; stop and ask (A-9, §11). Deferred and rejected ideas are in §10 (series of stories, mood filters, Sentry, Redis, SQLite, microphone). Not built yet: deployment, CI, password reset, email confirmation, Google sign-in, the Cloud Tasks queue and Scheduler, settings, ratings, a history of listens, the typed-topics field.
+Open problems are the owner's decisions; stop and ask (A-9, §11). Deferred and rejected ideas are in §10 (series of stories, mood filters, Sentry, Redis, SQLite, microphone). Not built yet: CI, password reset, email confirmation, Google sign-in, settings, ratings, a history of listens, the typed-topics field. The production deployment (`infra/`: Cloud Run, the Cloud Tasks queue, the Scheduler job) exists since 2026-11-07, owner-reported (ARCHITECTURE.md section 12). The Cloud Tasks adapter in `apps/api` is built.
