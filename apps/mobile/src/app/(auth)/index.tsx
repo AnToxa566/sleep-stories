@@ -27,7 +27,10 @@ export default function Welcome() {
       <View style={styles.bottom}>
         <Text style={styles.intro}>{strings.auth.intro}</Text>
         {/* Not wired yet: accessible, but a press does nothing. */}
+        {/* Hidden on purpose (owner, 2026-11-07): the app is Android-only and there is no Apple
+            developer account, so this button can never work. Kept as a comment, not deleted.
         <SecondaryButton label={strings.auth.continueWithApple} onPress={noop} />
+        */}
         <SecondaryButton label={strings.auth.continueWithGoogle} onPress={noop} />
         <View style={styles.divider}>
           <View style={styles.rule} />

@@ -74,9 +74,9 @@ These are non-negotiable and are copied verbatim into the executor agent.
 - [ ] Per-user quota exists and is enforced before every call to the LLM and TTS providers
 - [ ] No path creates a `write_story` or `render_audio` job except the explicit start of a person; proven by a test that onboarding, the top-up, adding to the queue and replacing create none
 - [x] Two simultaneous starts for one person never spend more than 5 slots, and a double tap on one story spends one; verified with a lock-held test and a concurrent test (cycle 4c, 2026-10-31)
-- [ ] Spending limits are set in the Anthropic and ElevenLabs accounts. Google Cloud has no hard cap: it has a budget that only sends email (`infra/alerts.sh`), and `--max-instances=1` on Cloud Run is the Google Cloud ceiling (owner, 2026-11-06); provider spend is bounded only by the vendor limits and the 5-per-day allowance
-- [ ] RLS is enabled on every table; verified by querying with the publishable key and getting nothing
-- [ ] Storage buckets are private; verified by requesting a file URL without a signature and getting a refusal
+- [x] Spending limits are set in the Anthropic and ElevenLabs accounts (owner-reported, 2026-11-07, together with the Google Cloud budget set by hand). Google Cloud has no hard cap: it has a budget that only sends email (`infra/alerts.sh`), and `--max-instances=1` on Cloud Run is the Google Cloud ceiling (owner, 2026-11-06); provider spend is bounded only by the vendor limits and the 5-per-day allowance
+- [x] RLS is enabled on every table; verified by querying with the publishable key and getting nothing (owner-reported, 2026-11-07)
+- [x] Storage buckets are private; verified by requesting a file URL without a signature and getting a refusal (owner-reported, 2026-11-07)
 - [ ] `/internal/*` endpoints reject requests without a valid OIDC token; verified by calling one without it
 - [ ] The API rejects a request that names another user's id; verified with two test accounts
 - [ ] Missing required configuration crashes the process at boot; verified by starting it without a secret
@@ -85,7 +85,7 @@ These are non-negotiable and are copied verbatim into the executor agent.
 - [ ] Only if the microphone is reopened: nothing on the microphone audio path opens a network connection, and no recording file is left on the device; verified by reading the code path, by watching network traffic and by listing the app's files after a night
 - [ ] What an EAS build archive contains has been inspected, and no secret or server-only file is in it
 - [ ] Logs contain no tokens, emails or story text; verified by reading real log output
-- [ ] Email confirmation is on in the cloud Supabase project (it is off in the local stack); verified by signing up and being refused sign-in before confirming the address. This is also the fix for account enumeration: verified by signing up with an existing address and with a new one, and getting the same screen and the same text for both (the app must not show "account already exists")
+- [ ] Only if the app is released beyond the owner's household (for example on the Play Store; owner, 2026-11-07: not needed for one user): email confirmation is on in the cloud Supabase project (it is off in the local stack); verified by signing up and being refused sign-in before confirming the address. This is also the fix for account enumeration: verified by signing up with an existing address and with a new one, and getting the same screen and the same text for both (the app must not show "account already exists")
 - [ ] Sign-in providers are configured with allowlisted redirect URIs
 - [ ] The Supabase project is not on a plan that pauses for inactivity
 - [ ] `npm audit` results have been reviewed and the remaining findings accepted explicitly

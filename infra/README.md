@@ -85,7 +85,7 @@ Run from a trusted network (home, not a café or a hotspot): the Prisma CLI conn
 1. In `apps/api/.env` (never print the file): comment out the local `DATABASE_URL`, `DIRECT_URL` and `DATABASE_TLS` lines, and remove the `# cloud: ` prefix from the two cloud lines (AGENTS.md, "Database setup"). `DATABASE_TLS` must stay unset: the seed refuses `disabled-local-only` for a host that is not on this machine.
 2. `npx nx prisma-migrate-status api --outputStyle=static` shows what is not applied yet.
 3. `npx nx prisma-migrate-deploy api --outputStyle=static` applies the migrations (`init`, `drop_voice_asleep_prompt_audio_path`).
-4. `SEED_ALLOW_REMOTE=yes npx nx prisma-seed api --outputStyle=static`. The seed refuses a database that is not on this machine unless `SEED_ALLOW_REMOTE=yes` is set (`prisma/seed-target.ts`); it prints `Seeding a REMOTE database` and counts, never the URL. It is safe to repeat. **The seed also loads the ten PLACEHOLDER interests**, which the real user will see in onboarding; replacing them with the real list is your content decision (nothing here decides it).
+4. `SEED_ALLOW_REMOTE=yes npx nx prisma-seed api --outputStyle=static`. The seed refuses a database that is not on this machine unless `SEED_ALLOW_REMOTE=yes` is set (`prisma/seed-target.ts`); it prints `Seeding a REMOTE database` and counts, never the URL. It is safe to repeat. The seed also loads the ten interests that onboarding shows (owner, 2026-11-07: this is the real list, nothing to replace).
 5. Check row level security in the SQL editor. Expect `rls_on` 15 (14 tables and `_prisma_migrations`) and `rls_off` 0:
 
 ```sql
@@ -241,7 +241,7 @@ These are yours; nothing here decides them.
 
 1. **Open sign-up.** Supabase email confirmation is off, so anyone who has the APK can create many accounts, each with 5 generations per 24 hours, and the Google Cloud ceiling does not bound provider spend. Do you turn off "Allow new users to sign up" in the Supabase dashboard once your own accounts exist? (ARCHITECTURE.md section 11, items 8 and 23.) The vendor limits in step 2 are the brake in the meantime.
 2. **The Artifact Registry cleanup policy** keeps only 2 images and deletes anything older than one day. Two pushes without a successful deploy more than a day apart can delete the image the service runs on (an outage at the next cold start), and rollback is limited to one image. Keeping about 5 costs cents a month. Confirm 2 or raise it to 5 (`AR_KEEP_COUNT` in `config.sh`; not changed).
-3. **An optional third log alert** on `Internal credential rejected`: if every Cloud Task gets 401 after a configuration drift, the sweep still answers 200 and nothing alerts; no paid call happens, jobs just stay `pending`. Not built; your call.
+3. **Log alerts: decided against (owner, 2026-11-07).** The only alert is the Google Cloud budget, which the owner set by hand; `infra/alerts.sh` has not been run and no log-alert policy exists. The owner says he will ask if he ever wants them. (They would catch, for example, tasks refused with 401 after a configuration drift; no paid call happens in that case, jobs just stay pending.)
 
 ### For slice 4 (not built; facts for the next planner)
 
