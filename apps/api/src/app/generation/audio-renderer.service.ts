@@ -1,14 +1,18 @@
 import { Injectable } from '@nestjs/common';
+import type { StoryStyle } from '@sleep-stories/contracts';
 import { StorageService, storyAudioPath } from '../providers/storage/storage.service';
 import { TtsProvider } from '../providers/tts/tts.provider';
 import { AudioDurationReader } from './audio-duration';
 import { GenerationError } from './generation-error';
+import { composeSpokenText } from './spoken-text';
 
 export interface RenderAudioInput {
   storyId: string;
   // Our voice id (the path part) and the provider's own id (what the TTS call needs).
   voice: { id: string; providerVoiceId: string };
+  // The clean stored story text; the intro and the provider tags are added at render time.
   text: string;
+  topic: { title: string; style: StoryStyle };
 }
 
 export interface RenderAudioResult {
@@ -35,7 +39,11 @@ export class AudioRendererService {
     const storagePath = storyAudioPath(input.storyId, input.voice.id);
 
     const { audio, mimeType, provider } = await this.tts.synthesize({
-      text: input.text,
+      text: composeSpokenText({
+        style: input.topic.style,
+        title: input.topic.title,
+        body: input.text,
+      }),
       providerVoiceId: input.voice.providerVoiceId,
     });
 

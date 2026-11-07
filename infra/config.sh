@@ -79,7 +79,7 @@ RUN_ENV_VARS=(
   DATABASE_TLS=verify
   AUDIO_BUCKET=audio
   ANTHROPIC_MODEL=claude-haiku-5-5
-  ELEVENLABS_MODEL=eleven_v4
+  ELEVENLABS_MODEL=eleven_v4_turbo
   # Nest's ConsoleLogger adds ANSI colours to Cloud Logging otherwise.
   NO_COLOR=1
 )

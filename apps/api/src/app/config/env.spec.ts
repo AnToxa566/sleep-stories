@@ -92,7 +92,7 @@ describe('validateEnv', () => {
     it('default to the documented ids', () => {
       const env = validateEnv({ DATABASE_URL: REMOTE_URL });
       expect(env.ANTHROPIC_MODEL).toBe('claude-haiku-5-5');
-      expect(env.ELEVENLABS_MODEL).toBe('eleven_v4');
+      expect(env.ELEVENLABS_MODEL).toBe('eleven_v4_turbo');
     });
 
     it('accept an override and reject an empty value', () => {

@@ -394,8 +394,12 @@ describe('WriteStoryHandler (database)', () => {
 describe('RenderAudioHandler (database)', () => {
   it('stores the audio row with the renderer fields and marks the job succeeded', async () => {
     const { voiceId, userId } = await person();
-    const { storyId } = await topic({ story: true });
+    const { storyId, topicId } = await topic({ story: true });
     const voice = await prisma.voice.findUniqueOrThrow({ where: { id: voiceId } });
+    const topicRow = await prisma.topic.findUniqueOrThrow({
+      where: { id: topicId },
+      select: { title: true, style: true },
+    });
     const jobId = await makeJob(userId, {
       kind: 'render_audio',
       storyId: storyId as string,
@@ -409,6 +413,7 @@ describe('RenderAudioHandler (database)', () => {
         storyId,
         voice: { id: voiceId, providerVoiceId: voice.providerVoiceId },
         text: 'test story',
+        topic: topicRow,
       },
     ]);
     const rows = await audioOf(storyId as string);

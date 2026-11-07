@@ -34,14 +34,21 @@ function setup(duration: number | undefined | Error) {
 
 const storyId = randomUUID();
 const voiceId = randomUUID();
+const TOPIC = { title: 'Ночной маяк', style: 'fairy_tale' } as const;
+const SPOKEN = `[storyteller]\n\nСказка "Ночной маяк".\n[pause]\n${TEXT}`;
 const render = (service: AudioRendererService) =>
-  service.render({ storyId, voice: { id: voiceId, providerVoiceId: 'prov-1' }, text: TEXT });
+  service.render({
+    storyId,
+    voice: { id: voiceId, providerVoiceId: 'prov-1' },
+    text: TEXT,
+    topic: TOPIC,
+  });
 
 describe('AudioRendererService', () => {
   it('synthesizes with the provider voice id, uploads at the deterministic path and returns the metadata', async () => {
     const { service, synth, uploads } = setup(181.4);
     const result = await render(service);
-    expect(synth).toEqual([{ text: TEXT, providerVoiceId: 'prov-1' }]);
+    expect(synth).toEqual([{ text: SPOKEN, providerVoiceId: 'prov-1' }]);
     expect(uploads).toEqual([
       { path: `stories/${storyId}/${voiceId}.mp3`, bytes: AUDIO, mimeType: 'audio/mpeg' },
     ]);
@@ -52,6 +59,22 @@ describe('AudioRendererService', () => {
       mimeType: 'audio/mpeg',
       ttsProvider: 'elevenlabs',
     });
+  });
+
+  it('does not let a bracketed tag from the text or the title reach the provider', async () => {
+    const { service, synth } = setup(10);
+    await service.render({
+      storyId,
+      voice: { id: voiceId, providerVoiceId: 'prov-1' },
+      text: `Он [whispers] сказал ${TEXT} [laughs].`,
+      topic: { title: 'Маяк [shouts]', style: 'facts' },
+    });
+    expect(synth).toHaveLength(1);
+    const sent = synth[0].text;
+    expect(sent).not.toContain('whispers');
+    expect(sent).not.toContain('laughs');
+    expect(sent).not.toContain('shouts');
+    expect(sent.match(/\[[^\]]*\]/g)).toEqual(['[storyteller]', '[pause]']);
   });
 
   it('rounds the duration to whole seconds', async () => {
@@ -82,7 +105,12 @@ describe('AudioRendererService', () => {
   it('refuses a non-UUID id before any paid call', async () => {
     const { service, synth } = setup(10);
     await expect(
-      service.render({ storyId: '../x', voice: { id: voiceId, providerVoiceId: 'p' }, text: TEXT }),
+      service.render({
+        storyId: '../x',
+        voice: { id: voiceId, providerVoiceId: 'p' },
+        text: TEXT,
+        topic: TOPIC,
+      }),
     ).rejects.toThrow();
     expect(synth).toHaveLength(0);
   });

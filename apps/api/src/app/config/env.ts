@@ -263,7 +263,7 @@ export const envSchema = z
     // The ElevenLabs default is the owner's choice; the package types do not list it for
     // text-to-speech, but the paid smoke test passed with it (owner, 2026-10-30).
     ANTHROPIC_MODEL: z.string().min(1, 'ANTHROPIC_MODEL must not be empty').default('claude-haiku-5-5'),
-    ELEVENLABS_MODEL: z.string().min(1, 'ELEVENLABS_MODEL must not be empty').default('eleven_v4'),
+    ELEVENLABS_MODEL: z.string().min(1, 'ELEVENLABS_MODEL must not be empty').default('eleven_v4_turbo'),
     // The one private bucket for all audio (voice samples now, story audio later under stories/).
     // Database paths are relative to it, so only this value changes between environments.
     AUDIO_BUCKET: z

@@ -26,7 +26,10 @@ export class RenderAudioHandler implements JobHandler<'render_audio'> {
     const { storyId, voiceId } = ctx.job.payload;
 
     const [story, voice, existing] = await Promise.all([
-      this.prisma.story.findUnique({ where: { id: storyId }, select: { text: true } }),
+      this.prisma.story.findUnique({
+        where: { id: storyId },
+        select: { text: true, topic: { select: { title: true, style: true } } },
+      }),
       this.prisma.voice.findUnique({ where: { id: voiceId }, select: { providerVoiceId: true } }),
       this.prisma.storyAudio.findUnique({
         where: { storyId_voiceId: { storyId, voiceId } },
@@ -49,6 +52,7 @@ export class RenderAudioHandler implements JobHandler<'render_audio'> {
       storyId,
       voice: { id: voiceId, providerVoiceId: voice.providerVoiceId },
       text: story.text,
+      topic: story.topic,
     });
 
     await this.prisma.$transaction(async (tx) => {

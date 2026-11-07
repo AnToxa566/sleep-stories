@@ -69,6 +69,7 @@ const SIGNED_URL_SECONDS = 10 * 60;
           storyId,
           voice: { id: voice.id, providerVoiceId: voice.providerVoiceId },
           text: story.text,
+          topic: { title: TOPIC, style: STYLE },
         })
         .catch((error: unknown) => {
           if (error instanceof TtsProviderError) {
