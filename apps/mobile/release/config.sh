@@ -31,13 +31,15 @@ EXPECTED_SUPABASE_URL="https://gadguyuxdxjmxtxnwlsv.supabase.co"
 
 # Real phones: 64-bit and 32-bit ARM in one universal APK.
 ABIS="arm64-v8a,armeabi-v7a"
-OUT_DIR="${REPO_ROOT}/dist/android-release"
+OUT_DIR="${OUT_DIR:-${REPO_ROOT}/dist/android-release}" # the self-tests point it at a throwaway folder
 
 # --- What verify-apk.sh accepts (arrays, so that bash 3.2 can read them) ---------------------------
 # The only permissions the release app may ask for. Each one is exact: a new one in a built APK is a
-# FAIL until the owner decides to add it here. The owner approved blocking the template's
-# SYSTEM_ALERT_WINDOW, READ_EXTERNAL_STORAGE and WRITE_EXTERNAL_STORAGE in app.json (slice 2b), so
-# they are NOT listed. RECORD_AUDIO is never allowed (SECURITY.md checklist: no microphone).
+# FAIL until the owner decides to add it here. The owner approved blocking SIX permissions in
+# app.json (android.blockedPermissions; slice 2b, 2026-11-07): RECORD_AUDIO, SYSTEM_ALERT_WINDOW,
+# READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE, and USE_BIOMETRIC and USE_FINGERPRINT (a library
+# of expo-secure-store adds those two; the app never asks for biometrics). They are NOT listed
+# here and must never be. RECORD_AUDIO is never allowed (SECURITY.md checklist: no microphone).
 ALLOWED_PERMISSIONS=(
   "android.permission.INTERNET"
   "android.permission.FOREGROUND_SERVICE"
@@ -50,21 +52,28 @@ ALLOWED_PERMISSIONS=(
 )
 FORBIDDEN_PERMISSION="android.permission.RECORD_AUDIO"
 
-# The two audio files bundled into the app (assets/audio). React Native puts them in res/raw and
-# turns '-' into '_', so the names are matched by these fragments.
-BUNDLED_RAW_FRAGMENTS=("waves" "silence_3s")
+# The two audio files bundled into the app (assets/audio). React Native puts them in res/raw as
+# assets_audio_<name> and drops the '-' (silence-3s.wav becomes silence3s; seen on the real build of
+# 2026-11-07), so the names are matched by these fragments.
+BUNDLED_RAW_FRAGMENTS=("waves" "silence3s")
 
 # Patterns searched in EVERY file of the unpacked APK (extended regular expressions; the scan
 # prints counts of files, never the matching text). The brackets keep this file from matching its
 # own secret-literal rule in check.sh. A hit found on a real build that turns out to be a false
 # positive (a library string) is reported to the owner, never removed quietly from this list.
+# The bare word localhost is NOT checked (owner, 2026-11-07): React Native and library defaults such as
+# http://localhost:8081 are dead strings in a release.
 BUNDLE_MUST_NOT_CONTAIN=(
   # keys and credentials
-  "sk-an[t]-" "sb_secre[t]_" "service_rol[e]" "ey[J][A-Za-z0-9_-]{10,}\.ey[J]"
+  # The Supabase secret-key prefix (written sb_secre[t]_ here) is deliberately NOT scanned (owner,
+  # 2026-11-07): the app only accepts a key that starts with sb_publishable_ (src/config/env.ts) and
+  # build-release.sh refuses a secret key in the env gate; the prefix text inside a Hermes bundle
+  # only gives false hits.
+  "sk-an[t]-" "service_rol[e]" "ey[J][A-Za-z0-9_-]{10,}\.ey[J]"
   "ELEVENLABS" "ANTHROPIC_API_KEY" "DATABASE_URL" "DIRECT_URL"
   "postgre[s](ql)?://" "-----BEGI[N]"
   # addresses of a development machine
-  ":5432[1]" ":3000/ap[i]" "http://192\.168\." "http://10\." "http://172\." "http://127\." "localhos[t]"
+  ":5432[1]" ":3000/ap[i]" "http://192\.168\." "http://10\." "http://172\." "http://127\."
 )
 # Fixed strings that must be present: the production API and Supabase addresses (config above).
 BUNDLE_MUST_CONTAIN=("$EXPECTED_API_URL" "$EXPECTED_SUPABASE_URL")

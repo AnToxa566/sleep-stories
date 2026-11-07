@@ -232,3 +232,88 @@ files_matching() {
 count_files_matching() {
   files_matching "$1" "$2" "$3" | grep -c . || true
 }
+
+# --- Build helpers for build-release.sh ----------------------------------------------------------
+# Pure functions again (text in, a plain sentence out), so check.sh can test them offline.
+
+# The only names the production env file may set. Everything else in that file is refused: the file
+# is read as data, never run (a shell would run anything written in it).
+RELEASE_ENV_NAMES=" EXPO_PUBLIC_API_URL EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY "
+
+# validate_env_file FILE: 0 if every line is empty, a '#' comment, or NAME=VALUE with a name from the
+# list above (each at most once) and a value of plain characters. Otherwise prints one sentence
+# (the line number, never the content) and returns 1.
+validate_env_file() {
+  local file="$1" line n=0 seen=" " re='^([A-Z_]+)=([A-Za-z0-9._~:/?#%+=&-]*)$' LC_ALL=C
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+    line="${line%$'\r'}"
+    case "$line" in '' | '#'*) continue ;; esac
+    if ! [[ "$line" =~ $re ]]; then
+      printf 'line %s is not NAME=VALUE with plain characters (spaces, quotes and $ are not allowed; the content is not shown)\n' "$n"
+      return 1
+    fi
+    case "$RELEASE_ENV_NAMES" in
+      *" ${BASH_REMATCH[1]} "*) ;;
+      *) printf 'line %s sets a name that a release does not read (only the three EXPO_PUBLIC_ names are allowed)\n' "$n"; return 1 ;;
+    esac
+    case "$seen" in
+      *" ${BASH_REMATCH[1]} "*) printf 'line %s sets the same name a second time\n' "$n"; return 1 ;;
+    esac
+    seen="${seen}${BASH_REMATCH[1]} "
+  done <"$file"
+}
+
+# env_file_value FILE NAME: prints the value of NAME (empty if absent). Call validate_env_file first.
+env_file_value() {
+  sed -n "s/^$2=//p" "$1" | tr -d '\r' | head -n 1
+}
+
+# release_key_problem KEY: prints a sentence and returns 1 if KEY cannot be the Supabase publishable key.
+release_key_problem() {
+  local key="$1"
+  case "$key" in
+    sb_secre[t]_*) printf 'this is the SECRET key (it starts with the word secret). Never put it in the app. Use the "Publishable key" instead.\n'; return 1 ;;
+  esac
+  if ! [[ "$key" =~ ^sb_publishable_[A-Za-z0-9_-]+$ ]]; then
+    printf 'the key is not a publishable key: it must start with sb_publishable_ and have only letters, digits, - and _\n'
+    return 1
+  fi
+}
+
+# release_url_problem NAME VALUE EXPECTED: prints a sentence and returns 1 unless VALUE is a public
+# https address AND exactly the production address EXPECTED.
+release_url_problem() {
+  if ! is_public_https_url "$2"; then
+    printf '%s is not a public https address. A release must never point at a development machine or use plain http.\n' "$1"
+    return 1
+  fi
+  if [ "$2" != "$3" ]; then
+    printf '%s is not the production address written in config.sh. Remove the line from the env file (the build uses the config value).\n' "$1"
+    return 1
+  fi
+}
+
+# release_env_problem FILE: 0 if the env file is usable for a release; otherwise prints the reason.
+release_env_problem() {
+  local file="$1" msg key api supa
+  msg="$(validate_env_file "$file")" || { printf '%s\n' "$msg"; return 1; }
+  key="$(env_file_value "$file" EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY)"
+  if [ -z "$key" ]; then printf 'the file has no EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY line\n'; return 1; fi
+  msg="$(release_key_problem "$key")" || { printf '%s\n' "$msg"; return 1; }
+  api="$(env_file_value "$file" EXPO_PUBLIC_API_URL)"
+  if [ -n "$api" ]; then
+    msg="$(release_url_problem EXPO_PUBLIC_API_URL "$api" "$EXPECTED_API_URL")" || { printf '%s\n' "$msg"; return 1; }
+  fi
+  supa="$(env_file_value "$file" EXPO_PUBLIC_SUPABASE_URL)"
+  if [ -n "$supa" ]; then
+    msg="$(release_url_problem EXPO_PUBLIC_SUPABASE_URL "$supa" "$EXPECTED_SUPABASE_URL")" || { printf '%s\n' "$msg"; return 1; }
+  fi
+}
+
+# highest_logged_version_code FILE: the highest versionCode (3rd column) in releases.log; 0 if the
+# file is missing or empty. Columns: date, version, versionCode, commit, APK SHA-256, certificate SHA-256.
+highest_logged_version_code() {
+  if [ ! -f "$1" ]; then printf '0'; return 0; fi
+  awk '$3 ~ /^[0-9]+$/ { if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$1"
+}

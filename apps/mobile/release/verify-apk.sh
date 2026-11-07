@@ -187,7 +187,7 @@ fi
 # Counts of FILES that contain each pattern. The matching text is never printed. Hermes keeps its
 # strings as readable ASCII, so a plain search finds them; text stored as UTF-16 (resources.arsc,
 # binary XML) is not covered, and the secrets of this project would sit in the JS bundle anyway.
-# A real false positive (a library that contains the word 'localhost') is reported to the owner
+# A real false positive (a library that contains one of the strings) is reported to the owner
 # and decided there: it is never quietly removed from the list in config.sh.
 tree="$tmp/apk"
 mkdir -p "$tree"
