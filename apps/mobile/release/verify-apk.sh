@@ -8,6 +8,9 @@
 # backup), the zip alignment, a scan of every file for secrets and development addresses, the two
 # bundled audio files, and the production addresses.
 #
+# It fails closed: when a tool prints something it cannot read (no permissions, no manifest, no
+# application line, a scan that cannot run, an empty unpacked tree) that is a FAIL, never a pass.
+#
 # Usage: bash apps/mobile/release/verify-apk.sh <apk> [versionName] [versionCode]
 #        (the expected version can also come from EXPECT_VERSION_NAME and EXPECT_VERSION_CODE;
 #         when none is given the version is only printed)
@@ -116,7 +119,12 @@ else
   bad "versionCode" "found ${code:-none}, expected ${expect_code}" \
     "The version code differs from the one asked for. A phone accepts an update only with a HIGHER code than the installed one."
 fi
-if grep -q '^application-debuggable' <<<"$badging"; then
+# Fail closed: a badging dump without its "application:" line was not read properly, and then the
+# absence of "application-debuggable" proves nothing.
+if ! grep -q '^application:' <<<"$badging"; then
+  bad "not debuggable" "could not read badging (no application line)" \
+    "aapt2 printed something unexpected, so it is unknown whether the app is debuggable. Do not install this file; check that aapt2 is the build-tools version in config.sh."
+elif grep -q '^application-debuggable' <<<"$badging"; then
   bad "not debuggable" "the app is marked debuggable" \
     "A debuggable app lets anyone with a cable read its data and attach a debugger. Build a release variant."
 else
@@ -132,15 +140,25 @@ else
 fi
 
 # ---- 3. Permissions -------------------------------------------------------------------------------
-perms="$("$AAPT2" dump permissions "$apk" 2>&1 | parse_permissions)"
-extra="$(unexpected_permissions <<<"$perms")"
-if [ -n "$extra" ]; then
-  while IFS= read -r name; do
-    bad "permission ${name}" "not on the allow-list" \
-      "The app asks for ${name}, which was not approved. Find which library adds it (or block it in app.json); do not add it to the list in config.sh without the owner."
-  done <<<"$extra"
+# Read twice, from two aapt2 outputs (see permissions_problem in lib.sh): the parsed list and the raw
+# manifest. An empty or garbled reading, a missing INTERNET or a count that differs is a FAIL, never
+# "0 asked".
+perm_dump="$("$AAPT2" dump permissions "$apk" 2>&1)" || die "aapt2 could not read the permissions of ${apk}"
+manifest="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$apk" 2>&1)" || die "aapt2 could not read the manifest of ${apk}"
+perms="$(parse_permissions <<<"$perm_dump")"
+if perm_problem="$(permissions_problem "$perm_dump" "$manifest")"; then
+  extra="$(unexpected_permissions <<<"$perms")"
+  if [ -n "$extra" ]; then
+    while IFS= read -r name; do
+      bad "permission ${name}" "not on the allow-list" \
+        "The app asks for ${name}, which was not approved. Find which library adds it (or block it in app.json); do not add it to the list in config.sh without the owner."
+    done <<<"$extra"
+  else
+    ok "permissions all on the allow-list" "$(grep -c . <<<"$perms") asked"
+  fi
 else
-  ok "permissions all on the allow-list" "$(grep -c . <<<"$perms") asked"
+  bad "permissions could be read" "$perm_problem" \
+    "The permission check fails closed: when the list cannot be read or does not add up, nothing is assumed. Do not install this file."
 fi
 if grep -qx "$FORBIDDEN_PERMISSION" <<<"$perms"; then
   bad "RECORD_AUDIO absent" "the microphone permission is present" \
@@ -150,22 +168,35 @@ else
 fi
 
 # ---- 4. Manifest ----------------------------------------------------------------------------------
-manifest="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$apk" 2>&1)" || die "aapt2 could not read the manifest of ${apk}"
+if ! grep -q '^[[:space:]]*E: manifest' <<<"$manifest" || ! grep -q '^[[:space:]]*E: application' <<<"$manifest"; then
+  bad "manifest readable" "no manifest or application element in the dump" \
+    "aapt2 printed something unexpected, so the manifest checks below prove nothing. Do not install this file."
+fi
 if grep -q 'DevLauncherActivity' <<<"$manifest"; then
   bad "no dev launcher" "DevLauncherActivity is in the manifest" \
     "This is a development client build. It lets a user type any server address. Build the release variant."
 else
   ok "no dev launcher"
 fi
-manifest_flag() { sed -n "s/.*:$1(0x[0-9a-f]*)=\\([a-z]*\\).*/\\1/p" <<<"$manifest" | head -n 1; }
-cleartext="$(manifest_flag usesCleartextTraffic)"
-if [ "$cleartext" = "true" ]; then
-  bad "no cleartext traffic" "usesCleartextTraffic is true" \
-    "The app may talk to servers without encryption. A release must use https only."
+# Cleartext: if the attribute is there, its value must be literally false (a "true", a resource
+# reference or anything unreadable is a FAIL). Not set is fine: Android blocks cleartext by default
+# for an app of this target version.
+cleartext="$(cleartext_verdict <<<"$manifest")"
+case "$cleartext" in
+  absent) ok "no cleartext traffic" "usesCleartextTraffic not set" ;;
+  false) ok "no cleartext traffic" "usesCleartextTraffic=false" ;;
+  *) bad "no cleartext traffic" "usesCleartextTraffic is ${cleartext#bad:}, not literally false" \
+    "The app may talk to servers without encryption, or the value cannot be read. A release must use https only." ;;
+esac
+# A network security config can re-allow plain http for chosen hosts. Nothing in this app needs one,
+# so any presence is a FAIL until the owner decides otherwise.
+if [ -n "$(manifest_attr_lines networkSecurityConfig <<<"$manifest")" ]; then
+  bad "no network security config" "the manifest sets networkSecurityConfig" \
+    "A network security config can allow plain http for chosen servers or trust extra certificates. This app does not expect one. Find which library adds it and tell the owner; do not install this file."
 else
-  ok "no cleartext traffic" "${cleartext:-not set}"
+  ok "no network security config"
 fi
-backup="$(manifest_flag allowBackup)"
+backup="$(manifest_attr_value allowBackup <<<"$manifest")"
 if [ "$backup" = "false" ]; then
   ok "backup off" "allowBackup=false"
 else
@@ -193,13 +224,20 @@ tree="$tmp/apk"
 mkdir -p "$tree"
 unzip_rc=0
 unzip -q -o "$apk" -d "$tree" >/dev/null 2>&1 || unzip_rc=$?
+# unzip code 1 only means warnings; the tree must still hold files, or every "not found" would pass.
 if [ "$unzip_rc" -gt 1 ]; then
   bad "unpacked for the scan" "unzip failed (code ${unzip_rc})" "The file cannot be unpacked, so it was not scanned. It may be damaged."
+elif ! tree_scannable "$tree"; then
+  bad "unpacked for the scan" "nothing was unpacked" "The file holds no files, so there was nothing to scan. It may be damaged."
 else
   for pat in "${BUNDLE_MUST_NOT_CONTAIN[@]}"; do
-    hits="$(files_matching E "$pat" "$tree")"
+    scan_rc=0
+    hits="$(files_matching E "$pat" "$tree")" || scan_rc=$?
     n="$(grep -c . <<<"$hits" || true)"
-    if [ "$n" = "0" ]; then
+    if [ "$scan_rc" -ne 0 ]; then
+      bad "bundle has no ${pat}" "scan could not run" \
+        "The search itself failed (a bad pattern in config.sh, or an unreadable file), so this line proves nothing. Do not install this file."
+    elif [ "$n" = "0" ]; then
       ok "bundle has no ${pat}" "0 files"
     else
       bad "bundle has no ${pat}" "${n} files, e.g. $(printf '%s\n' "$hits" | head -n 3 | paste -sd' ' -)" \
@@ -207,8 +245,11 @@ else
     fi
   done
   for url in "${BUNDLE_MUST_CONTAIN[@]}"; do
-    n="$(count_files_matching F "$url" "$tree")"
-    if [ "$n" != "0" ]; then
+    scan_rc=0
+    n="$(count_files_matching F "$url" "$tree")" || scan_rc=$?
+    if [ "$scan_rc" -ne 0 ]; then
+      bad "bundle has ${url}" "scan could not run" "The search itself failed, so this line proves nothing. Do not install this file."
+    elif [ "$n" != "0" ]; then
       ok "bundle has ${url}" "${n} files"
     else
       bad "bundle has ${url}" "not found" \

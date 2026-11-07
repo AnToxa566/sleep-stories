@@ -95,11 +95,32 @@ _release_password_ok() {
 }
 
 # --- Paths --------------------------------------------------------------------------
-# require_outside_repo PATH: stops when PATH (which may not exist yet) is inside this repository
-# or inside any git work tree. The path is made absolute and symlinks are resolved.
+# keys_dir_problem PATH: prints a plain sentence and returns 1 for a folder that must never hold the
+# key: empty (also the case when HOME is not set, which the default needs), relative, "/" or the home
+# folder itself (a key lying loose among everything else, in the folder a backup tool may sync).
+keys_dir_problem() {
+  local p="$1" home="${HOME:-}"
+  if [ -z "$p" ]; then
+    if [ -z "$home" ]; then printf 'HOME is not set, so the default keys folder cannot be named. Set KEYS_DIR to a full path outside every project.\n'; else printf 'KEYS_DIR is empty. Unset it to use the default, or give a full path outside every project.\n'; fi
+    return 1
+  fi
+  case "$p" in /*) ;; *) printf 'the keys folder must be a full path starting with / (got a relative one). Use the default or a full path outside every project.\n'; return 1 ;; esac
+  while [ "${#p}" -gt 1 ] && [ "${p%/}" != "$p" ]; do p="${p%/}"; done
+  if [ "$p" = "/" ]; then printf 'the keys folder cannot be the root folder /.\n'; return 1; fi
+  if [ -n "$home" ]; then
+    local h="$home"
+    while [ "${#h}" -gt 1 ] && [ "${h%/}" != "$h" ]; do h="${h%/}"; done
+    if [ "$p" = "$h" ]; then printf 'the keys folder cannot be your home folder itself; use a folder inside it, such as the default sleep-stories-keys.\n'; return 1; fi
+  fi
+}
+
+# require_outside_repo PATH: stops when PATH is not an acceptable keys folder (keys_dir_problem), or
+# is inside this repository or inside any git work tree. PATH may not exist yet. Symlinks are
+# resolved. Without git the test cannot be made, so that is a stop too, never a silent pass.
 require_outside_repo() {
-  local p="$1" rest="" base probe
-  case "$p" in /*) ;; *) p="${PWD}/${p}" ;; esac
+  local p="$1" rest="" base probe msg
+  msg="$(keys_dir_problem "$p")" || die "$msg"
+  command -v git >/dev/null 2>&1 || die "git was not found, so the script cannot tell whether the keys folder is inside a project. Install git (Xcode Command Line Tools) and run again."
   probe="$p"
   while [ ! -e "$probe" ]; do
     base="$(basename "$probe")"
@@ -180,11 +201,11 @@ parse_permissions() {
 # parse_native_abis: reads `aapt2 dump badging` on standard input, prints the ABIs of the line
 # "native-code: 'a' 'b'" as one comma-separated list, sorted (so the order never matters).
 parse_native_abis() {
-  sed -n -e "s/^native-code:[[:space:]]*//p" | tr -d "'" | tr ' ' '\n' | grep -v '^$' | LC_ALL=C sort -u | paste -sd, -
+  sed -n -e "s/^native-code:[[:space:]]*//p" | tr -d "'" | tr ' ' '\n' | { grep -v '^$' || true; } | LC_ALL=C sort -u | paste -sd, -
 }
 
 # sort_csv "b,a" -> "a,b"
-sort_csv() { printf '%s\n' "$1" | tr ',' '\n' | grep -v '^$' | LC_ALL=C sort -u | paste -sd, -; }
+sort_csv() { printf '%s\n' "$1" | tr ',' '\n' | { grep -v '^$' || true; } | LC_ALL=C sort -u | paste -sd, -; }
 
 # badging_field FIELD: reads `aapt2 dump badging`, prints a field of its first "package:" line
 # (name, versionCode or versionName).
@@ -223,14 +244,80 @@ normalize_sha256() {
 # files_matching MODE PATTERN DIR: prints the paths (relative to DIR) of the files under DIR that
 # contain PATTERN, one per line, and NEVER the matching text. MODE is E (regular expression) or F
 # (fixed string). Binary files count (-a); LC_ALL=C makes bytes the unit, whatever the language.
+# The status is grep's, closed: 0 = the scan ran (hits or none), 2 = it could not run (a bad
+# pattern, an unreadable file or folder). It is never turned into "no hits".
 files_matching() {
-  local mode="$1" pattern="$2" dir="$3"
-  (cd "$dir" && LC_ALL=C grep -rla"$mode" -e "$pattern" . 2>/dev/null) || true
+  local mode="$1" pattern="$2" dir="$3" rc=0
+  [ -d "$dir" ] || return 2
+  (cd "$dir" && LC_ALL=C grep -rla"$mode" -e "$pattern" . 2>/dev/null) || rc=$?
+  if [ "$rc" -ge 2 ]; then return 2; fi
+  return 0
 }
 
-# count_files_matching MODE PATTERN DIR: the number of such files (a count only).
+# count_files_matching MODE PATTERN DIR: prints the number of such files (a count only); returns 2
+# and prints nothing when the scan could not run.
 count_files_matching() {
-  files_matching "$1" "$2" "$3" | grep -c . || true
+  local out="" rc=0
+  out="$(files_matching "$@")" || rc=$?
+  if [ "$rc" -ne 0 ]; then return 2; fi
+  printf '%s' "$(printf '%s' "$out" | grep -c . || true)"
+}
+
+# tree_scannable DIR: 0 only if DIR exists and holds at least one file. An empty tree would make
+# every "not found" pattern pass, so verify-apk.sh refuses to scan one.
+tree_scannable() {
+  [ -d "$1" ] || return 1
+  [ -n "$(find "$1" -type f 2>/dev/null | head -n 1)" ]
+}
+
+# --- Fail-closed readers for the manifest and the permission dump (verify-apk.sh) --------------
+# Pure functions on text. The two views of the permissions come from two different aapt2 outputs:
+# `dump permissions` (a parsed list) and `dump xmltree` (the raw manifest). They must agree on how
+# many <uses-permission...> entries there are, and the list must contain INTERNET (the app cannot
+# work without it), so an empty or garbled output from a changed aapt2 can never read as "0 asked".
+
+# count_dump_permissions: lines "uses-permission...:" of `aapt2 dump permissions` on standard input.
+count_dump_permissions() { grep -c '^uses-permission[a-z0-9-]*:' || true; }
+
+# count_manifest_permissions: <uses-permission...> elements of `aapt2 dump xmltree` on standard input.
+count_manifest_permissions() { grep -c '^[[:space:]]*E: uses-permission[a-z0-9-]*[[:space:]]' || true; }
+
+# permissions_problem DUMP_TEXT MANIFEST_TEXT: prints one sentence and returns 1 when the permission
+# list cannot be trusted; prints nothing and returns 0 otherwise.
+permissions_problem() {
+  local dump="$1" manifest="$2" listed counted parsed
+  parsed="$(parse_permissions <<<"$dump")"
+  listed="$(count_dump_permissions <<<"$dump")"
+  counted="$(count_manifest_permissions <<<"$manifest")"
+  if [ -z "$parsed" ] || [ "$listed" = "0" ]; then
+    printf 'no permission could be read from the file (aapt2 printed nothing usable), so the list was NOT checked'
+    return 1
+  fi
+  if ! grep -qx 'android.permission.INTERNET' <<<"$parsed"; then
+    printf 'the INTERNET permission is not among those read; the app cannot work without it, so the reading is wrong or the file is not this app'
+    return 1
+  fi
+  if [ "$listed" != "$counted" ]; then
+    printf 'the permission list has %s entries but the manifest has %s; the two views of the file disagree, so the list cannot be trusted' "$listed" "$counted"
+    return 1
+  fi
+}
+
+# manifest_attr_lines NAME: the lines of the manifest dump (standard input) that set attribute NAME.
+manifest_attr_lines() { grep -E ":$1[(=]" || true; }
+
+# manifest_attr_value NAME: the value written after "=" in the first such line (empty if none).
+manifest_attr_value() { manifest_attr_lines "$1" | head -n 1 | sed -n 's/^.*)=//p'; }
+
+# cleartext_verdict: reads the manifest dump on standard input, prints one of: "absent" (the
+# attribute is not set: Android's default for this target is no cleartext), "false", or
+# "bad:<value>" for anything else (true, a resource reference, a number, an unreadable line).
+cleartext_verdict() {
+  local lines value
+  lines="$(manifest_attr_lines usesCleartextTraffic)"
+  if [ -z "$lines" ]; then printf 'absent'; return 0; fi
+  value="$(printf '%s\n' "$lines" | head -n 1 | sed -n 's/^.*)=//p')"
+  if [ "$value" = "false" ]; then printf 'false'; else printf 'bad:%s' "${value:-unreadable}"; fi
 }
 
 # --- Build helpers for build-release.sh ----------------------------------------------------------

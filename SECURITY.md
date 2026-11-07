@@ -15,6 +15,7 @@ The API is deployed to Cloud Run (the owner's first run, 2026-11-07, reported wo
 | Listening history and interests | Personal data about a person's evenings and tastes |
 | Microphone audio (not captured at present) | Would be captured in a bedroom; the most sensitive input the app could touch |
 | The generation pipeline | Each run costs money; abuse becomes a bill |
+| The Android release signing key and its password | The identity of the app: whoever holds both can build an "update" that installs over the installed app |
 
 ## Threat model
 
@@ -37,6 +38,7 @@ The API is deployed to Cloud Run (the owner's first run, 2026-11-07, reported wo
 | Secrets or personal data in logs | Leakage through log access | Structured logging with redaction; no tokens, emails or story text in logs | Planned |
 | Vulnerable dependencies | Supply-chain compromise | Lockfile committed, versions pinned, few dependencies, review of audit results before launch | Open: see current state |
 | Secrets or server code leave with an EAS build archive | EAS uploads the repository root to Expo's servers on every mobile build | Secrets live only in git-ignored files, and EAS is documented to skip what `.gitignore` ignores, so the git-ignored `.env` files should stay out. The archive contents of the first builds were not inspected, so neither that nor whether `apps/api` travels with it is verified; an `.easignore` is the candidate fix and has not been tried (ARCHITECTURE.md section 11, item 22) | Open |
+| The Android release signing key is lost or leaks | Lost: no update can ever install over the installed app (uninstall, new key, sign in again; server data survives). Leaked together with its password: someone can build a fake update that installs over her app | The key is one PKCS12 file in `~/sleep-stories-keys`, outside the repository (the scripts refuse a folder inside any git work tree); `.gitignore` covers key file types and `apps/mobile/.env.production`; `apps/mobile/release/check.sh` fails on a tracked key file, a password written in a file, a secret-looking text or an email in the release folder; the password is typed hidden (or read from standard input when there is no terminal), and is never an argument, never printed, never exported, and never in the environment of Gradle (`keytool` gets it in one variable for one command, `apksigner` on standard input); the release is signed after the build; the runbook tells the owner to keep the password only in the password manager and to copy the whole key folder to a cloud drive and a USB stick (not into the password manager next to the password, because whoever has both can sign updates), and to copy it again after every release | Built and checked offline (`check.sh`) and by one real build with a throwaway key; not yet used for real: the owner has not made the real key |
 
 ## Security rules
 
@@ -80,10 +82,10 @@ These are non-negotiable and are copied verbatim into the executor agent.
 - [ ] `/internal/*` endpoints reject requests without a valid OIDC token; verified by calling one without it
 - [ ] The API rejects a request that names another user's id; verified with two test accounts
 - [ ] Missing required configuration crashes the process at boot; verified by starting it without a secret
-- [ ] No provider key appears in the mobile bundle; verified by searching the built bundle
-- [ ] The built app declares no microphone permission (no `RECORD_AUDIO` in the Android manifest) while the microphone is unused; verified in the built APK
+- [ ] No provider key appears in the mobile bundle; verified by searching the built bundle. Not ticked: `apps/mobile/release/verify-apk.sh` is the check (it scans every file of the built APK for provider key patterns and development addresses), and the owner's real RESULT block is the evidence
+- [ ] The built app declares no microphone permission (no `RECORD_AUDIO` in the Android manifest) while the microphone is unused; verified in the built APK. Not ticked: `RECORD_AUDIO` is blocked in `app.json` and `verify-apk.sh` is the check (it fails on that permission); the owner's real RESULT block is the evidence
 - [ ] Only if the microphone is reopened: nothing on the microphone audio path opens a network connection, and no recording file is left on the device; verified by reading the code path, by watching network traffic and by listing the app's files after a night
-- [ ] What an EAS build archive contains has been inspected, and no secret or server-only file is in it
+- [ ] What an EAS build archive contains has been inspected, and no secret or server-only file is in it. Not applicable while there are no EAS builds (owner, 2026-11-07: release builds are local); it applies again if EAS is used
 - [ ] Logs contain no tokens, emails or story text; verified by reading real log output
 - [ ] Only if the app is released beyond the owner's household (for example on the Play Store; owner, 2026-11-07: not needed for one user): email confirmation is on in the cloud Supabase project (it is off in the local stack); verified by signing up and being refused sign-in before confirming the address. This is also the fix for account enumeration: verified by signing up with an existing address and with a new one, and getting the same screen and the same text for both (the app must not show "account already exists")
 - [ ] Sign-in providers are configured with allowlisted redirect URIs

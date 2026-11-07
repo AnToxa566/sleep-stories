@@ -31,7 +31,6 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 pw=""
-trap 'unset pw' EXIT
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mobile_dir="${REPO_ROOT}/apps/mobile"
@@ -42,6 +41,17 @@ fp_file="${KEYS_DIR}/${CERT_FP_NAME}"
 releases_log="${KEYS_DIR}/${RELEASES_LOG_NAME}"
 CLEAN_PATHS=(apps/mobile packages/contracts package.json package-lock.json)
 built_apk="${android_dir}/app/build/outputs/apk/release/app-release.apk"
+
+aligned_tmp="${OUT_DIR}/aligned-unsigned.tmp.apk"
+
+# The file Gradle makes is signed with Android's PUBLIC debug key, and the aligned copy is unsigned:
+# neither may stay on disk after this script ends, whatever the reason (success, a failure, Ctrl-C).
+# Not under DRY_RUN, which deletes nothing.
+cleanup_intermediates() {
+  if is_dry; then return 0; fi
+  rm -f "$built_apk" "$aligned_tmp"
+}
+trap 'unset pw; cleanup_intermediates' EXIT
 
 dirty_paths() { git -C "$REPO_ROOT" status --porcelain --untracked-files=all -- "${CLEAN_PATHS[@]}"; }
 
@@ -209,7 +219,7 @@ to_sign="$built_apk"
 if "$ZIPALIGN" -c -P 16 4 "$built_apk" >/dev/null 2>&1; then
   log "the built file is already aligned"
 else
-  to_sign="${OUT_DIR}/aligned-unsigned.tmp.apk"
+  to_sign="$aligned_tmp"
   rm -f "$to_sign"
   log "aligning the file (4 bytes, 16 KB pages)"
   "$ZIPALIGN" -P 16 -f 4 "$built_apk" "$to_sign" || die "zipalign failed; nothing was signed."
@@ -218,12 +228,12 @@ rm -f "$apk_out" "${apk_out}.FAILED"
 log "signing with the release key"
 # The signing line must stay exactly this one approved form (check.sh matches it), so the plain
 # message for a failure comes from this trap, not from a trailing ||.
-trap 'rm -f "$apk_out"; printf "ERROR: apksigner could not sign the file. Nothing was kept as a release.\n" >&2' ERR
+trap 'rm -f "$apk_out"; cleanup_intermediates; printf "ERROR: apksigner could not sign the file. Nothing was kept as a release.\n" >&2' ERR
 printf '%s\n' "$pw" | "$APKSIGNER" sign --ks "$p12" --ks-key-alias "$KEY_ALIAS" --ks-pass stdin --v4-signing-enabled false --out "$apk_out" "$to_sign"
 trap - ERR
 unset pw
 # The file Gradle made is signed with Android's public debug key: delete it so that nobody installs it.
-rm -f "$built_apk" "${OUT_DIR}/aligned-unsigned.tmp.apk"
+cleanup_intermediates
 
 # ---- 10. Proof and record ------------------------------------------------------------------------
 verify_rc=0

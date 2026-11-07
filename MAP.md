@@ -42,6 +42,12 @@ The apps never import each other (A-1). Contracts stay framework-free: no React 
 |---|---|
 | `infra/*.sh`, `infra/README.md` | Bash scripts for Google Cloud, with the runbook: foundation (`bootstrap.sh`, `set-secret.sh`), image and deploy (`push-image.sh`, `deploy.sh`), live checks (`smoke.sh`), alerts and a budget (`alerts.sh`). Every `gcloud` call goes through one wrapper (`lib.sh`); `DRY_RUN=1` prints and runs nothing; `check.sh` is the offline check. Checked offline; first run by the owner on 2026-11-07 (deployment reported working) |
 
+## 3c. Android release (`apps/mobile/release`, §12)
+
+| Piece | Responsible for |
+|---|---|
+| `apps/mobile/release/*.sh`, `README.md` | Bash scripts for the release APK, with the runbook for a web developer: `create-key.sh` (the key, once), `build-release.sh` (build on this Mac, sign after the build, verify, record), `verify-apk.sh` (signature, permissions, manifest, bundle scan), `check.sh` (offline check). The key lives OUTSIDE the repository, in `~/sleep-stories-keys`. Checked offline and by one real build with a throwaway key; the owner has not made the real key or APK yet |
+
 ## 4. Mobile modules (`apps/mobile/src`, §7 to §9)
 
 | Folder | Responsible for |
@@ -84,6 +90,7 @@ The apps never import each other (A-1). Contracts stay framework-free: no React 
 | `expo-audio` for the player, with a lock-screen control per story | Chosen 2026-11-03; the long-run library is still the owner's choice | §7, §11 item 1 |
 | Alerts and a budget do not stop spending; the Google Cloud ceiling is `--max-instances=1` | A Google Cloud budget only sends email; provider spend is bounded only by the vendor limits and the 5-per-day allowance. Two log alerts (enqueue failed, Scheduler sweep failed) cover the failures nobody would see; vendor limits are set by hand | §12 |
 | Private, Android-only, one user in practice; cheapest option everywhere (Cloud Run scale-to-zero, one instance, europe-west1; Supabase Free; local APK builds; deploy and migrate by a button) | The app is made for the owner's wife; scale problems are solved when they appear | §12 |
+| The release APK is signed after the Gradle build; the key stays outside the repository and is the app's identity | The generated `android/` folder is git-ignored and signs release with the debug key; an update installs only if signed with the same key, so losing the key or password means uninstall and sign in again. Password in the password manager; the key folder on a cloud drive and a USB stick, kept apart from the password, copied again after each release | §12 |
 
 ## 7. Not decided and not built
 

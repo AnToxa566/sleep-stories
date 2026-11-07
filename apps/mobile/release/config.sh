@@ -4,12 +4,22 @@
 # (ARCHITECTURE.md section 12; SECURITY.md rule 1). Public production URLs are fine here:
 # they end up inside the APK anyway.
 
-_release_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${_release_dir}/../../.." && pwd)"
+# pwd -P: the PHYSICAL path (symbolic links resolved), so that a repository reached through a link
+# cannot slip past the "keys folder is inside the repository" test in lib.sh.
+_release_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd "${_release_dir}/../../.." && pwd -P)"
 
 # The release key lives OUTSIDE the repository. The environment may override the folder
 # (the self-tests use a throwaway one). Never put the real key under the repository.
-KEYS_DIR="${KEYS_DIR:-$HOME/sleep-stories-keys}"
+# A KEYS_DIR that is set but empty stays empty, and with no HOME there is no default: both are
+# refused by require_outside_repo in lib.sh (never silently replaced by something else).
+if [ -n "${KEYS_DIR+set}" ]; then
+  KEYS_DIR="$KEYS_DIR"
+elif [ -n "${HOME:-}" ]; then
+  KEYS_DIR="$HOME/sleep-stories-keys"
+else
+  KEYS_DIR=""
+fi
 KEYSTORE_NAME="sleep-stories-release.p12"
 CERT_FP_NAME="release-cert.sha256" # the SHA-256 fingerprint of the certificate: public data
 RELEASES_LOG_NAME="releases.log"
@@ -23,7 +33,7 @@ KEY_DNAME="CN=Sleep Stories"
 # Tools (AGENTS.md, Commands: Android Studio with SDK 36 and its bundled JDK 21).
 BUILD_TOOLS_VERSION="36.1.0"
 JAVA_HOME="${JAVA_HOME:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}"
-ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+ANDROID_HOME="${ANDROID_HOME:-${HOME:-}/Library/Android/sdk}"
 
 APP_ID="com.antoxa566.sleepstories"
 EXPECTED_API_URL="https://sleep-stories-api-322759812917.europe-west1.run.app/api"
@@ -66,9 +76,10 @@ BUNDLED_RAW_FRAGMENTS=("waves" "silence3s")
 BUNDLE_MUST_NOT_CONTAIN=(
   # keys and credentials
   # The Supabase secret-key prefix (written sb_secre[t]_ here) is deliberately NOT scanned (owner,
-  # 2026-11-07): the app only accepts a key that starts with sb_publishable_ (src/config/env.ts) and
-  # build-release.sh refuses a secret key in the env gate; the prefix text inside a Hermes bundle
-  # only gives false hits.
+  # 2026-11-07): the Supabase client library (@supabase/*) itself contains the prefix text, and in a
+  # Hermes bundle it can end up next to any other string, so the scan gave false hits. The guard is
+  # elsewhere: the app only accepts a key that starts with sb_publishable_ (src/config/env.ts) and
+  # build-release.sh refuses a secret key in the env gate before building.
   "sk-an[t]-" "service_rol[e]" "ey[J][A-Za-z0-9_-]{10,}\.ey[J]"
   "ELEVENLABS" "ANTHROPIC_API_KEY" "DATABASE_URL" "DIRECT_URL"
   "postgre[s](ql)?://" "-----BEGI[N]"

@@ -20,12 +20,16 @@ trap 'unset pw' EXIT
 
 require_outside_repo "$KEYS_DIR"
 if [ -e "$KEYS_DIR" ] && [ ! -d "$KEYS_DIR" ]; then die "${KEYS_DIR} exists and is not a folder"; fi
+# The guard is the folder, not one file name: a key (any *.p12, even renamed to .bak or moved aside),
+# its fingerprint file (release-cert.sha256), the record of releases (releases.log) or anything
+# else in the folder means a key may already exist. Only a missing or EMPTY folder may get a key.
 if [ -d "$KEYS_DIR" ]; then
-  for existing in "$KEYS_DIR"/*.p12; do
-    if [ -e "$existing" ]; then
-      die "a key already exists in ${KEYS_DIR}. It is the identity of the app: a second key would make every update impossible. Never make another one; restore the backup instead."
-    fi
-  done
+  # A listing that fails must not read as "empty": that would let the run go on and later remove a
+  # key it did not create. If the folder cannot be read, stop.
+  keys_listing="$(ls -A "$KEYS_DIR" 2>/dev/null)" || die "cannot read the folder ${KEYS_DIR}. Fix its permissions (it must be readable by you) and run again."
+fi
+if [ -d "$KEYS_DIR" ] && [ -n "$keys_listing" ]; then
+  die "a key, or the record of one, already exists in ${KEYS_DIR} (the folder is not empty: it may hold a .p12 file, ${CERT_FP_NAME} or ${RELEASES_LOG_NAME}). The key is the identity of the app: a second key would make every update impossible. Never make another one. If you renamed or moved the key file, put it back (restore the backup of this folder) instead of creating a new key."
 fi
 tool_paths keytool
 
@@ -67,7 +71,9 @@ valid_until="$(printf '%s\n' "$cert_text" | sed -n 's/.*until:[[:space:]]*//p' |
 if ! [[ "$fingerprint" =~ ^([0-9A-F]{2}:){31}[0-9A-F]{2}$ ]]; then
   die "the key was created at ${p12} but its fingerprint could not be read. Do NOT delete it and do not run this script again; ask for help."
 fi
-printf '%s\n' "$fingerprint" >"$fp_file"
+# noclobber: the redirection fails if the file exists, so an existing fingerprint record is never overwritten.
+(set -o noclobber && printf '%s\n' "$fingerprint" >"$fp_file") ||
+  die "the key was created at ${p12} but ${fp_file} already exists and was NOT overwritten. Do NOT delete anything and do not run this script again; ask for help."
 
 result_add "key file" PASS "$p12"
 result_add "alias" PASS "$KEY_ALIAS"
@@ -79,15 +85,22 @@ cat <<'TEXT'
 
 The key is made. Read this now, it is the one thing that cannot be redone.
 
-1. Back up BOTH the file and the password, today.
-   - Copy the WHOLE folder (the .p12 file and release-cert.sha256) to two places: a password
-     manager attachment, and a cloud drive or a USB stick.
-   - Keep the password in the password manager, not next to the file.
+1. Back up TODAY. Two different things, two different places:
+   - The PASSWORD goes into the password manager, and nowhere else.
+   - The KEY FOLDER (~/sleep-stories-keys: the .p12 file, release-cert.sha256 and, later,
+     releases.log) is copied to a cloud drive AND to a USB stick. Do NOT put it into the password
+     manager next to the password.
+   Why: whoever has both the file and the password can sign "updates" that install over her app.
+   Keep the two apart.
+   Copy the folder AGAIN after every release, because releases.log grows. If the log is ever lost,
+   android.versionCode in apps/mobile/app.json (it is in git) says what the last number was.
 
-2. If the file or the password is lost: updates become impossible. The app has to be
-   uninstalled and installed again with a new key, and she signs in again. Her queue and stories
-   are on the server and survive; only the sign-in on the phone is lost.
+2. If only the file is lost: restore the folder from the cloud drive or the USB stick.
+   If only the password is lost: the file is useless and cannot be opened; treat it as lost.
+   If both are lost: updates become impossible. The app has to be uninstalled and installed
+   again with a new key, and she signs in again. Her queue and stories are on the server and
+   survive; only the sign-in on the phone is lost.
 
 3. If both leak: someone who has the file and the password could build an "update" that installs
-   over her app. Keep them away from anyone else; never send them in a chat or an email.
+   over her app. Never send them in a chat or an email.
 TEXT

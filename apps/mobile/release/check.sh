@@ -169,6 +169,43 @@ mkdir -p "$existing"
 : >"$existing/other.p12"
 neg_case "a key already exists" "$good_input" "$existing" 'already exists'
 if [ "$(ls -A "$existing" | wc -l | tr -d ' ')" != "1" ]; then fail "the existing key folder was changed"; fi
+# The guard is the whole folder: a fingerprint file alone, a releases.log alone, a renamed key file
+# alone each mean a key may exist. Nothing in the folder is changed and keytool is never called.
+for only_file in release-cert.sha256 releases.log x.p12.bak notes.txt; do
+  kd="$(mkscratch)/k"
+  mkdir -p "$kd"
+  printf 'keep me\n' >"$kd/$only_file"
+  neg_case "a folder holding only ${only_file}" "$good_input" "$kd" 'already exists'
+  [ "$(ls -A "$kd")" = "$only_file" ] && [ "$(cat "$kd/$only_file")" = "keep me" ] || fail "the folder holding only ${only_file} was changed"
+done
+# An EMPTY existing folder is fine: keytool is reached (the stub fails, so nothing is made).
+kd="$(mkscratch)/k"
+mkdir -p "$kd"
+: >"$stub_log"
+printf '%s' "$good_input" | with_stub env KEYS_DIR="$kd" "$old_bash" ./create-key.sh >/dev/null 2>&1 || true
+grep -q '^env:set' "$stub_log" || fail "an empty keys folder was refused"
+grep -q 'noclobber' create-key.sh || fail "create-key.sh does not write the fingerprint file with noclobber"
+# Unacceptable keys folders: empty, relative, the root, the home folder (with or without a final /),
+# and no HOME at all with no KEYS_DIR. Each is refused before keytool, with a plain sentence.
+neg_case "empty KEYS_DIR" "$good_input" "" 'KEYS_DIR is empty'
+neg_case "relative KEYS_DIR" "$good_input" "relative/k" 'full path'
+neg_case "KEYS_DIR is /" "$good_input" "/" 'root folder'
+neg_case "KEYS_DIR is HOME" "$good_input" "$HOME" 'home folder itself'
+neg_case "KEYS_DIR is HOME with a slash" "$good_input" "$HOME/" 'home folder itself'
+: >"$stub_log"
+out="$(printf '%s' "$good_input" | with_stub env -u HOME -u KEYS_DIR "$old_bash" ./create-key.sh 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] || ! grep -q 'HOME is not set' <<<"$out"; then fail "no HOME and no KEYS_DIR was not refused"; fi
+if [ -s "$stub_log" ]; then fail "keytool was called with no HOME"; fi
+# Without git the folder test cannot be made: that is a stop, not a silent pass.
+empty_path="$(mkscratch)"
+out="$( (PATH="$empty_path"; require_outside_repo "$work_dir/some-keys") 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] || ! grep -q 'git was not found' <<<"$out"; then fail "require_outside_repo passed without git"; fi
+# The repository path is physical: a link to the repository cannot hide a keys folder inside it.
+link_dir="$(mkscratch)"
+ln -s "$repo_root" "$link_dir/repo-link"
+out="$(with_stub env KEYS_DIR="$link_dir/repo-link/relchk-link-keys" "$old_bash" ./create-key.sh </dev/null 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] || ! grep -q 'inside this repository' <<<"$out"; then fail "a keys folder reached through a link to the repository was not refused"; fi
+if [ -e "${repo_root}/relchk-link-keys" ]; then fail "a folder was created inside the repository through a link"; rm -rf "${repo_root:?}/relchk-link-keys"; fi
 inside="${repo_root}/relchk-must-not-exist/k"
 neg_case "folder inside the repository" "$good_input" "$inside" 'inside this repository'
 if [ -e "${repo_root}/relchk-must-not-exist" ]; then fail "a folder was created inside the repository"; rm -rf "${repo_root}/relchk-must-not-exist"; fi
@@ -253,6 +290,56 @@ colon="$(printf '%s' "$hex64" | tr 'a-f' 'A-F' | sed 's/../&:/g; s/:$//')"
 for bad_fp in "" "abc" "${hex64}0" "${hex64%?}g"; do
   if normalize_sha256 "$bad_fp" >/dev/null; then fail "normalize_sha256 accepted '${bad_fp}'"; fi
 done
+
+# Fail-closed readers. The real expected list passes; an empty or garbled aapt2 output, a list
+# without INTERNET and two views that disagree all fail; a cleartext value must be literally false.
+manifest_perms() { # NAME... : an `aapt2 dump xmltree` text with one <uses-permission> per name
+  local n
+  printf 'N: android=http://schemas.android.com/apk/res/android (line=1)\n  E: manifest (line=1)\n'
+  for n in "$@"; do
+    printf '      E: uses-permission (line=2)\n        A: http://schemas.android.com/apk/res/android:name(0x01010003)="%s" (Raw: "%s")\n' "$n" "$n"
+  done
+  printf '      E: application (line=9)\n'
+}
+all_names="$(parse_permissions <<<"$perm_ok")"
+# shellcheck disable=SC2046
+man_ok="$(manifest_perms $all_names)"
+problem="$(permissions_problem "$perm_ok" "$man_ok")" || fail "the real expected permission list was refused: ${problem}"
+for case_text in "empty dump" "garbage dump"; do
+  case "$case_text" in "empty dump") dump="" ;; *) dump=$'this is not what aapt2 prints\nline two' ;; esac
+  if permissions_problem "$dump" "$man_ok" >/dev/null; then fail "permissions_problem accepted an ${case_text}"; fi
+  grep -q 'NOT checked' <<<"$(permissions_problem "$dump" "$man_ok" || true)" || fail "permissions_problem gave the wrong reason for an ${case_text}"
+done
+if permissions_problem "$perm_ok" "" >/dev/null; then fail "permissions_problem accepted an empty manifest dump"; fi
+if permissions_problem "$perm_ok" "$(manifest_perms $all_names android.permission.SYSTEM_ALERT_WINDOW)" >/dev/null; then fail "permissions_problem accepted a manifest with an extra entry"; fi
+no_internet="$(grep -v 'permission.INTERNET' <<<"$perm_ok")"
+grep -q 'INTERNET' <<<"$(permissions_problem "$no_internet" "$man_ok" || true)" || fail "permissions_problem did not name the missing INTERNET"
+if permissions_problem "$no_internet" "$man_ok" >/dev/null; then fail "permissions_problem: a list without INTERNET passed"; fi
+cl() { cleartext_verdict <<<"      E: application (line=7)
+$1"; }
+ns="http://schemas.android.com/apk/res/android"
+[ "$(cl "        A: ${ns}:allowBackup(0x01010280)=false")" = "absent" ] || fail "cleartext_verdict: absent"
+[ "$(cl "        A: ${ns}:usesCleartextTraffic(0x010104ec)=false")" = "false" ] || fail "cleartext_verdict: false"
+[ "$(cl "        A: ${ns}:usesCleartextTraffic(0x010104ec)=true")" = "bad:true" ] || fail "cleartext_verdict: true"
+[ "$(cl "        A: ${ns}:usesCleartextTraffic(0x010104ec)=@0x7f040001")" = "bad:@0x7f040001" ] || fail "cleartext_verdict: a resource reference must be bad"
+[ "$(cl "        A: ${ns}:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0")" = "bad:(type 0x12)0x0" ] || fail "cleartext_verdict: an odd value must be bad"
+case "$(cl "        A: ${ns}:usesCleartextTraffic=\"false\" (Raw: \"false\")")" in bad:*) ;; *) fail "cleartext_verdict: an unreadable form must be bad" ;; esac
+[ -n "$(manifest_attr_lines networkSecurityConfig <<<"        A: ${ns}:networkSecurityConfig(0x01010527)=@0x7f010000")" ] || fail "manifest_attr_lines missed networkSecurityConfig"
+[ -z "$(manifest_attr_lines networkSecurityConfig <<<"        A: ${ns}:allowBackup(0x01010280)=false")" ] || fail "manifest_attr_lines invented networkSecurityConfig"
+[ "$(manifest_attr_value allowBackup <<<"        A: ${ns}:allowBackup(0x01010280)=false")" = "false" ] || fail "manifest_attr_value"
+
+# The scan helpers keep grep's status: a bad pattern and a missing or empty folder are failures, never "0 files".
+d="$(mkscratch)"
+mkdir -p "$d/empty" "$d/full"
+printf 'x\n' >"$d/full/f.txt"
+if count_files_matching E '(' "$d/full" >/dev/null 2>&1; then fail "count_files_matching accepted an invalid pattern"; fi
+if files_matching E 'a[' "$d/full" >/dev/null 2>&1; then fail "files_matching accepted an invalid pattern"; fi
+if files_matching E x "$d/does-not-exist" >/dev/null 2>&1; then fail "files_matching accepted a missing folder"; fi
+[ "$(count_files_matching E x "$d/full")" = "1" ] || fail "count_files_matching: one hit"
+[ "$(count_files_matching E nothing-here "$d/full")" = "0" ] || fail "count_files_matching: no hit must still be 0 with status 0"
+if tree_scannable "$d/empty"; then fail "tree_scannable accepted an empty folder"; fi
+if tree_scannable "$d/does-not-exist"; then fail "tree_scannable accepted a missing folder"; fi
+tree_scannable "$d/full" || fail "tree_scannable refused a folder with a file"
 
 # The bundle scan: a clean zip counts 0 for every pattern of the list; a zip with a planted
 # forbidden string is found by the list, and only a path is ever printed.
@@ -379,7 +466,9 @@ stub "$sd/bin/npx" 'echo "npx $*" >>"$STUB_LOG"; [ "${STUB_NPX_RC:-0}" = 0 ] || 
 if [ -n "${STUB_NPX_GRADLE:-}" ]; then mkdir -p apps/mobile/android/app; echo "applicationId '"'"'${STUB_NPX_GRADLE}'"'"'" > apps/mobile/android/app/build.gradle; fi
 exit 0'
 bt="$sd/sdk/build-tools/${BUILD_TOOLS_VERSION}"
-stub "$bt/zipalign" 'echo "zipalign $*" >>"$STUB_LOG"; exit 0'
+stub "$bt/zipalign" 'echo "zipalign $*" >>"$STUB_LOG"
+case "$1" in -c) exit "${STUB_ZIPALIGN_C_RC:-0}" ;; esac
+for a in "$@"; do out="$a"; done; : >"$out"; exit 0'
 stub "$bt/aapt2" 'echo "aapt2 $*" >>"$STUB_LOG"; exit 1'
 stub "$bt/apksigner" 'echo "apksigner $*" >>"$STUB_LOG"; cat >/dev/null; case "$1" in sign) ;; *) exit 0 ;; esac
 [ "${STUB_APKSIGNER_RC:-0}" = 0 ] || exit 1
@@ -387,6 +476,7 @@ prev=""; for a in "$@"; do if [ "$prev" = "--out" ]; then : >"$a"; fi; prev="$a"
 GRADLE_STUB='echo "gradle""w $*" >>"$STUB_LOG"; n="$(env | grep -c "^SS_KS_PAS[S]=")"
 echo "gradle env: NODE_ENV=${NODE_ENV:-} DOTENV=${EXPO_NO_DOTENV:-} API=${EXPO_PUBLIC_API_URL:-} PASSVARS=$n" >>"$STUB_LOG"
 [ "${STUB_GRADLE_RC:-0}" = 0 ] || exit 1
+if [ -n "${STUB_GRADLE_DIRTY:-}" ]; then echo changed >> "$STUB_GRADLE_DIRTY"; fi
 if [ -n "${STUB_GRADLE_APK:-}" ]; then mkdir -p app/build/outputs/apk/release; : > app/build/outputs/apk/release/app-release.apk; fi
 exit 0'
 
@@ -538,6 +628,14 @@ grep -q "gradle env: NODE_ENV=production DOTENV=1 API=${EXPECTED_API_URL} PASSVA
 br_run "$proj" "$kd" "$od" "$pass_in" STUB_KEYTOOL_RC=0 STUB_NPX_GRADLE="$APP_ID" STUB_GRADLE_APK=1 STUB_APKSIGNER_RC=1
 br_expect "apksigner fails" "apksigner could not sign" '^no-such-call'
 if ls "$od"/*.apk >/dev/null 2>&1; then fail "a half-signed APK was left in the output folder"; fi
+# ...and after a signing failure neither the debug-signed Gradle file nor the aligned copy stays on disk
+# (the stub zipalign says "not aligned", so an aligned copy is made first).
+br_run "$proj" "$kd" "$od" "$pass_in" STUB_KEYTOOL_RC=0 STUB_NPX_GRADLE="$APP_ID" STUB_GRADLE_APK=1 STUB_APKSIGNER_RC=1 STUB_ZIPALIGN_C_RC=1
+br_expect "apksigner fails after aligning" "apksigner could not sign" '^no-such-call'
+grep -q '^zipalign -P 16 -f 4' "$stub_log" || fail "the aligned copy was not made in the signing-failure test"
+if [ -e "$proj/apps/mobile/android/app/build/outputs/apk/release/app-release.apk" ]; then fail "the debug-signed Gradle file stayed after a signing failure"; fi
+if [ -e "$od/aligned-unsigned.tmp.apk" ]; then fail "the aligned unsigned copy stayed after a signing failure"; fi
+if ls "$od"/*.apk >/dev/null 2>&1; then fail "an APK stayed after a signing failure"; fi
 br_run "$proj" "$kd" "$od" "$pass_in" STUB_KEYTOOL_RC=0 STUB_NPX_GRADLE="$APP_ID" STUB_GRADLE_APK=1
 br_expect "verification fails" "did not pass" '^no-such-call'
 ls "$od"/*.apk.FAILED >/dev/null 2>&1 || fail "a failed APK was not renamed to .FAILED"
@@ -560,6 +658,62 @@ grep -q 'DIRTY BUILD: .*for self-test only, never install it' <<<"$br_out" || fa
 grep -q 'Do not install it anywhere' <<<"$br_out" || fail "a dirty build did not print the do-not-install warning"
 ls "$od2"/*-dirty.apk >/dev/null 2>&1 || fail "a dirty build did not keep a -dirty.apk file"
 if [ -e "$kd2/$RELEASES_LOG_NAME" ]; then fail "a dirty build was recorded in releases.log"; fi
+
+# The CLEAN success path (no override): commit the stub verification, so the tree is clean, and run.
+git -C "$proj2" add -A
+git -C "$proj2" -c user.name=selftest -c user.email=selftest -c commit.gpgsign=false commit -q -m "stub verify"
+od3="$(mkscratch)/out"
+br_run "$proj2" "$kd2" "$od3" "$pass_in" STUB_KEYTOOL_RC=0 STUB_NPX_GRADLE="$APP_ID" STUB_GRADLE_APK=1
+if [ "$br_rc" -ne 0 ]; then fail "a clean build with a passing verification did not exit 0 (exit ${br_rc}): $(printf '%s' "$br_out" | tail -n 3 | cut -c1-120)"; fi
+rl2="$kd2/$RELEASES_LOG_NAME"
+commit2="$(git -C "$proj2" rev-parse --short=12 HEAD)"
+want_cert="$(printf 'ab%.0s' $(seq 1 32))"
+if [ ! -f "$rl2" ] || [ "$(grep -c . "$rl2")" != "1" ]; then
+  fail "a clean build did not write exactly one releases.log line"
+else
+  # date, version, versionCode, commit, APK SHA-256, certificate SHA-256
+  [ "$(awk '{print NF}' "$rl2")" = "6" ] || fail "the releases.log line does not have 6 columns"
+  [ "$(awk '{print $2}' "$rl2")" = "1.0.0" ] || fail "releases.log: wrong version"
+  [ "$(awk '{print $3}' "$rl2")" = "1" ] || fail "releases.log: wrong versionCode"
+  [ "$(awk '{print $4}' "$rl2")" = "$commit2" ] || fail "releases.log: wrong commit"
+  awk '{print $1}' "$rl2" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$' || fail "releases.log: wrong date"
+  [ "$(awk '{print $5}' "$rl2")" = "$(shasum -a 256 "$od3"/sleep-stories-1.0.0-vc1-"${commit2}".apk | cut -d' ' -f1)" ] || fail "releases.log: wrong APK SHA-256"
+  [ "$(awk '{print $6}' "$rl2")" = "$want_cert" ] || fail "releases.log: wrong certificate SHA-256"
+  [ "$(ls -l "$rl2" | cut -c1-10)" = "-rw-------" ] || fail "releases.log is not mode 600"
+fi
+[ -f "$od3/sleep-stories-1.0.0-vc1-${commit2}.apk" ] || fail "the clean build has no file named sleep-stories-1.0.0-vc1-<commit>.apk"
+if ls "$od3"/*dirty* >/dev/null 2>&1; then fail "a clean build produced a -dirty file"; fi
+if grep -q 'DIRTY BUILD' <<<"$br_out"; then fail "a clean build said DIRTY BUILD"; fi
+# A second run with the same versionCode is refused, before any tool.
+br_run "$proj2" "$kd2" "$od3" "$pass_in" STUB_KEYTOOL_RC=0 STUB_NPX_GRADLE="$APP_ID" STUB_GRADLE_APK=1
+br_expect "second run, same versionCode" "android.versionCode is 1, but a build with 1 was already made"
+
+# The check after the build: a build that changes a tracked file (here package.json) is stopped
+# before signing, and nothing is recorded.
+proj3="$(new_project)"
+kd3="$(new_keys)"
+od4="$(mkscratch)/out"
+br_run "$proj3" "$kd3" "$od4" "$pass_in" STUB_KEYTOOL_RC=0 STUB_NPX_GRADLE="$APP_ID" STUB_GRADLE_APK=1 STUB_GRADLE_DIRTY=../../../package.json
+br_expect "the build changed a tracked file" "the build changed files that are tracked by git" '^(apksigner|zipalign)'
+if [ -e "$kd3/$RELEASES_LOG_NAME" ]; then fail "a build that changed tracked files was recorded"; fi
+if [ -e "$proj3/apps/mobile/android/app/build/outputs/apk/release/app-release.apk" ]; then fail "the debug-signed Gradle file stayed after the re-check stop"; fi
+
+# verify-apk.sh end to end with an aapt2 that prints garbage (exit 0): it must FAIL, not pass.
+sd2="$(mkscratch)"
+mkdir -p "$sd2/sdk/build-tools/${BUILD_TOOLS_VERSION}" "$sd2/in"
+printf 'x\n' >"$sd2/in/f.txt"
+(cd "$sd2/in" && /usr/bin/zip -q ../fake.apk f.txt)
+bt2="$sd2/sdk/build-tools/${BUILD_TOOLS_VERSION}"
+stub "$bt2/aapt2" 'echo "nothing you expect"; exit 0'
+stub "$bt2/zipalign" 'exit 0'
+stub "$bt2/apksigner" 'echo "Verifies"; echo "Number of signers: 1"; exit 0'
+out="$(env ANDROID_HOME="$sd2/sdk" JAVA_HOME="$sd/jdk" KEYS_DIR="$(new_keys)" "$old_bash" ./verify-apk.sh "$sd2/fake.apk" 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -eq 0 ]; then fail "verify-apk.sh passed with an aapt2 that prints garbage"; fi
+grep -q 'not debuggable: FAIL (could not read badging' <<<"$out" || fail "garbage badging did not fail the debuggable line"
+grep -q 'permissions could be read: FAIL' <<<"$out" || fail "garbage permissions did not fail closed"
+grep -q 'manifest readable: FAIL' <<<"$out" || fail "a garbage manifest did not fail closed"
+grep -q 'bundled audio waves: FAIL' <<<"$out" || fail "garbage resources did not fail the audio line"
+printf 'proved: verify-apk with garbage aapt2 output -> %s\n' "$(grep -m1 'permissions could be read' <<<"$out" | cut -c1-100)"
 
 # ---- Guard proofs: each text rule must fire on a scratch copy with one violating line ---------
 scratch_repo() { # prints a throwaway git repo that holds a copy of this folder
