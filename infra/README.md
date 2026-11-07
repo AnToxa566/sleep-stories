@@ -239,11 +239,11 @@ Reminders only; the decisions are in the linked documents.
 
 These are yours; nothing here decides them.
 
-1. **Open sign-up.** Supabase email confirmation is off, so anyone who has the APK can create many accounts, each with 5 generations per 24 hours, and the Google Cloud ceiling does not bound provider spend. Do you turn off "Allow new users to sign up" in the Supabase dashboard once your own accounts exist? (ARCHITECTURE.md section 11, items 8 and 23.) The vendor limits in step 2 are the brake in the meantime.
-2. **The Artifact Registry cleanup policy** keeps only 2 images and deletes anything older than one day. Two pushes without a successful deploy more than a day apart can delete the image the service runs on (an outage at the next cold start), and rollback is limited to one image. Keeping about 5 costs cents a month. Confirm 2 or raise it to 5 (`AR_KEEP_COUNT` in `config.sh`; not changed).
+1. **Open sign-up: kept open (owner, 2026-11-07).** Only the owner and one more person see the app. If it ever goes beyond that, anyone can create unlimited accounts at 5 generations each per 24 hours; this is recorded as open problem 37 in ARCHITECTURE.md.
+2. **The Artifact Registry cleanup policy: stays at 2 images (owner, 2026-11-07).** It keeps only 2 images and deletes anything older than one day. Two pushes without a successful deploy more than a day apart can delete the image the service runs, and the next cold start then fails until you deploy again; rollback goes back one image only. If that ever happens, run `bash infra/push-image.sh` and `bash infra/deploy.sh <tag>` again.
 3. **Log alerts: decided against (owner, 2026-11-07).** The only alert is the Google Cloud budget, which the owner set by hand; `infra/alerts.sh` has not been run and no log-alert policy exists. The owner says he will ask if he ever wants them. (They would catch, for example, tasks refused with 401 after a configuration drift; no paid call happens in that case, jobs just stay pending.)
 
-### For slice 4 (not built; facts for the next planner)
+### For slice 4 (not built; deferred by the owner on 2026-11-07, facts for the planner if it is ever started)
 
 - `deploy.sh` mixes one-time wiring (service-agent creation, the `serviceAccountUser` binding on `tasks-invoker`, the Scheduler job, `--allow-unauthenticated`) with the per-release deploy. Before the workflow is written it should be split into an owner-only wiring script and a per-release deploy, so that `gh-deploy` needs no IAM-admin rights.
 - `gh-migrate` would run from a GitHub-hosted runner, which is not a "trusted network" for the Prisma CLI whose TLS is unverified (ARCHITECTURE.md section 11, item 6). Take this to the owner before building it.
