@@ -51,8 +51,11 @@ node_modules/
 dist/
 npm-debug.*
 *.jks
+*.keystore
 *.p8
 *.p12
+*.pfx
+*.idsig
 *.key
 *.mobileprovision
 *.orig.*
