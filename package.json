@@ -5,6 +5,8 @@
   "scripts": {
     "db:up": "nx supabase-start api",
     "db:down": "nx supabase-stop api",
+    "db:migrate-check": "npx nx prisma-migrate-status api --outputStyle=static",
+    "db:migrate": "npx nx prisma-migrate-deploy api --outputStyle=static",
     "api": "nx serve api",
     "api:build": "nx build api",
     "image:push": "bash infra/push-image.sh",
