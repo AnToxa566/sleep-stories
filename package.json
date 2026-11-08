@@ -12,7 +12,8 @@
     "mobile": "nx start mobile",
     "mobile:ios": "nx run-ios mobile",
     "mobile:android": "nx run-android mobile",
-    "mobile:web": "nx serve mobile"
+    "mobile:web": "nx serve mobile",
+    "mobile:build": "bash apps/mobile/release/build-release.sh"
   },
   "private": true,
   "devDependencies": {
