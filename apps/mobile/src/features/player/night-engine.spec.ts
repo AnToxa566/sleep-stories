@@ -1403,6 +1403,15 @@ describe('NightEngine: the lock screen control', () => {
     expect(disposed.storyPlayers[0].clearedLockScreen).toBe(1);
   });
 
+  it('does not ask for the lock screen where it is not available (Expo Go)', async () => {
+    const h = setup();
+    h.deps.lockScreenAvailable = false;
+    await h.engine.start();
+    expect(h.storyPlayers[0].lockScreen).toHaveLength(0);
+    expect(h.deps.lockScreenMetadata).not.toHaveBeenCalled();
+    expect(h.storyPlayers[0].playing).toBe(true);
+  });
+
   it('keeps playing when the lock screen cannot be set up', async () => {
     const h = setup();
     h.deps.lockScreenMetadata.mockImplementation(() => {

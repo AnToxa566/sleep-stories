@@ -128,6 +128,10 @@ export interface NightDeps {
   createWavesPlayer(): AudioPlayerLike;
   // What the lock screen shows for a story.
   lockScreenMetadata(story: PlayerStory): LockScreenMetadata;
+  // False where the app has no media-control service (Expo Go): the native side then logs an
+  // error to the console on every story that asks for one, and a try/catch cannot stop that
+  // log. The engine does not ask. Left out, it means true (a real build).
+  lockScreenAvailable?: boolean;
   // A player of the bundled silent file (SILENCE_FILE_SEC long).
   createSilencePlayer(): AudioPlayerLike;
   // POST /api/listens. Must never reject and must not wait long (the caller times it out).
@@ -523,6 +527,7 @@ export class NightEngine {
   }
 
   private activateLockScreen(player: AudioPlayerLike, story: PlayerStory): void {
+    if (this.deps.lockScreenAvailable === false) return;
     try {
       player.setActiveForLockScreen?.(true, this.deps.lockScreenMetadata(story), LOCK_SCREEN_OPTIONS);
     } catch {

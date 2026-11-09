@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { isRunningInExpoGo } from 'expo';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { useRouter } from 'expo-router';
@@ -87,6 +88,8 @@ export function useNightSession(): NightEngine | null {
     const created: NightEngine = new NightEngine(
       {
         createStoryPlayer: (url) => createAudioPlayer({ uri: url }, { updateInterval: STORY_UPDATE_MS }),
+        // Expo Go has no media-control service; only a development or release build does.
+        lockScreenAvailable: !isRunningInExpoGo(),
         lockScreenMetadata: (story) => ({
           title: story.title,
           artist: strings.auth.appName,
