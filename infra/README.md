@@ -222,6 +222,7 @@ All of these, each shown by a pasted `RESULT:` block or a check result (nothing 
 - Steps 1, 6 and 8 end with `RESULT: PASS`, and step 1's block has no `EMPTY` secret.
 - `smoke.sh basic` and `smoke.sh sweep` end with `RESULT: PASS`, and the test row is deleted.
 - Step 4's SQL shows `rls_on` 15 and `rls_off` 0; step 9 returns an empty list and a 400 or 404.
+- "Confirm email" is OFF in the cloud Supabase project (see "Still to do" below) and a sign-up in the app lands in the app with no mail step.
 - The email test from step 8 arrived, and the vendor limits (Anthropic, ElevenLabs, step 2) are set.
 - The pre-launch items below that apply to this deployment are done or consciously accepted by the owner.
 
@@ -231,7 +232,7 @@ The pre-launch checklist in SECURITY.md is ticked only by the owner, one item at
 
 Reminders only; the decisions are in the linked documents.
 
-- **Email confirmation and SMTP** in the cloud Supabase project (off locally; SECURITY.md checklist and ARCHITECTURE.md section 11, item 23).
+- **Email confirmation and SMTP** in the cloud Supabase project. While the app is only for the household it must be OFF: in the dashboard, Authentication, Sign In / Providers, Email, "Confirm email" off, Save. The dashboard default is ON and nothing in this repository sets it (2026-11-08: the first release APK demanded a mail confirmation for this reason). Turn it ON, with SMTP, only before a wider release (SECURITY.md checklist and ARCHITECTURE.md section 11, item 23).
 - **`npm audit`** reviewed, the remaining findings accepted explicitly (SECURITY.md checklist).
 - **The app's production settings:** put these three into `apps/mobile/.env` before a release build (AGENTS.md, Commands): `EXPO_PUBLIC_API_URL` = the audience printed by `deploy.sh` **plus `/api`** (the API's global prefix; `apps/mobile/.env.example` shows the same form, `http://<LAN-IP>:3000/api`), and `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` of the cloud project.
 - **The release build and its signing keystore:** build locally (AGENTS.md, Commands; ARCHITECTURE.md section 12, "Audience and distribution") and keep a backup of the keystore: an APK signed with another key cannot be installed over the old one.

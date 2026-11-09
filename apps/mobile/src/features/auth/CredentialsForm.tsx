@@ -41,7 +41,10 @@ async function submitCredentials(
       return { kind, message: authErrorMessage(kind) };
     }
     if (data.session) return null;
-    // No session and no error. With "confirm email" ON, GoTrue answers an existing address
+    // No session and no error. This does not happen while "Confirm email" is OFF in the cloud
+    // Supabase project, which is how the owner wants it (2026-11-07; the cloud setting is set by
+    // hand, see infra/README.md step 3): sign-up then returns a session and we returned above.
+    // The branch stays for the day confirmation is switched on. With it ON, GoTrue answers an existing address
     // with an obfuscated user whose `identities` list is empty; a genuinely new address gets
     // a user and must confirm by mail first. Either way the user must not be left hanging.
     if (data.user && data.user.identities?.length === 0) {
