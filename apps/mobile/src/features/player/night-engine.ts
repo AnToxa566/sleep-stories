@@ -85,6 +85,9 @@ export interface PlayerStatusLike {
 export interface LockScreenMetadata {
   readonly title: string;
   readonly artist: string;
+  // A file:// or http(s) address of the picture on the media control. Optional: without it the
+  // system draws its own placeholder.
+  readonly artworkUrl?: string;
 }
 
 // The options of expo-audio's setActiveForLockScreen. Play/pause and the scrub bar are always

@@ -10,6 +10,7 @@ import { showToast } from '../../ui/toast-store';
 import { useSessionStore } from '../auth/session-store';
 import { queueQueryKey } from '../today/queue-cache';
 import { topicsUserKey } from '../topics/topic-cache';
+import { lockScreenArtworkUri, prepareLockScreenArtwork } from './lock-screen-artwork';
 import { NightEngine, type NightExit } from './night-engine';
 import { fetchFreshAudioUrls, postListenReport, useContinueQueue } from './player-queries';
 import { IDLE_DIM_MS, KEEP_AWAKE_MAX_MS, readyStories } from './player-stories';
@@ -77,11 +78,20 @@ export function useNightSession(): NightEngine | null {
       interruptionMode: 'doNotMix',
     }).catch(() => undefined);
 
+    // The picture of the lock-screen card is copied to the cache in the background, a few
+    // milliseconds against the seconds the first story needs to load; the engine re-activates
+    // the control once the duration is known, which picks the picture up in the rare late case.
+    void prepareLockScreenArtwork();
+
     let exited = false;
     const created: NightEngine = new NightEngine(
       {
         createStoryPlayer: (url) => createAudioPlayer({ uri: url }, { updateInterval: STORY_UPDATE_MS }),
-        lockScreenMetadata: (story) => ({ title: story.title, artist: strings.auth.appName }),
+        lockScreenMetadata: (story) => ({
+          title: story.title,
+          artist: strings.auth.appName,
+          artworkUrl: lockScreenArtworkUri(),
+        }),
         createWavesPlayer: () => createAudioPlayer(WAVES_SOURCE, { updateInterval: WAVES_UPDATE_MS }),
         createSilencePlayer: () => createAudioPlayer(SILENCE_SOURCE, { updateInterval: WAVES_UPDATE_MS }),
         reportListen: postListenReport,
