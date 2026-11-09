@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet } from 'react-native';
 import { Text } from './typography';
-import { colors, radii, sizes, typeSizes } from '../theme/tokens';
+import { colors, radii, sizes, spacing, typeSizes } from '../theme/tokens';
 import { Icon, type IconName } from './icons';
 
 type Props = {
@@ -28,6 +28,10 @@ export function SecondaryButton({ label, onPress, icon }: Props) {
 const styles = StyleSheet.create({
   button: {
     height: sizes.secondaryButtonHeight,
+    // Without side padding the label touches the border whenever a parent shrinks the button
+    // to its content (alignItems: 'flex-start' on the error blocks). In a full-width parent
+    // the button stretches and the padding changes nothing.
+    paddingHorizontal: spacing.xxl,
     borderRadius: radii.buttonSmall,
     borderWidth: 1,
     borderColor: colors.outline,
