@@ -193,7 +193,7 @@ function ReplacedCard({ position, item }: CardProps) {
       <Text style={styles.cardNumber}>{position}</Text>
       <View style={styles.cardTexts}>
         <Text style={styles.cardEyebrow}>{strings.replace.instead}</Text>
-        <Text style={styles.cardTitle} numberOfLines={1}>
+        <Text style={styles.cardTitle} numberOfLines={2}>
           {row.title}
         </Text>
         <Text style={styles.cardMeta}>{`${row.styleLabel} · ${row.statusText}`}</Text>
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontWeight: '500',
   },
-  cardTitle: { color: colors.textSoft, fontSize: 19, fontWeight: '500' },
+  cardTitle: { color: colors.textSoft, fontSize: 19, lineHeight: 25, fontWeight: '500' },
   cardMeta: { color: colors.muted, fontSize: typeSizes.small },
   filters: { marginTop: spacing.md },
   rule: {

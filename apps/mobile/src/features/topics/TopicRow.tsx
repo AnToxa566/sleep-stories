@@ -7,8 +7,9 @@ import { HeardMark } from '../../ui/HeardMark';
 import { Icon } from '../../ui/icons';
 import type { TopicRowView } from './topic-rows';
 
-// Height of a row in the designs (frames s-topics, s-replace).
-export const TOPIC_ROW_HEIGHT = 68;
+// Minimum height of a row in the designs (frames s-topics, s-replace). A long title takes a
+// second line and the row grows with it.
+const TOPIC_ROW_MIN_HEIGHT = 68;
 
 type BodyProps = {
   view: TopicRowView;
@@ -22,7 +23,7 @@ type BodyProps = {
 function TopicRowBody({ view, onOpenHint }: BodyProps) {
   return (
     <View style={styles.texts}>
-      <Text style={[styles.title, view.heard && styles.titleHeard]} numberOfLines={1}>
+      <Text style={[styles.title, view.heard && styles.titleHeard]} numberOfLines={2}>
         {view.title}
       </Text>
       <View style={styles.meta}>
@@ -118,7 +119,8 @@ export const TopicSelectRow = memo(function TopicSelectRow({
 
 const styles = StyleSheet.create({
   row: {
-    height: TOPIC_ROW_HEIGHT,
+    minHeight: TOPIC_ROW_MIN_HEIGHT,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
@@ -126,7 +128,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.hairline,
   },
   texts: { flex: 1, minWidth: 0, gap: 5 },
-  title: { color: colors.text, fontSize: 17, fontWeight: '500' },
+  title: { color: colors.text, fontSize: 17, lineHeight: 22, fontWeight: '500' },
   // A heard story: the title is quieter, nothing is disabled.
   titleHeard: { color: colors.muted },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 20 },

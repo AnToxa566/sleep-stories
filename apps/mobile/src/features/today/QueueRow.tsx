@@ -136,7 +136,7 @@ export const QueueRow = memo(function QueueRow({
             >
               <Text style={styles.position}>{formatPosition(index)}</Text>
               <View style={styles.texts}>
-                <Text style={[styles.title, row.heard && styles.titleHeard]} numberOfLines={1}>
+                <Text style={[styles.title, row.heard && styles.titleHeard]} numberOfLines={2}>
                   {item.title}
                 </Text>
                 <View style={styles.meta}>
@@ -206,8 +206,10 @@ function DragHandle() {
 }
 
 const styles = StyleSheet.create({
+  // The row grows with the title (up to two lines, then an ellipsis); 76 is the minimum of the
+  // design. The foreground is in the flow and gives the height; the red strip fills the cell.
   cell: {
-    height: 76,
+    minHeight: 76,
     overflow: 'hidden',
     borderBottomWidth: 1,
     borderBottomColor: colors.hairline,
@@ -232,11 +234,8 @@ const styles = StyleSheet.create({
   },
   removeLabel: { color: colors.accent, fontSize: typeSizes.caption },
   foreground: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+    minHeight: 76,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -254,7 +253,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   texts: { flex: 1, minWidth: 0, gap: 5 },
-  title: { color: colors.text, fontSize: 19, fontWeight: '500' },
+  title: { color: colors.text, fontSize: 19, lineHeight: 25, fontWeight: '500' },
   // A heard story: the title is quieter, nothing is disabled.
   titleHeard: { color: colors.muted },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 20 },
