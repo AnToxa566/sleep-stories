@@ -1412,6 +1412,30 @@ describe('NightEngine: the lock screen control', () => {
     expect(h.storyPlayers[0].playing).toBe(true);
   });
 
+  it('sets up the lock screen again without the picture when the picture is refused', async () => {
+    const h = setup();
+    h.deps.lockScreenMetadata.mockImplementation((story: PlayerStory) => ({
+      title: story.title,
+      artist: 'App',
+      artworkUrl: 'icon_512',
+    }));
+    // The native side refuses a malformed picture address and the whole call fails.
+    const original = FakePlayer.prototype.setActiveForLockScreen;
+    FakePlayer.prototype.setActiveForLockScreen = function (...args: unknown[]) {
+      const metadata = args[1] as { artworkUrl?: string };
+      if (metadata.artworkUrl !== undefined) throw new Error('malformed url');
+      original.apply(this, args);
+    };
+    try {
+      await h.engine.start();
+    } finally {
+      FakePlayer.prototype.setActiveForLockScreen = original;
+    }
+    expect(h.storyPlayers[0].lockScreen).toHaveLength(1);
+    expect(h.storyPlayers[0].lockScreen[0][1]).toEqual({ title: expect.any(String), artist: 'App' });
+    expect(h.storyPlayers[0].playing).toBe(true);
+  });
+
   it('keeps playing when the lock screen cannot be set up', async () => {
     const h = setup();
     h.deps.lockScreenMetadata.mockImplementation(() => {

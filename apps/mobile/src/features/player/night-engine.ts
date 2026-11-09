@@ -529,7 +529,16 @@ export class NightEngine {
   private activateLockScreen(player: AudioPlayerLike, story: PlayerStory): void {
     if (this.deps.lockScreenAvailable === false) return;
     try {
-      player.setActiveForLockScreen?.(true, this.deps.lockScreenMetadata(story), LOCK_SCREEN_OPTIONS);
+      const metadata = this.deps.lockScreenMetadata(story);
+      try {
+        player.setActiveForLockScreen?.(true, metadata, LOCK_SCREEN_OPTIONS);
+      } catch (error) {
+        // A picture the native side cannot read makes the whole call fail and the card vanish.
+        // The card without a picture is better than no card: try once more without it.
+        if (metadata.artworkUrl === undefined) throw error;
+        const { artworkUrl: _dropped, ...withoutArtwork } = metadata;
+        player.setActiveForLockScreen?.(true, withoutArtwork, LOCK_SCREEN_OPTIONS);
+      }
     } catch {
       // No lock-screen control is not a reason to stop the story.
     }
