@@ -1,7 +1,5 @@
 import {
   initialPlayerState,
-  isLastStory,
-  nextStoryIndex,
   playerReducer,
   positionLabel,
   tapIntent,
@@ -24,14 +22,6 @@ describe('player machine: the start', () => {
   it('writes «N / M» from the snapshot', () => {
     expect(positionLabel(three)).toBe('1 / 3');
     expect(positionLabel(run(three, { type: 'storyEnded' }))).toBe('2 / 3');
-  });
-
-  it('shows the next-story card only when the current story is not the last', () => {
-    expect(nextStoryIndex(three)).toBe(1);
-    const last = run(three, { type: 'storyEnded' }, { type: 'storyEnded' });
-    expect(isLastStory(last)).toBe(true);
-    expect(nextStoryIndex(last)).toBeNull();
-    expect(nextStoryIndex(initialPlayerState(1))).toBeNull();
   });
 });
 

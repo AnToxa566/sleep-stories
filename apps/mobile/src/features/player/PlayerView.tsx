@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Text } from '../../ui/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { strings, styleCopy } from '../../strings';
@@ -6,10 +7,15 @@ import { colors, spacing } from '../../theme/tokens';
 import { Icon } from '../../ui/icons';
 import { NightBackground } from '../../ui/NightBackground';
 import { Orb } from '../../ui/Orb';
+import { MarqueeTitle } from './MarqueeTitle';
 import { PlayerHeader } from './PlayerHeader';
-import { nextStoryIndex, positionLabel, type PlayerState } from './player-machine';
+import { positionLabel, type PlayerState } from './player-machine';
 import type { PlayerStory } from './player-stories';
 import { SeekBar } from './SeekBar';
+
+// The orb is at most this big (design 3a) and leaves this much room round it for its glow.
+const ORB_MAX = 240;
+const ORB_MARGIN = 24;
 
 type Props = {
   state: PlayerState;
@@ -26,11 +32,15 @@ type Props = {
   // The bar was dragged or tapped (seconds into the story), and any touch on it.
   onSeek: (seconds: number) => void;
   onActivity: () => void;
+  // False while the screen is dimmed: the title then stops running (see MarqueeTitle).
+  animateTitle: boolean;
 };
 
-// The player (design 3a): header, the orb, the title with its style, the progress line, the
-// three controls and the «Дальше» card. The card is shown only when the current story is not
-// the last. Everything is the person's tap; nothing here starts a generation.
+// The player (design 3a, redesigned 2026-11-09): the header, the orb in the middle of the room
+// that is left, and a block pinned to the bottom: the title (one line, running when it is long)
+// and its style, the time bar and the three controls. The block has the same height for every
+// story, so nothing moves when the story changes. There is no «Дальше» card: the next story is
+// the next button. Everything is the person's tap; nothing here starts a generation.
 export function PlayerView({
   state,
   stories,
@@ -44,12 +54,12 @@ export function PlayerView({
   onNext,
   onSeek,
   onActivity,
+  animateTitle,
 }: Props) {
-  const { height } = useWindowDimensions();
-  const orbSize = Math.min(240, Math.round(height * 0.28));
+  // The orb takes the room between the header and the bottom block, up to its design size.
+  const [orbRoom, setOrbRoom] = useState(0);
+  const orbSize = Math.max(0, Math.min(ORB_MAX, Math.floor(orbRoom) - ORB_MARGIN));
   const story = stories[state.index];
-  const nextIndex = nextStoryIndex(state);
-  const next = nextIndex === null ? null : stories[nextIndex];
   if (story === undefined) return null;
 
   // The bar can be dragged while a story plays: not without a length and not in the pause after a
@@ -62,13 +72,14 @@ export function PlayerView({
       <NightBackground />
       <SafeAreaView style={styles.safe}>
         <PlayerHeader label={positionLabel(state)} onLeave={onLeave} onDim={onDim} />
-        <View style={[styles.orbBox, { height: orbSize + 60 }]}>
-          <Orb size={orbSize} />
+        <View
+          style={styles.orbBox}
+          onLayout={(event: LayoutChangeEvent) => setOrbRoom(event.nativeEvent.layout.height)}
+        >
+          {orbSize > 0 ? <Orb size={orbSize} /> : null}
         </View>
         <View style={styles.body}>
-          <Text accessibilityRole="header" style={styles.title}>
-            {story.title}
-          </Text>
+          <MarqueeTitle key={state.index} text={story.title} active={animateTitle} />
           <Text style={styles.style}>{styleCopy[story.style].label}</Text>
           <SeekBar
             progress={progress}
@@ -110,31 +121,6 @@ export function PlayerView({
             </Pressable>
           </View>
         </View>
-        {next === null || next === undefined ? (
-          <View style={styles.spacer} />
-        ) : (
-          <View style={styles.nextWrap}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={strings.player.a11y.nextCard(next.title)}
-              onPress={onNext}
-              style={({ pressed }) => [styles.nextCard, pressed && styles.pressed]}
-            >
-              <View style={styles.nextTexts}>
-                <Text style={styles.nextEyebrow}>{strings.player.nextEyebrow}</Text>
-                <Text numberOfLines={1} style={styles.nextTitle}>
-                  {next.title}
-                </Text>
-                <Text style={styles.nextMeta}>
-                  {strings.player.nextMeta(styleCopy[next.style].label, Math.round(next.durationSec / 60))}
-                </Text>
-              </View>
-              <View style={styles.nextArrow}>
-                <Icon name="chevronRight" size={18} strokeWidth={1.6} />
-              </View>
-            </Pressable>
-          </View>
-        )}
       </SafeAreaView>
     </View>
   );
@@ -143,10 +129,9 @@ export function PlayerView({
 const styles = StyleSheet.create({
   root: { flex: 1 },
   safe: { flex: 1 },
-  orbBox: { alignItems: 'center', justifyContent: 'center' },
-  body: { paddingHorizontal: spacing.huge, alignItems: 'center' },
-  title: { color: colors.text, fontSize: 29, lineHeight: 35, textAlign: 'center' },
-  style: { marginTop: 8, color: colors.muted, fontSize: 15 },
+  orbBox: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center' },
+  body: { paddingHorizontal: spacing.xxl, paddingBottom: 44, alignItems: 'stretch' },
+  style: { marginTop: 4, color: colors.muted, fontSize: 15 },
   controls: {
     marginTop: 14,
     flexDirection: 'row',
@@ -156,42 +141,13 @@ const styles = StyleSheet.create({
   },
   side: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   main: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     borderWidth: 1.5,
     borderColor: colors.playRing,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pressed: { opacity: 0.6 },
-  spacer: { flex: 1 },
-  nextWrap: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 24, paddingBottom: 30 },
-  nextCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.hairline,
-    paddingVertical: spacing.lg,
-  },
-  nextTexts: { flex: 1, minWidth: 0, gap: 5 },
-  nextArrow: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: colors.outline,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextEyebrow: {
-    color: colors.accent,
-    fontSize: 11,
-    letterSpacing: 2.2,
-    textTransform: 'uppercase',
-    fontWeight: '500',
-  },
-  nextTitle: { color: colors.textSoft, fontSize: 17, fontWeight: '500' },
-  nextMeta: { color: colors.muted, fontSize: 14 },
 });

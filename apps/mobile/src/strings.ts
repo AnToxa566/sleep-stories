@@ -312,10 +312,6 @@ export const strings = {
 
   // The stories player (design frames 3a to 3d).
   player: {
-    // «Дальше» card under the controls.
-    nextEyebrow: 'Дальше',
-    // «История · 3 мин»
-    nextMeta: (styleLabel: string, minutes: number) => `${styleLabel} · ${minutes} мин`,
     // 3c: the waves, and the touch that continues.
     wavesTitle: 'Вы спите?',
     wavesBody: 'Если нет — коснитесь экрана в любом месте, и истории продолжатся',
@@ -331,7 +327,6 @@ export const strings = {
       dim: 'Приглушить экран',
       previous: 'Сначала',
       next: 'Следующая история',
-      nextCard: (title: string) => `Следующая история: ${title}`,
       play: 'Играть',
       pause: 'Пауза',
       seek: 'Положение в истории',

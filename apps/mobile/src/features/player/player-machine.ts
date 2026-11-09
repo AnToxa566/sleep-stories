@@ -62,11 +62,6 @@ export function isLastStory(state: PlayerState): boolean {
   return state.index >= state.count - 1;
 }
 
-// The story shown on the «Дальше» card, or null on the last story (the card is not shown).
-export function nextStoryIndex(state: PlayerState): number | null {
-  return isLastStory(state) ? null : state.index + 1;
-}
-
 export function isWaves(state: PlayerState): boolean {
   return state.mode === 'waves' || state.mode === 'waves-dim';
 }

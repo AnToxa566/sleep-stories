@@ -78,6 +78,7 @@ function PlayerBody({ engine }: { engine: NightEngine }) {
               onNext={() => engine.pressNext()}
               onSeek={(seconds) => engine.seekTo(seconds)}
               onActivity={armIdle}
+              animateTitle={!dimmed}
             />
           )}
         </View>

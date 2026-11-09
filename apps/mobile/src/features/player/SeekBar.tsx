@@ -124,7 +124,7 @@ const HIT_HEIGHT = 44;
 const TRACK_TOP = 21;
 
 const styles = StyleSheet.create({
-  block: { alignSelf: 'stretch', marginTop: 30 },
+  block: { alignSelf: 'stretch', marginTop: 26 },
   hit: { height: HIT_HEIGHT, marginVertical: -TRACK_TOP, zIndex: 1 },
   slider: { alignSelf: 'stretch', height: HIT_HEIGHT },
   times: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
