@@ -90,11 +90,25 @@ H
   exit 1
 }
 
+_gcloud_runs() {
+  gcloud --version >/dev/null 2>&1 && gcloud run deploy --help >/dev/null 2>&1
+}
+
 # Local only: gcloud starts and can load the "run" command group (the one that fails
-# on a Python older than 3.10).
+# on a Python older than 3.10). When it does not and CLOUDSDK_PYTHON is unset, a Python
+# 3.10+ that uv already manages is tried for this run only: the path is found each time,
+# never written to a file (it is specific to the machine). `--no-python-downloads` keeps
+# the lookup local; without uv, or without such a Python, the hint says what to do.
 check_gcloud_loads() {
-  if ! gcloud --version >/dev/null 2>&1 || ! gcloud run deploy --help >/dev/null 2>&1; then
-    _gcloud_python_hint
+  if ! _gcloud_runs; then
+    local found=""
+    if [ -z "${CLOUDSDK_PYTHON:-}" ] && command -v uv >/dev/null 2>&1; then
+      found="$(uv python find --no-python-downloads '>=3.10' 2>/dev/null || true)"
+    fi
+    if [ -z "$found" ]; then _gcloud_python_hint; fi
+    export CLOUDSDK_PYTHON="$found"
+    log "gcloud runs on the Python that uv found (CLOUDSDK_PYTHON was unset)"
+    if ! _gcloud_runs; then _gcloud_python_hint; fi
   fi
   # Every other command group the scripts use (GCLOUD_PROBES in config.sh), asked with --help:
   # a local lookup, no API call. Standard input is /dev/null so a missing component (beta) cannot

@@ -19,7 +19,7 @@ Who does what: **O** is the owner at a terminal; **S** is a script the owner sta
 
 ### Step 0. O: prepare `gcloud`
 
-Billing is already enabled on the project. `gcloud` 564 needs Python 3.10 or newer to load some command groups (`run` among them); the system Python 3.9 is too old. Point `gcloud` at a newer one for this shell:
+Billing is already enabled on the project. `gcloud` 564 needs Python 3.10 or newer to load some command groups (`run` among them); the system Python 3.9 is too old. The scripts handle it: when `gcloud` does not load and `CLOUDSDK_PYTHON` is unset, the preflight asks `uv` for a Python 3.10+ it already has (`uv python find --no-python-downloads '>=3.10'`, nothing is downloaded) and exports it for that run only; the path is never written to a file. Only a bare `gcloud` command typed in the terminal (such as the login below) still needs it exported by hand:
 
 ```sh
 export CLOUDSDK_PYTHON="$(uv python find 3.12)"   # the path is specific to the machine
@@ -106,7 +106,7 @@ select kind, status, count(*) from generation_jobs where status in ('pending','r
 
 ### Step 5. S: build and push the image
 
-Once: `gcloud auth configure-docker europe-west1-docker.pkg.dev` (answer yes; it adds a credential helper to your Docker config). That helper runs `gcloud`, so the shell that pushes needs `CLOUDSDK_PYTHON` exported as in step 0.
+Once: `gcloud auth configure-docker europe-west1-docker.pkg.dev` (answer yes; it adds a credential helper to your Docker config). That helper runs `gcloud`; `push-image.sh` exports the Python it found before the push, so the helper inherits it.
 
 ```sh
 git status                              # commit your changes first: the tag is the commit
@@ -202,7 +202,7 @@ The project reference is the first part of `SUPABASE_URL` in `config.sh`.
 
 | Step | Who | What | Command |
 |---|---|---|---|
-| 0 | O | `gcloud` login and Python | `export CLOUDSDK_PYTHON=...`, `gcloud auth login` |
+| 0 | O | `gcloud` login and Python | `gcloud auth login` (with `CLOUDSDK_PYTHON` exported in that shell; the scripts find it themselves) |
 | 1 | S | APIs, registry, accounts, empty secrets, queue | `bash infra/bootstrap.sh` |
 | 2 | O | Store the five secrets; set the Anthropic and ElevenLabs spending limits | `bash infra/set-secret.sh <NAME>` (five times); vendor consoles |
 | 3 | O | Supabase bucket `audio` (private) and four voice samples | Supabase dashboard |
@@ -269,7 +269,7 @@ The `RESULT:` block of each script and any line that starts with `ERROR`. For th
 - **The image build is killed or runs out of memory**: give Docker Desktop at least 4 GB (step 5).
 - **`image tag ... is not in the registry`**: run `bash infra/push-image.sh` and use the tag it prints. The cleanup policy deletes any image that is not one of the 2 newest and is older than a day, so an old tag can be gone: push again.
 - **`secret ... has no enabled version`**: `bash infra/set-secret.sh <NAME>`. Disabled and destroyed versions do not count.
-- **`gcloud` crashes or says a command group cannot load, or a Docker push says the credential helper failed**: the system Python is too old. `export CLOUDSDK_PYTHON="$(uv python find 3.12)"` in that shell (step 0).
+- **`gcloud` crashes or says a command group cannot load, or a Docker push says the credential helper failed**: the system Python is too old. The scripts try a Python 3.10+ that `uv` already has; if there is none (`uv python install 3.12`), or for a bare `gcloud` command, `export CLOUDSDK_PYTHON="$(uv python find 3.12)"` in that shell (step 0).
 - **The deploy fails with "container failed to start and listen on the port"**: the API refuses to boot on a bad configuration and names the variable, never the value. Read the revision's log in the Cloud Run console. The usual cause is a malformed secret value (for example `DATABASE_URL` with an `ssl*` parameter).
 - **`alerts.sh` says the budget currency does not match** (or the API reports a currency error): set `BUDGET_AMOUNT` in `config.sh` to your billing account's currency, for example `5EUR`, and run it again. Other errors on the budget call usually mean the account lacks the Billing Account Costs Manager role (or Administrator) on the billing account, or the Cloud Billing Budget API is not enabled (`bootstrap.sh` enables it).
 - **`alerts.sh` stops with `ALERT_EMAIL is not set and there is no terminal to ask`**: nothing was called. Run it in a terminal (it asks for the address) or as `ALERT_EMAIL=<address> bash infra/alerts.sh`. The address is not written to any file of the repository.
