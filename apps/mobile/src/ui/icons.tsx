@@ -38,6 +38,8 @@ const PATHS = {
   // so they stay in one stroked path. The design's dots have a radius of 1.6, so the stroke is
   // 3.2 wide whatever strokeWidth is asked for.
   more: 'M5 12h.01M12 12h.01M19 12h.01',
+  // The «!» of an error snackbar (frame 2e·6).
+  alert: 'M12 7v6M12 16.5v.5',
 } as const;
 
 export type IconName = keyof typeof PATHS;

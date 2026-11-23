@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { useMe } from '../../api/queries';
 import { strings } from '../../strings';
 import { colors, spacing } from '../../theme/tokens';
 import { Chip } from '../../ui/Chip';
@@ -7,9 +8,9 @@ import { FilterSheet } from './FilterSheet';
 import {
   HEARD_OPTIONS,
   READY_OPTIONS,
-  STYLE_CHIPS,
   heardChipLabel,
   readyChipLabel,
+  styleChips,
   withHeard,
   withReady,
   withStyle,
@@ -30,6 +31,9 @@ type OpenSheet = 'ready' | 'heard' | null;
 // only the open sheet lives here.
 export function TopicFilterBar({ filter, onChange }: Props) {
   const [open, setOpen] = useState<OpenSheet>(null);
+  // Only the person's own styles (GET /me, already cached by the gate).
+  const personStyles = useMe().data?.preferences?.styles;
+  const chips = useMemo(() => styleChips(personStyles), [personStyles]);
   const close = () => setOpen(null);
   return (
     <>
@@ -40,7 +44,7 @@ export function TopicFilterBar({ filter, onChange }: Props) {
         contentContainerStyle={styles.content}
         style={styles.scroll}
       >
-        {STYLE_CHIPS.map((chip) => (
+        {chips.map((chip) => (
           <Chip
             key={chip.style ?? 'all'}
             label={chip.label}

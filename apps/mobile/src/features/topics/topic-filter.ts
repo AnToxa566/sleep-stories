@@ -26,13 +26,20 @@ export type StyleChip = {
   readonly label: string;
 };
 
-// «Все», «Факты», «Сказка», «История», in the order of the design.
-export const STYLE_CHIPS: readonly StyleChip[] = [
-  { style: null, label: strings.topics.chips.all },
-  { style: 'facts', label: styleCopy.facts.label },
-  { style: 'fairy_tale', label: styleCopy.fairy_tale.label },
-  { style: 'history', label: styleCopy.history.label },
-];
+// The order of the styles everywhere in the app (the order of the design's chips).
+export const STYLE_ORDER: readonly StoryStyle[] = ['facts', 'fairy_tale', 'history'];
+
+// «Все», then only the person's own styles (owner, 2026-11-22): the server lists topics of the
+// person's styles only, so a chip for another style would always show an empty list. Until
+// the person's settings have loaded (`undefined`) every style is offered.
+export function styleChips(styles: readonly StoryStyle[] | undefined): readonly StyleChip[] {
+  return [
+    { style: null, label: strings.topics.chips.all },
+    ...STYLE_ORDER.filter((style) => styles === undefined || styles.includes(style)).map(
+      (style) => ({ style, label: styleCopy[style].label }),
+    ),
+  ];
+}
 
 export function withStyle(filter: TopicFilter, style: StoryStyle | null): TopicFilter {
   return { ...filter, style };

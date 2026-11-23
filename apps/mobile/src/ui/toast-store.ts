@@ -3,11 +3,20 @@ import { create } from 'zustand';
 // One toast at a time: showing a new one replaces the old one. Pure module (no React Native),
 // so it is unit-tested; ToastHost renders it and owns the auto-dismiss timer.
 // Which icon the toast wears, as in the designs: «Создаётся» (dashed circle), «Заменили на»
-// (refresh) and «Убрали» (cross). `plain` has no icon.
-export type ToastKind = 'create' | 'replace' | 'remove' | 'plain';
+// (refresh) and «Убрали» (cross); the topic-suggestion snackbars of «Темы» (frames 2e·4 to
+// 2e·6) wear an accent dashed circle, a check and a «!». `plain` has no icon.
+export type ToastKind =
+  | 'create'
+  | 'replace'
+  | 'remove'
+  | 'suggestStarted'
+  | 'suggestDone'
+  | 'suggestFailed'
+  | 'plain';
 
 export type ToastInput = {
-  // The small line above, for example «Убрали».
+  // The small line above, for example «Убрали». Empty for a toast with only a title (the
+  // snackbar «Не получилось подобрать темы»).
   label: string;
   // The bigger line, for example a story title. Optional (an error toast has a label only).
   title?: string;

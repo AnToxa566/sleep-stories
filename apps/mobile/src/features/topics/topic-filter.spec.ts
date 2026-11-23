@@ -3,7 +3,7 @@ import {
   DEFAULT_FILTER,
   HEARD_OPTIONS,
   READY_OPTIONS,
-  STYLE_CHIPS,
+  styleChips,
   filterFromParams,
   heardChipLabel,
   readyChipLabel,
@@ -87,9 +87,18 @@ describe('topic filter', () => {
     expect(heard.map(heardChipLabel)).toEqual(['Прослушивание', 'Непрослушанные', 'Прослушанные']);
   });
 
-  it('offers «Все» first and every style once', () => {
-    expect(STYLE_CHIPS.map((chip) => chip.style)).toEqual([null, 'facts', 'fairy_tale', 'history']);
-    expect(STYLE_CHIPS[0].label).toBe('Все');
+  it('offers «Все» first and every style once while the settings are unknown', () => {
+    const chips = styleChips(undefined);
+    expect(chips.map((chip) => chip.style)).toEqual([null, 'facts', 'fairy_tale', 'history']);
+    expect(chips[0].label).toBe('Все');
+  });
+
+  it('offers only the person’s styles, in the app’s order', () => {
+    expect(styleChips(['history', 'facts']).map((chip) => chip.style)).toEqual([
+      null,
+      'facts',
+      'history',
+    ]);
   });
 
   it('reads the preset from the route parameter', () => {

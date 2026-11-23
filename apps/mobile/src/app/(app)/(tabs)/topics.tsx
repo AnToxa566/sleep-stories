@@ -1,12 +1,27 @@
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../../ui/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useInterests, useMe } from '../../../api/queries';
 import { HintSheet } from '../../../features/today/HintSheet';
 import { useAddToQueue, useQueue, useRemoveQueueItem } from '../../../features/today/queue-queries';
 import { deriveHintText } from '../../../features/today/rows';
 import { QUEUE_PLATE_HEIGHT, QueuePlate } from '../../../features/topics/QueuePlate';
+import { SuggestEmpty, SuggestFooter } from '../../../features/topics/SuggestEntry';
+import { SuggestSheet } from '../../../features/topics/SuggestSheet';
+import { useTopicSuggestion } from '../../../features/topics/suggest-queries';
+import {
+  formatClock,
+  hasChoice,
+  initialSelection,
+  sheetCaption,
+  sheetOptions,
+  toRequest,
+  toggle,
+  type SheetOptions,
+  type SheetSelection,
+} from '../../../features/topics/suggest-sheet';
 import { TopicFilterBar } from '../../../features/topics/TopicFilterBar';
 import { TopicQueueRow } from '../../../features/topics/TopicRow';
 import {
@@ -40,8 +55,17 @@ import { ToastHost } from '../../../ui/ToastHost';
 // the toast «Убрали …»). Neither creates a story: no generation is spent here (AGENTS.md
 // architecture rule 10). Only the round button acts; a tap on the row itself opens nothing.
 // The field «Расскажи про…» of the design is not built yet.
+//
+// «Подобрать новые темы» (design frames 2e to 2e·7): «Ещё темы» in the heading, the block at
+// the end of the list and the empty filter open one sheet. Its button starts one topic
+// suggestion (a cheap model call, within the cap of 5 per 24 hours); it never creates a story
+// (rule 10). While a suggestion runs, the three entries are inactive; its end shows a snackbar
+// and the new topics appear at the top of the list.
 
 const showErrorToast = (message: string) => showToast({ label: message });
+
+const NO_OPTIONS: SheetOptions = { interests: [], styles: [] };
+const NOTHING: SheetSelection = { interests: new Set(), styles: new Set() };
 
 // Distance from the bottom edge of the toast to the bottom bar in the design: 16 px (above the
 // plate when the plate is shown).
@@ -64,6 +88,36 @@ export default function Topics() {
     router.setParams({ [READY_PARAM]: undefined });
   }, [readyParam, router]);
   const [hintOpen, setHintOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [selection, setSelection] = useState<SheetSelection>(NOTHING);
+
+  const preferences = useMe().data?.preferences ?? null;
+  const catalogue = useInterests().data?.interests;
+  const options = useMemo(
+    () =>
+      preferences === null || catalogue === undefined
+        ? NO_OPTIONS
+        : sheetOptions(preferences, catalogue),
+    [preferences, catalogue],
+  );
+  const onSuggestionFinished = useCallback((result: 'succeeded' | 'failed') => {
+    const copy = strings.topics.suggest.toasts;
+    showToast(
+      result === 'succeeded'
+        ? { label: copy.doneLabel, title: copy.doneTitle, kind: 'suggestDone' }
+        : { label: '', title: copy.failedTitle, kind: 'suggestFailed' },
+    );
+  }, []);
+  const onSuggestionStarted = useCallback(() => {
+    const copy = strings.topics.suggest.toasts;
+    showToast({ label: copy.startedLabel, title: copy.startedTitle, kind: 'suggestStarted' });
+  }, []);
+  const suggestion = useTopicSuggestion({
+    onStarted: onSuggestionStarted,
+    onFinished: onSuggestionFinished,
+    onError: showErrorToast,
+  });
+  const { suggesting, start: startSuggestion } = suggestion;
 
   const topics = useTopics(filter, { refetchOnFocus: true });
   const queue = useQueue();
@@ -102,6 +156,38 @@ export default function Topics() {
   const closeHint = useCallback(() => setHintOpen(false), []);
   const openQueue = useCallback(() => router.navigate('/home'), [router]);
 
+  // Whichever entry opens it, the sheet ticks every interest and the style of the filter: only
+  // that style while a style chip is on, every style under «Все» (owner, 2026-11-23).
+  const openSheet = useCallback(() => {
+    if (suggesting || options.styles.length === 0) return;
+    setSelection(initialSelection(options, filter.style));
+    setSheetOpen(true);
+  }, [suggesting, options, filter.style]);
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
+  const toggleInterest = useCallback(
+    (key: string) => setSelection((current) => ({ ...current, interests: toggle(current.interests, key) })),
+    [],
+  );
+  const toggleStyle = useCallback(
+    (key: string) => setSelection((current) => ({ ...current, styles: toggle(current.styles, key) })),
+    [],
+  );
+  // «Изменить»: the settings screen is not built yet, so the tab «Настройки» for now.
+  const openSettings = useCallback(() => {
+    setSheetOpen(false);
+    router.navigate('/settings');
+  }, [router]);
+  const suggestions = suggestion.status?.suggestions;
+  const canGo = suggestions !== undefined && suggestions.left > 0 && hasChoice(selection) && !suggesting;
+  // The person's tap on «Подобрать темы», and only that, starts a suggestion.
+  const go = useCallback(() => {
+    if (!canGo) return;
+    setSheetOpen(false);
+    startSuggestion(toRequest(selection));
+  }, [canGo, selection, startSuggestion]);
+  const caption =
+    suggestions === undefined ? '' : sheetCaption(selection, suggestions, formatClock);
+
   const plateShown = showQueuePlate(queueCount);
   const listBottom = (plateShown ? QUEUE_PLATE_HEIGHT : 0) + spacing.lg;
   const toastOffset = (plateShown ? QUEUE_PLATE_HEIGHT : 0) + TOAST_GAP;
@@ -112,6 +198,20 @@ export default function Topics() {
         <Text accessibilityRole="header" style={styles.title}>
           {strings.topics.title}
         </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={strings.topics.suggest.headerButton}
+          accessibilityState={{ disabled: suggesting }}
+          disabled={suggesting}
+          onPress={openSheet}
+          style={({ pressed }) => [
+            styles.more,
+            suggesting && styles.inactive,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.moreLabel}>{strings.topics.suggest.headerButton}</Text>
+        </Pressable>
       </View>
       <View style={styles.filters}>
         <TopicFilterBar filter={filter} onChange={setFilter} />
@@ -149,9 +249,20 @@ export default function Topics() {
             keyExtractor={(view) => view.id}
             ListHeaderComponent={header}
             ListEmptyComponent={
-              <View style={styles.emptyRow}>
-                <Text style={styles.emptyText}>{strings.topics.empty}</Text>
+              <View style={styles.rowWrap}>
+                <SuggestEmpty
+                  suggesting={suggesting}
+                  onOpen={openSheet}
+                  styleFiltered={filter.style !== null}
+                />
               </View>
+            }
+            ListFooterComponent={
+              views.length > 0 ? (
+                <View style={styles.rowWrap}>
+                  <SuggestFooter suggesting={suggesting} onOpen={openSheet} />
+                </View>
+              ) : null
             }
             renderItem={({ item }) => (
               <View style={styles.rowWrap}>
@@ -169,6 +280,18 @@ export default function Topics() {
         onClose={closeHint}
         text={queue.data ? deriveHintText(queue.data.generations) : ''}
       />
+      <SuggestSheet
+        visible={sheetOpen}
+        onClose={closeSheet}
+        options={options}
+        selection={selection}
+        onToggleInterest={toggleInterest}
+        onToggleStyle={toggleStyle}
+        onChangeSettings={openSettings}
+        canGo={canGo}
+        onGo={go}
+        caption={caption}
+      />
       {focused ? <ToastHost bottomOffset={toastOffset} /> : null}
     </View>
   );
@@ -179,9 +302,19 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   plain: { flex: 1 },
   skeletons: { marginHorizontal: spacing.xxl },
-  heading: { paddingHorizontal: spacing.xxl },
-  title: {
+  heading: {
+    paddingHorizontal: spacing.xxl,
     marginTop: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  more: { height: 44, marginRight: -8, paddingHorizontal: 8, justifyContent: 'center' },
+  moreLabel: { color: colors.accent, fontSize: typeSizes.body, fontWeight: '500' },
+  inactive: { opacity: 0.4 },
+  pressed: { opacity: 0.7 },
+  title: {
     color: colors.text,
     fontSize: typeSizes.display,
     lineHeight: 36,
@@ -195,14 +328,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.hairline,
   },
   rowWrap: { paddingHorizontal: spacing.xxl },
-  emptyRow: {
-    height: 56,
-    marginHorizontal: spacing.xxl,
-    justifyContent: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.hairline,
-  },
-  emptyText: { color: colors.muted, fontSize: typeSizes.small },
   failed: { marginTop: 34, marginHorizontal: spacing.xxl, gap: 12 },
   failedTitle: { color: colors.text, fontSize: 21, fontWeight: '500' },
   failedBody: { color: colors.muted, fontSize: typeSizes.body, lineHeight: 22, marginBottom: 12 },

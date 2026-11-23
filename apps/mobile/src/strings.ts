@@ -277,6 +277,38 @@ export const strings = {
       },
     },
     empty: 'Под этот фильтр пока ничего нет',
+    // «Подобрать новые темы» (design frames 2e to 2e·7; owner, 2026-11-22): three ways into one
+    // sheet, the snackbars of a suggestion and the caption under the sheet's button.
+    suggest: {
+      headerButton: 'Ещё темы',
+      footerTitle: 'Хотите ещё темы?',
+      footerBody: 'Подберём новые темы по вашим интересам и стилям',
+      footerButton: 'Подобрать новые темы',
+      footerPending: 'Подбираем темы…',
+      emptyBodyStyle: 'Подберём новые темы в этом стиле по вашим интересам',
+      emptyButton: 'Подобрать темы',
+      sheetTitle: 'Подобрать новые темы',
+      sheetBody: 'Подберём темы по выбранным интересам и стилям',
+      interests: 'Интересы',
+      styles: 'Стили',
+      change: 'Изменить',
+      go: 'Подобрать темы',
+      // «Осталось 3 из 5»
+      left: (left: number, limit: number) => `Осталось ${left} из ${limit}`,
+      limitReached: 'Попытки закончились',
+      // «Попытки закончились · следующая в 02:14»
+      limitReachedUntil: (time: string) => `Попытки закончились · следующая в ${time}`,
+      chooseSomething: 'Выберите хотя бы один интерес и стиль',
+      toasts: {
+        startedLabel: 'Подбор запущен',
+        startedTitle: 'Новые темы скоро появятся в списке',
+        doneLabel: 'Готово',
+        doneTitle: 'Новые темы добавлены',
+        failedTitle: 'Не получилось подобрать темы',
+        // A start the server refused for a reason the sheet does not show (network, server).
+        startFailed: 'Не получилось запустить подбор. Попробуйте ещё раз',
+      },
+    },
     row: {
       notReady: 'Не готова',
       creating: 'Создаётся',

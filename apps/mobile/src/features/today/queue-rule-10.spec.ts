@@ -21,6 +21,13 @@ const REBUILD = /useRebuildQueue\b|\/queue\/rebuild/;
 
 const DEFINITION = 'features/today/queue-queries.ts';
 
+// POST /topics/suggest («Подобрать темы» on «Темы»; owner, 2026-11-22) starts one topic
+// suggestion, never a story job. A tap in the sheet, like «Собрать подборку»: the hook lives in
+// the suggest queries module and only the «Темы» screen uses it.
+const SUGGEST = /useTopicSuggestion\b|\/topics\/suggest\b/;
+const SUGGEST_QUERIES = 'features/topics/suggest-queries.ts';
+const TOPICS_SCREEN = 'app/(app)/(tabs)/topics.tsx';
+
 // POST /queue/continue (the touch during the waves after the last story) may create at most a
 // topic suggestion on the server. Only the player feature may name it.
 const CONTINUE = /useContinueQueue\b|\/queue\/continue/;
@@ -148,5 +155,24 @@ describe('rule 10 in the mobile app: generate is a tap, never automatic', () => 
       )
       .map((source) => source.path);
     expect(offenders).toEqual([]);
+  });
+
+  it('keeps «Подобрать темы» a tap on «Темы», and a route that is not a story job route', () => {
+    const offenders = sources
+      .filter((source) => source.path !== SUGGEST_QUERIES && source.path !== TOPICS_SCREEN)
+      .filter((source) => SUGGEST.test(source.text))
+      .map((source) => source.path);
+    expect(offenders).toEqual([]);
+
+    const text = sources.find((source) => source.path === SUGGEST_QUERIES)?.text ?? '';
+    expect(text).toMatch(/export function useTopicSuggestion\b/);
+    expect(text).toContain("path: '/topics/suggest'");
+    expect(text).not.toMatch(GENERATE);
+    // The module hands the mutation to the screen and never calls it itself.
+    const code = text
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('//'))
+      .join('\n');
+    expect(code).not.toMatch(/\.mutate(?:Async)?\(/);
   });
 });
