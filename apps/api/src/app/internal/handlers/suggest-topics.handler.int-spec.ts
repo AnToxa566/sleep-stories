@@ -632,4 +632,83 @@ describe('SuggestTopicsHandler (database)', () => {
       }
     });
   });
+
+  describe('a requested suggestion («Подобрать темы»)', () => {
+    async function requestedJob(
+      w: World,
+      selection: { styles: string[]; interestIds: string[]; customInterestIds: string[] },
+    ): Promise<string> {
+      return data.job({
+        userId: w.userId,
+        kind: 'suggest_topics',
+        status: 'pending',
+        payload: { kind: 'suggest_topics', missing: 0, selection },
+        dedupeKey: `suggest_topics:${w.userId}`,
+      });
+    }
+
+    it('tells the model only the ticked interests and styles and queues nothing', async () => {
+      const w = await world({ interests: 3, custom: ['кошки', 'море'] });
+      await prisma.userPreference.update({
+        where: { userId: w.userId },
+        data: { styles: ['facts', 'history'] },
+      });
+      const sea = await prisma.userCustomInterest.findFirstOrThrow({
+        where: { userId: w.userId, title: 'море' },
+      });
+      const jobId = await requestedJob(w, {
+        styles: ['facts'],
+        interestIds: [w.interestIds[1]],
+        customInterestIds: [sea.id],
+      });
+
+      await expect(runner.run(jobId)).resolves.toBe('succeeded');
+
+      expect(llmCalls).toHaveLength(2);
+      const [callA, callB] = llmCalls;
+      expect(block(callA.user, 'styles')).toBe('facts');
+      expect(block(callA.user, 'interests')).toBe(
+        `${w.slugs[1]}: ${w.interests.find((i) => i.id === w.interestIds[1])?.title}`,
+      );
+      expect(block(callA.user, 'custom_interests')).toBe('(нет)');
+      expect(block(callB.user, 'styles')).toBe('facts');
+      expect(block(callB.user, 'interests')).toBe('(нет)');
+      expect(block(callB.user, 'custom_interests')).toBe('море');
+
+      // Two from call A, three from call B (the bait with an unoffered slug is dropped).
+      expect(await topicsOf(w.userId)).toHaveLength(5);
+      expect(await queueOf(w.userId)).toEqual([]);
+      await expectNoStoryJobs(w.userId);
+    });
+
+    it('skips call B when no typed interest is ticked', async () => {
+      const w = await world({ interests: 2, custom: ['кошки'] });
+      const jobId = await requestedJob(w, {
+        styles: ['facts'],
+        interestIds: [w.interestIds[0]],
+        customInterestIds: [],
+      });
+      await expect(runner.run(jobId)).resolves.toBe('succeeded');
+      expect(llmCalls).toHaveLength(1);
+      expect(block(llmCalls[0].user, 'custom_interests')).toBe('(нет)');
+      expect(await queueOf(w.userId)).toEqual([]);
+    });
+
+    it('drops values that left the settings and fails at once when nothing is left', async () => {
+      const w = await world({ interests: 1 });
+      const removed = await data.interest();
+      const jobId = await requestedJob(w, {
+        styles: ['history'],
+        interestIds: [removed],
+        customInterestIds: [],
+      });
+      await expect(runner.run(jobId)).resolves.toBe('failed');
+      expect(await readJob(jobId)).toMatchObject({
+        status: 'failed',
+        lastError: 'generation:job_target_missing',
+      });
+      expect(llmCalls).toEqual([]);
+      await expectNothingPersisted(w.userId);
+    });
+  });
 });

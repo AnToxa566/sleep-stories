@@ -28,7 +28,7 @@ The apps never import each other (A-1). Contracts stay framework-free: no React 
 |---|---|
 | `auth` | Global deny-by-default JWT guard; the user id comes only from the verified token (S-2, §8) |
 | `me`, `users`, `interests`, `voices` | Profile and onboarding, reference data, signed sample URLs |
-| `queue` | The user-facing queue: read, edit, reorder, add, replace, top-up, rebuild, continue, the explicit start of generation, topics (§6 "The user-facing queue API") |
+| `queue` | The user-facing queue: read, edit, reorder, add, replace, top-up, rebuild, continue, the explicit start of generation, topics and topics on request (§6 "The user-facing queue API") |
 | `listens` | One listen report per story; never changes the queue (§6) |
 | `generation` | Three database-free services (topic suggester, story writer, audio renderer) and the prompts |
 | `internal` | `/internal/*`: the job executor, the sweeper and the three handlers; Google OIDC only (S-4, §6 "How jobs run") |
@@ -82,6 +82,7 @@ The apps never import each other (A-1). Contracts stay framework-free: no React 
 | A story is generated whole (one LLM call, one TTS request, one file) | Stories are short; no chunking or ffmpeg is needed | §4 |
 | Background work only through Cloud Tasks | Cloud Run throttles background CPU; Cloud Tasks gives retries without Redis | §4, §10 |
 | Generation is explicit and capped | The audio is the expensive stage; the owner decided on 2026-10-31 that nothing is generated on its own | §6 |
+| Topics can be asked for, within the shared suggestion cap | «Подобрать темы» on «Темы» (owner, 2026-11-22); new topics join the list only, never the queue, and the person sees the cap | §6 "Topics on request" |
 | Provider adapters set `maxRetries: 0`, forward no error text | Cloud Tasks owns retries; an SDK error can echo the request | §4 |
 | Stories are reused across people only if system-proposed | Typed text is private by construction | §6, S-10 |
 | Dark-only UI, plain `StyleSheet` with a tokens file | No extra dependency; one place for the palette | §7, §9 |

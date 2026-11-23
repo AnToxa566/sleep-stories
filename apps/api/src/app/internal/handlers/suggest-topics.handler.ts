@@ -61,10 +61,24 @@ export class SuggestTopicsHandler implements JobHandler<'suggest_topics'> {
     if (preferences === null) {
       throw new GenerationError('job_target_missing', false);
     }
-    const styles: StoryStyle[] = preferences.styles;
+    // A requested suggestion («Подобрать темы») narrows the settings to what the person ticked
+    // (ARCHITECTURE.md section 6, "Topics on request"). It is intersected with the settings as
+    // they are NOW, so a value removed from them since the request is dropped, never added.
+    const selection = ctx.job.payload.selection;
+    const styles: StoryStyle[] =
+      selection === undefined
+        ? preferences.styles
+        : preferences.styles.filter((style) => selection.styles.includes(style));
+    if (styles.length === 0) {
+      throw new GenerationError('job_target_missing', false);
+    }
 
     const chosen = await this.prisma.userInterest.findMany({
-      where: { userId, interest: { isActive: true } },
+      where: {
+        userId,
+        interest: { isActive: true },
+        ...(selection === undefined ? {} : { interestId: { in: selection.interestIds } }),
+      },
       select: { interest: { select: { id: true, slug: true, title: true, sortOrder: true } } },
     });
     const catalogue = chosen
@@ -74,7 +88,10 @@ export class SuggestTopicsHandler implements JobHandler<'suggest_topics'> {
 
     // Untrusted text typed by the person. Only call B ever receives it.
     const custom = await this.prisma.userCustomInterest.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(selection === undefined ? {} : { id: { in: selection.customInterestIds } }),
+      },
       orderBy: { createdAt: 'asc' },
       select: { title: true },
     });
@@ -166,7 +183,8 @@ export class SuggestTopicsHandler implements JobHandler<'suggest_topics'> {
       }
 
       // At most what is missing and what fits in the queue, chosen at random. The others
-      // only appear on the person's list of topics. A topic is never queued because a job
+      // only appear on the person's list of topics. A requested suggestion has `missing` 0,
+      // so all of its topics only join the list. A topic is never queued because a job
       // was created for it: no story job exists any more.
       const queueLength = await tx.queueItem.count({ where: { userId } });
       const slots = Math.max(0, Math.min(ctx.job.payload.missing, QUEUE_TARGET_LENGTH - queueLength));

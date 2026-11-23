@@ -12,10 +12,12 @@ export const StylesSchema = z
   .max(StoryStyleSchema.options.length)
   .refine(hasUniqueEntries, { error: 'Styles must be unique' });
 
+export const INTEREST_SLUGS_MAX_COUNT = 50;
+
 // May be empty: custom interests alone are enough (the total rule is on the request).
 export const InterestSlugsSchema = z
   .array(SlugSchema)
-  .max(50)
+  .max(INTEREST_SLUGS_MAX_COUNT)
   .refine(hasUniqueEntries, { error: 'Interest slugs must be unique' });
 
 // strictObject: a body carrying `userId` or any other extra key is rejected.

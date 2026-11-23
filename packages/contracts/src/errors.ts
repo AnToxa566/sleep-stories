@@ -17,6 +17,10 @@ export const ApiErrorCodeSchema = z.enum([
   // POST /queue/items, /queue/items/:itemId/replace and /another: the topic does not exist for this
   // person, or may not be queued by them (a foreign typed topic looks the same as a random id).
   'topic_unavailable',
+  // POST /topics/suggest: no topic suggestion left in the rolling 24 hours.
+  'suggestion_limit_reached',
+  // POST /topics/suggest: a topic suggestion of this person is already pending or running.
+  'suggestion_in_progress',
 ]);
 
 export type ApiErrorCode = z.infer<typeof ApiErrorCodeSchema>;

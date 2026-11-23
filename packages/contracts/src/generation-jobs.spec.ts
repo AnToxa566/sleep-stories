@@ -40,8 +40,41 @@ describe('GenerationJobPayloadSchema', () => {
     ).toBe(false);
   });
 
-  it.each([0, 4, 1.5, -1])('rejects missing = %s', (missing) => {
+  it.each([0, 4, 1.5, -1])('rejects missing = %s without a selection', (missing) => {
     expect(GenerationJobPayloadSchema.safeParse({ kind: 'suggest_topics', missing }).success).toBe(false);
+  });
+
+  const selection = { styles: ['facts'], interestIds: [id], customInterestIds: [] };
+
+  it('accepts a requested suggestion: missing = 0 with a selection', () => {
+    expect(
+      GenerationJobPayloadSchema.safeParse({ kind: 'suggest_topics', missing: 0, selection }).success,
+    ).toBe(true);
+    expect(
+      GenerationJobPayloadSchema.safeParse({
+        kind: 'suggest_topics',
+        missing: 0,
+        selection: { styles: ['history', 'facts'], interestIds: [], customInterestIds: [id2] },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a selection with a queue top-up (missing above 0)', () => {
+    expect(
+      GenerationJobPayloadSchema.safeParse({ kind: 'suggest_topics', missing: 2, selection }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    { styles: [], interestIds: [id], customInterestIds: [] },
+    { styles: ['facts'], interestIds: [], customInterestIds: [] },
+    { styles: ['nope'], interestIds: [id], customInterestIds: [] },
+    { styles: ['facts'], interestIds: ['abc'], customInterestIds: [] },
+    { styles: ['facts'], interestIds: [id], customInterestIds: [], title: 'typed text' },
+  ])('rejects the selection %j', (bad) => {
+    expect(
+      GenerationJobPayloadSchema.safeParse({ kind: 'suggest_topics', missing: 0, selection: bad }).success,
+    ).toBe(false);
   });
 
   it('accepts missing = 1 and 3', () => {

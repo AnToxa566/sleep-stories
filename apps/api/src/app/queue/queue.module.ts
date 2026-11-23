@@ -9,6 +9,7 @@ import { QueueReadService } from './queue-read.service';
 import { QueueRebuildService } from './queue-rebuild.service';
 import { QueueTopUpService } from './queue-top-up.service';
 import { QueueController } from './queue.controller';
+import { TopicSuggestService } from './topic-suggest.service';
 import { TopicsController } from './topics.controller';
 import { TopicsService } from './topics.service';
 
@@ -27,6 +28,7 @@ import { TopicsService } from './topics.service';
     QueueContinueService,
     QueueRebuildService,
     TopicsService,
+    TopicSuggestService,
   ],
   exports: [QueueTopUpService, GenerationJobsService, GenerationLimitsService],
 })

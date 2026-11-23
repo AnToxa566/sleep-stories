@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Prisma } from '../../generated/prisma/client';
-import { SUGGESTION_SHOWN_MINUTES } from './queue-policy';
+import { LIMIT_WINDOW_HOURS, SUGGESTION_SHOWN_MINUTES } from './queue-policy';
 
 const ExistsRowSchema = z.object({ collecting: z.boolean() });
 
@@ -23,4 +23,59 @@ export async function isCollecting(
     ) AS collecting
   `;
   return ExistsRowSchema.parse(rows[0]).collecting;
+}
+
+const LatestRowSchema = z.object({
+  id: z.uuid(),
+  status: z.enum(['pending', 'running', 'succeeded', 'failed']),
+});
+const NextAtRowSchema = z.object({ next_at: z.date().nullable() });
+
+export interface LatestSuggestion {
+  id: string;
+  state: 'running' | 'succeeded' | 'failed';
+}
+
+// The person's newest `suggest_topics` job, whoever started it (the top-up or «Подобрать
+// темы»), or null if there was none. `pending` and `running` both read as `running`: a job
+// waiting for a retry is still in progress. Parameters only, no lock: a read for display, or
+// a guard inside a transaction that already holds the users-row lock.
+export async function readLatestSuggestion(
+  db: Pick<Prisma.TransactionClient, '$queryRaw'>,
+  userId: string,
+): Promise<LatestSuggestion | null> {
+  const rows = await db.$queryRaw<unknown[]>`
+    SELECT id, status::text AS status
+    FROM generation_jobs
+    WHERE kind = 'suggest_topics'
+      AND requested_by_user_id = ${userId}::uuid
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `;
+  if (rows.length === 0) {
+    return null;
+  }
+  const row = LatestRowSchema.parse(rows[0]);
+  const state = row.status === 'pending' || row.status === 'running' ? 'running' : row.status;
+  return { id: row.id, state };
+}
+
+// When the oldest suggestion counted against the cap leaves the rolling window: the earliest
+// `finished_at` of a succeeded `suggest_topics` inside the window, plus the window. Null when
+// none is counted. Same rule and clock as GenerationLimitsService.usage. The caller asks only
+// when nothing is left; then at least four of the five are succeeded ones (one active job at
+// most per person), so the answer is not null.
+export async function readNextSuggestionAt(
+  db: Pick<Prisma.TransactionClient, '$queryRaw'>,
+  userId: string,
+): Promise<Date | null> {
+  const rows = await db.$queryRaw<unknown[]>`
+    SELECT min(finished_at) + make_interval(hours => ${LIMIT_WINDOW_HOURS}::int) AS next_at
+    FROM generation_jobs
+    WHERE kind = 'suggest_topics'
+      AND requested_by_user_id = ${userId}::uuid
+      AND status = 'succeeded'
+      AND finished_at > now() - make_interval(hours => ${LIMIT_WINDOW_HOURS}::int)
+  `;
+  return NextAtRowSchema.parse(rows[0]).next_at;
 }
