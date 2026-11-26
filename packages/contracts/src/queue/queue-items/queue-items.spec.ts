@@ -6,7 +6,7 @@ import {
   QueueResponseSchema,
   ReorderQueueRequestSchema,
   ReplaceQueueItemRequestSchema,
-} from './queue';
+} from './queue-items';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const base = { id: id(1), topicId: id(2), title: 'Тема', style: 'facts', heard: false };

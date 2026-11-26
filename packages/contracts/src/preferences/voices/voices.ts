@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SlugSchema } from './slug';
+import { SlugSchema } from '../../common/slug/slug';
 
 // One catalogue voice as served by GET /api/voices. Only what the client shows and sends back:
 // the provider voice id, the TTS provider and the stored sample audio path stay on the server.

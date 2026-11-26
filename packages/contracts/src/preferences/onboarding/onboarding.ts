@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { CustomInterestsSchema } from './interests';
-import { SlugSchema } from './slug';
-import { StoryStyleSchema } from './story-style';
+import { CustomInterestsSchema } from '../interests/interests';
+import { SlugSchema } from '../../common/slug/slug';
+import { StoryStyleSchema } from '../../common/story-style/story-style';
 
 const hasUniqueEntries = (values: readonly string[]): boolean =>
   new Set(values).size === values.length;

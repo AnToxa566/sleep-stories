@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { QueueResponseSchema } from './queue';
+import { QueueResponseSchema } from '../queue-items/queue-items';
 
 // POST /api/queue/continue (no body): the tap during the waves after the last story. The
 // server replaces the person's queue with their ready, unheard stories. `ready` means such

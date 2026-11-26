@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { CUSTOM_INTERESTS_MAX_COUNT } from './interests';
-import { INTEREST_SLUGS_MAX_COUNT } from './onboarding';
-import { StoryStyleSchema } from './story-style';
+import { CUSTOM_INTERESTS_MAX_COUNT } from '../../preferences/interests/interests';
+import { INTEREST_SLUGS_MAX_COUNT } from '../../preferences/onboarding/onboarding';
+import { StoryStyleSchema } from '../../common/story-style/story-style';
 
 // Must match the Prisma enum JobKind in apps/api/prisma/schema.prisma.
 // contracts cannot import the generated Prisma client, so the comparison test

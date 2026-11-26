@@ -22,6 +22,8 @@ Update this file only when a module or boundary appears, an invariant is added, 
 
 The apps never import each other (A-1). Contracts stay framework-free: no React Native, Nest or Prisma.
 
+Inside `contracts` the folders follow the domain (`common`, `preferences`, `queue`, `topics`, `listens`). `server` holds what the app and the API do not exchange, and no other folder imports from it. Layout and dependency rules: [packages/contracts/README.md](packages/contracts/README.md).
+
 ## 3. API modules (`apps/api/src/app`, §4 to §6)
 
 | Folder | Responsible for |

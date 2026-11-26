@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SlugSchema } from './slug';
+import { SlugSchema } from '../../common/slug/slug';
 
 // One catalogue interest as served by GET /api/interests.
 export const InterestSchema = z.strictObject({

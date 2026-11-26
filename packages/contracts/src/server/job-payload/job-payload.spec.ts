@@ -1,4 +1,4 @@
-import { GenerationJobPayloadSchema, JobKindSchema } from './generation-jobs';
+import { GenerationJobPayloadSchema, JobKindSchema } from './job-payload';
 
 const id = '3f2b8c1e-5a4d-4e6f-8a7b-9c0d1e2f3a4b';
 const id2 = '7a1c9d2e-6b3f-4a8c-9d1e-0f2a3b4c5d6e';

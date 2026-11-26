@@ -1,6 +1,6 @@
 import { CompleteOnboardingRequestSchema } from './onboarding';
-import { SlugSchema } from './slug';
-import { StoryStyleSchema } from './story-style';
+import { SlugSchema } from '../../common/slug/slug';
+import { StoryStyleSchema } from '../../common/story-style/story-style';
 
 const valid = {
   voiceSlug: 'anna',

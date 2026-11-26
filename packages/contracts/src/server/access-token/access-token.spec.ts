@@ -1,4 +1,4 @@
-import { AccessTokenClaimsSchema } from './auth';
+import { AccessTokenClaimsSchema } from './access-token';
 
 const claims = {
   sub: '11111111-1111-4111-8111-111111111111',

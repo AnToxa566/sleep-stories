@@ -26,7 +26,7 @@ Read this file first. It replaces reading AGENTS.md, ARCHITECTURE.md and SECURIT
 ## Rules in one line each (source: AGENTS.md)
 
 Architecture:
-1. `apps/mobile` and `apps/api` import only `packages/contracts`, never each other. `packages/contracts` imports only `zod`.
+1. `apps/mobile` and `apps/api` import only `packages/contracts`, never each other. `packages/contracts` imports only `zod`. Before changing it, read `packages/contracts/README.md` (layout and dependency rules).
 2. Paid or secret-bearing SDKs (`@anthropic-ai/sdk`, the TTS SDK, the Supabase service-role client) only inside their adapter in `apps/api`.
 3. Prisma Migrate owns the schema. No manual changes. No foreign keys into `auth`.
 4. Story content has no owner column. Per-user state lives in the per-user tables. A listen outcome is derived, never stored. User intent and generation health are separate enums.

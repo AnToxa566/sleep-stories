@@ -52,7 +52,7 @@ This is the target layout. Create folders when first needed, not before.
 | LLM, TTS and storage adapters | `apps/api/src/app/providers` |
 | Cloud Tasks and Scheduler handlers | `apps/api/src/app/internal` |
 | Prompts | `apps/api/src/app/generation/prompts` |
-| Zod schemas and shared types | `packages/contracts/src` |
+| Zod schemas and shared types (read the layout and dependency rules in `packages/contracts/README.md` first) | `packages/contracts/src` |
 | Subagents, the `/feature` command and the agent brief | `.claude/agents`, `.claude/commands`, `.claude/agent-brief.md` |
 | gcloud infrastructure scripts and the production runbook | `infra/` |
 | Android release scripts and the local release runbook (the release key lives outside the repository, in `~/sleep-stories-keys`) | `apps/mobile/release` |

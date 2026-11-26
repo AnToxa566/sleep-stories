@@ -1,4 +1,4 @@
-import { STORY_TEXT_MAX_CHARS, STORY_TEXT_MIN_CHARS, StoryTextSchema } from './story';
+import { STORY_TEXT_MAX_CHARS, STORY_TEXT_MIN_CHARS, StoryTextSchema } from './llm-story';
 
 describe('StoryTextSchema', () => {
   it('accepts a text at both bounds', () => {

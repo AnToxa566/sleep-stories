@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { CustomInterestsSchema } from './interests';
-import { InterestSlugsSchema, StylesSchema } from './onboarding';
-import { SlugSchema } from './slug';
+import { CustomInterestsSchema } from '../interests/interests';
+import { InterestSlugsSchema, StylesSchema } from '../onboarding/onboarding';
+import { SlugSchema } from '../../common/slug/slug';
 
 export const PreferencesSchema = z.strictObject({
   voiceSlug: SlugSchema,

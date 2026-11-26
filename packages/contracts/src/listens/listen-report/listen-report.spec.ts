@@ -4,7 +4,7 @@ import {
   LISTEN_REPORT_MAX_SEC,
   ListenReportRequestSchema,
   ListenReportResponseSchema,
-} from './listens';
+} from './listen-report';
 
 const storyId = '00000000-0000-4000-8000-000000000001';
 

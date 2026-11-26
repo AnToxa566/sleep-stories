@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { CustomInterestsSchema } from './interests';
-import { InterestSlugsSchema, StylesSchema } from './onboarding';
-import { SlugSchema } from './slug';
-import { StoryStyleSchema } from './story-style';
+import { CustomInterestsSchema } from './preferences/interests/interests';
+import { InterestSlugsSchema, StylesSchema } from './preferences/onboarding/onboarding';
+import { SlugSchema } from './common/slug/slug';
+import { StoryStyleSchema } from './common/story-style/story-style';
 
 export const SUGGESTED_TOPIC_TITLE_MAX_LENGTH = 120;
 export const SUGGESTED_TOPICS_MAX_COUNT = 20;

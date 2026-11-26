@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { StoryStyleSchema } from './story-style';
+import { StoryStyleSchema } from '../../common/story-style/story-style';
 
 // One item of a person's queue as served by GET /api/queue (ARCHITECTURE.md section 6,
 // "Readiness and the four states"). The state is derived from the data in the person's
@@ -7,7 +7,7 @@ import { StoryStyleSchema } from './story-style';
 // short-lived signed audio URL; the stored audio path is never sent, and the URL is never
 // stored (section 5, "Paths, not URLs"). The two shapes are strict so an item cannot
 // carry a URL while it is not ready. `heard` is derived too: true when the person has one
-// listen of the story that reached LISTEN_FINISHED_SHARE of its audio (listens.ts). The queue
+// listen of the story that reached LISTEN_FINISHED_SHARE of its audio (listen-report.ts). The queue
 // keeps a heard item until the person removes it, so the app can mark it.
 const QueueItemBase = {
   id: z.uuid(),
