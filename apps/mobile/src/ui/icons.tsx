@@ -21,8 +21,6 @@ const PATHS = {
   chevronRight: 'M9 6l6 6-6 6',
   // «К очереди» on the plate of «Темы» (frame s-topics).
   arrowRight: 'M5 12h14M13 6l6 6-6 6',
-  // Drag handle of a queue row (frame 2a): two lines.
-  reorder: 'M5 9h14M5 15h14',
   // «Создать» and the empty-state actions (frames 2a, 2a·3, 2a·4): a four-point spark.
   sparkle:
     'M12 3.5c.6 4.6 3.9 7.9 8.5 8.5-4.6.6-7.9 3.9-8.5 8.5-.6-4.6-3.9-7.9-8.5-8.5 4.6-.6 7.9-3.9 8.5-8.5z',

@@ -3,8 +3,13 @@ import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '../../ui/typography';
 import { Gesture, GestureDetector, type PanGesture } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { useReorderableDrag } from 'react-native-reorderable-list';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
+import { useIsActive, useReorderableDrag } from 'react-native-reorderable-list';
 import { scheduleOnRN } from 'react-native-worklets';
 import { strings } from '../../strings';
 import { colors, spacing, typeSizes } from '../../theme/tokens';
@@ -13,6 +18,10 @@ import { Icon } from '../../ui/icons';
 import { formatPosition } from './plural';
 import { deriveRow } from './rows';
 
+// How long a row must be held still before it can be dragged. Tune it here. React Native's own
+// default is 500. A finger that moves more than 10 points before this cancels the hold, so a
+// scroll or a swipe does not start a drag.
+const HOLD_TO_DRAG_MS = 500;
 // Width of the «Убрать» button revealed by a swipe left (design frame 2a·7).
 export const REMOVE_WIDTH = 96;
 // Past this share of the row width a swipe removes the row without a tap.
@@ -29,6 +38,8 @@ type Props = {
   // The same pan gesture the list was given. The swipe runs beside it, so neither can
   // cancel the other when a horizontal move starts (see QueueList).
   listGesture: PanGesture;
+  // True from the moment a hold starts a drag until the row is released (see QueueList).
+  dragging: SharedValue<boolean>;
   onOpenMenu: (itemId: string) => void;
   onOpenHint: () => void;
   // «Повторить» on a failed row. A person's tap only.
@@ -36,25 +47,32 @@ type Props = {
   onRemove: (itemId: string) => void;
 };
 
-// One row of the queue. Three separate press targets, none of them nested in another's
-// gesture: the row body (tap or long press opens the item menu; a swipe left reveals
-// «Убрать»), the small status button («Не готова» opens the hint, «Повторить» retries) and the
-// drag handle (the only place a drag can start).
+// One row of the queue. The row body takes three gestures: a tap opens the item menu, a swipe
+// left reveals «Убрать», and a hold followed by a move drags the row to a new place. The small
+// status button («Не готова» opens the hint, «Повторить» retries) is a separate press target.
+// There is no drag handle: the owner's user did not understand it, and it took the right edge,
+// where a swipe left naturally starts (2026-11-26).
 export const QueueRow = memo(function QueueRow({
   item,
   index,
   listGesture,
+  dragging,
   onOpenMenu,
   onOpenHint,
   onRetry,
   onRemove,
 }: Props) {
   const row = deriveRow(item);
+  const drag = useReorderableDrag();
+  const lifted = useIsActive();
   const { width } = useWindowDimensions();
   const fullDistance = Math.max(width - ROW_SIDE_PADDING * 2, REMOVE_WIDTH * 2);
 
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
+  // Set when a drag happened during the current touch. The swipe cannot rely on `dragging`
+  // alone: on release the list may clear it before the swipe's `onEnd` runs.
+  const swipeBlocked = useSharedValue(false);
 
   const itemId = item.id;
   const swipe = useMemo(
@@ -68,13 +86,21 @@ export const QueueRow = memo(function QueueRow({
         .onBegin(() => {
           'worklet';
           startX.value = translateX.value;
+          swipeBlocked.value = false;
         })
         .onUpdate((event) => {
           'worklet';
-          translateX.value = Math.max(-fullDistance, Math.min(0, startX.value + event.translationX));
+          // A finger drifting sideways during a drag must not pull the row aside.
+          if (dragging.value) swipeBlocked.value = true;
+          if (swipeBlocked.value) return;
+          translateX.value = Math.max(
+            -fullDistance,
+            Math.min(0, startX.value + event.translationX),
+          );
         })
         .onEnd((event) => {
           'worklet';
+          if (swipeBlocked.value || dragging.value) return;
           const x = translateX.value;
           if (x < -fullDistance * FULL_SWIPE_FRACTION) {
             translateX.value = withTiming(-fullDistance, { duration: SNAP_MS });
@@ -87,13 +113,17 @@ export const QueueRow = memo(function QueueRow({
             translateX.value = withTiming(0, { duration: SNAP_MS });
           }
         }),
-    [listGesture, fullDistance, startX, translateX, onRemove, itemId],
+    [listGesture, fullDistance, startX, translateX, dragging, swipeBlocked, onRemove, itemId],
   );
 
-  const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
+  const rowStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
   // The red strip is exactly as wide as the swipe, so it never overlaps the row. Its content
   // keeps a fixed width inside, right-aligned, and is clipped while the swipe is partial.
-  const removeStyle = useAnimatedStyle(() => ({ width: Math.max(0, -translateX.value) }));
+  const removeStyle = useAnimatedStyle(() => ({
+    width: Math.max(0, -translateX.value),
+  }));
 
   const openMenu = useCallback(() => {
     // A tap on an open row only closes it.
@@ -104,11 +134,17 @@ export const QueueRow = memo(function QueueRow({
     onOpenMenu(itemId);
   }, [onOpenMenu, itemId, translateX]);
 
+  const dragByHold = useCallback(() => {
+    // An open row closes before it is lifted.
+    translateX.value = withTiming(0, { duration: SNAP_MS });
+    drag();
+  }, [drag, translateX]);
+
   const removeByTap = useCallback(() => onRemove(itemId), [onRemove, itemId]);
   const retry = useCallback(() => onRetry(itemId), [onRetry, itemId]);
 
   return (
-    <View style={styles.cell}>
+    <View style={[styles.cell, lifted && styles.cellLifted]}>
       <Animated.View style={[styles.removeWrap, removeStyle]}>
         <Pressable
           accessibilityRole="button"
@@ -131,7 +167,8 @@ export const QueueRow = memo(function QueueRow({
               accessibilityLabel={item.title}
               accessibilityHint={strings.today.a11y.openMenu}
               onPress={openMenu}
-              onLongPress={openMenu}
+              onLongPress={dragByHold}
+              delayLongPress={HOLD_TO_DRAG_MS}
               style={styles.bodyPress}
             >
               <Text style={styles.position}>{formatPosition(index)}</Text>
@@ -184,26 +221,10 @@ export const QueueRow = memo(function QueueRow({
             </Pressable>
           </View>
         </GestureDetector>
-        <DragHandle />
       </Animated.View>
     </View>
   );
 });
-
-// Outside the swipe's gesture detector on purpose: a touch that starts here can only drag.
-function DragHandle() {
-  const drag = useReorderableDrag();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={strings.today.a11y.reorderHandle}
-      onPressIn={drag}
-      style={styles.handle}
-    >
-      <Icon name="reorder" size={20} color={colors.muted} />
-    </Pressable>
-  );
-}
 
 const styles = StyleSheet.create({
   // The row grows with the title (up to two lines, then an ellipsis); 76 is the minimum of the
@@ -214,6 +235,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.hairline,
   },
+  // Opaque, so the rows it passes over do not show through.
+  cellLifted: { backgroundColor: colors.sheet },
   removeWrap: {
     position: 'absolute',
     right: 0,
@@ -253,13 +276,21 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   texts: { flex: 1, minWidth: 0, gap: 5 },
-  title: { color: colors.text, fontSize: 19, lineHeight: 25, fontWeight: '500' },
+  title: {
+    color: colors.text,
+    fontSize: 19,
+    lineHeight: 25,
+    fontWeight: '500',
+  },
   // A heard story: the title is quieter, nothing is disabled.
   titleHeard: { color: colors.muted },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 20 },
-  metaText: { color: colors.muted, fontSize: typeSizes.small, fontVariant: ['tabular-nums'] },
+  metaText: {
+    color: colors.muted,
+    fontSize: typeSizes.small,
+    fontVariant: ['tabular-nums'],
+  },
   status: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   creating: { color: colors.textSoft, fontSize: typeSizes.small },
   retry: { color: colors.accent, fontSize: typeSizes.small },
-  handle: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });

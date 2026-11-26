@@ -230,7 +230,6 @@ export const strings = {
     },
 
     a11y: {
-      reorderHandle: 'Переместить историю',
       openMenu: 'Открыть меню истории',
       closeSheet: 'Закрыть',
       removeRow: (title: string) => `Убрать «${title}»`,
