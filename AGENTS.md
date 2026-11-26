@@ -6,7 +6,7 @@ Sleep Stories is a mobile app that plays a queue of short, AI-generated Russian-
 
 - `ARCHITECTURE.md`: boundaries, data model, every decision with its reasoning, what is deferred or rejected, and the open problems. It records why, not only what. Use its reasoning instead of deriving your own.
 - `SECURITY.md`: threat model and the pre-launch checklist. Read it whenever a change touches keys, auth, data access, storage, internal endpoints, prompts or the microphone.
-- `design/`: the screen designs, exported from Claude Design. Read the matching design before building or changing any screen. The folder is git-ignored and exists only on the owner's machine: if it is missing, ask the owner, and never invent a design or copy files from it into the repository. The designs contain mistakes. There are no series of stories ("Продолжить серию" is a designer's error and never will be built; ARCHITECTURE.md section 10), and anything else a design shows that the architecture lacks is a question for the owner.
+- `design/`: the screen designs, exported from Claude Design. Read the matching design before building or changing any screen; the table in ARCHITECTURE.md section 9 says which file holds which screen. The folder is git-ignored and exists only on the owner's machine: if it is missing, ask the owner, and never invent a design or copy files from it into the repository. The designs contain mistakes. There are no series of stories ("Продолжить серию" is a designer's error and never will be built; ARCHITECTURE.md section 10), and anything else a design shows that the architecture lacks is a question for the owner.
 
 If a plan conflicts with this file or with `ARCHITECTURE.md`, stop and flag it. Do not resolve it silently in either direction.
 
