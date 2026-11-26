@@ -17,7 +17,7 @@ function build(
   } = {},
 ) {
   const tx = {
-    listen: { create: jest.fn().mockResolvedValue({}) },
+    listen: { create: jest.fn().mockResolvedValue({}), deleteMany: jest.fn().mockResolvedValue({}) },
     queueItem: { deleteMany: jest.fn(), updateMany: jest.fn() },
     $executeRaw: jest.fn(),
   };
@@ -112,6 +112,16 @@ describe('ListensService', () => {
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
     }
+  });
+
+  it('markUnheard deletes only this person’s listens of the topic, under the user lock', async () => {
+    const { service, tx } = build();
+    await service.markUnheard(USER, STORY);
+    expect(lockMock).toHaveBeenCalledWith(tx, USER);
+    expect(tx.listen.deleteMany).toHaveBeenCalledWith({
+      where: { userId: USER, story: { topicId: STORY } },
+    });
+    expect(tx.queueItem.deleteMany).not.toHaveBeenCalled();
   });
 
   it('answers 404 and writes nothing when the users row is gone', async () => {

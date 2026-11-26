@@ -5,6 +5,7 @@ import { lockUserRow } from '../../platform/prisma/lock-user-row/lock-user-row';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import type { Prisma } from '../../../generated/prisma/client';
 import { findEligible, findReady, findWithoutAudio, findWithoutStory } from '../../topics/candidates/topic-candidates';
+import { appendToQueue } from '../append-to-queue/append-to-queue';
 import { queueItemNotFound } from '../item-not-found/queue-item-not-found';
 import { QueueReadService } from '../read/queue-read.service';
 import { topicUnavailable } from '../../topics/topic-unavailable/topic-unavailable';
@@ -44,7 +45,7 @@ export class QueuePickService {
       // the whole request.
       const current = await tx.queueItem.findMany({
         where: { userId },
-        select: { topicId: true, position: true },
+        select: { topicId: true },
       });
       const queued = new Set(current.map((row) => row.topicId));
       const fresh = topicIds.filter((topicId) => !queued.has(topicId));
@@ -65,13 +66,7 @@ export class QueuePickService {
           apiErrorBody(400, 'validation_failed', 'The queue would be too long'),
         );
       }
-      if (fresh.length === 0) {
-        return;
-      }
-      const last = current.reduce((max, row) => Math.max(max, row.position), 0);
-      await tx.queueItem.createMany({
-        data: fresh.map((topicId, index) => ({ userId, topicId, position: last + 1 + index })),
-      });
+      await appendToQueue(tx, userId, fresh);
     });
     return this.reader.read(userId);
   }

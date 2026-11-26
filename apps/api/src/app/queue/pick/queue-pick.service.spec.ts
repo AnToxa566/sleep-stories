@@ -56,7 +56,7 @@ describe('QueuePickService', () => {
     (candidates.findReady as jest.Mock).mockResolvedValue([{ topicId: NEW_TOPIC, storyId: id(5) }]);
     const { tx, service } = build();
     (tx.queueItem as Record<string, jest.Mock>)['findMany'] = jest.fn().mockResolvedValue([]);
-    (tx.queueItem as Record<string, jest.Mock>)['aggregate'] = jest.fn();
+    (tx.queueItem as Record<string, jest.Mock>)['aggregate'] = jest.fn().mockResolvedValue({ _max: { position: null } });
     (tx.queueItem as Record<string, jest.Mock>)['createMany'] = jest.fn();
     await service.add(USER, [NEW_TOPIC]);
     await service.replace(USER, ITEM, NEW_TOPIC);

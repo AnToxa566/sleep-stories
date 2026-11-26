@@ -45,7 +45,7 @@ This is the target layout. Create folders when first needed, not before.
 | What | Where |
 |---|---|
 | Screens, navigation, hooks, stores | `apps/mobile/src` |
-| Nest modules, one per feature | `apps/api/src/app/<feature>` |
+| Nest modules, one per feature (read the layout and dependency rules in `apps/api/README.md` first) | `apps/api/src/app/<feature>` |
 | Prisma schema and migrations | `apps/api/prisma` |
 | Local Supabase stack configuration (`config.toml`; the Supabase CLI keeps its own state next to it) | `apps/api/supabase` |
 | Generated Prisma client (git-ignored, never edited by hand) | `apps/api/src/generated/prisma` |

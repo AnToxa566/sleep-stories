@@ -26,6 +26,8 @@ Inside `contracts` the folders follow the domain (`common`, `preferences`, `queu
 
 ## 3. API modules (`apps/api/src/app`, §4 to §6)
 
+Dependencies go one way and lint enforces them; the table of who may import whom is in [apps/api/README.md](apps/api/README.md).
+
 | Folder | Responsible for |
 |---|---|
 | `preferences` | The person and their settings: `/me`, onboarding, the `users` row, interests, voices with signed sample URLs |

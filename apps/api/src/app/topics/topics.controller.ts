@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@ne
 import { SuggestionStatusResponseSchema, TopicsResponseSchema } from '@sleep-stories/contracts';
 import type { SuggestionStatusResponse, TopicsResponse } from '@sleep-stories/contracts';
 import { ZodSerializerDto } from 'nestjs-zod';
+import { ListensService } from '../listens/listen-report/listens.service';
 import { CurrentUserId } from '../platform/auth/request/current-user-id.decorator';
 import { SuggestTopicsRequestDto, TopicParamsDto, TopicsQueryDto } from './topics.dto';
 import { TopicSuggestService } from './suggest-topics/topic-suggest.service';
@@ -15,6 +16,7 @@ export class TopicsController {
   constructor(
     private readonly topics: TopicsService,
     private readonly suggester: TopicSuggestService,
+    private readonly listens: ListensService,
   ) {}
 
   // A plain read: it creates no job and writes nothing.
@@ -52,6 +54,6 @@ export class TopicsController {
   @Delete(':topicId/heard')
   @HttpCode(204)
   unmarkHeard(@CurrentUserId() userId: string, @Param() params: TopicParamsDto): Promise<void> {
-    return this.topics.markUnheard(userId, params.topicId);
+    return this.listens.markUnheard(userId, params.topicId);
   }
 }

@@ -5,6 +5,7 @@ import { GenerationError } from '../../generation/generation-error/generation-er
 import { TopicSuggesterService } from '../../generation/topic-suggester/topic-suggester.service';
 import { lockUserRow } from '../../platform/prisma/lock-user-row/lock-user-row';
 import { PrismaService } from '../../platform/prisma/prisma.service';
+import { appendToQueue } from '../../queue/append-to-queue/append-to-queue';
 import { QUEUE_TARGET_LENGTH } from '../../queue/policy/queue-policy';
 import type { JobContext, JobHandler } from '../runner/job-handler';
 
@@ -189,17 +190,7 @@ export class SuggestTopicsHandler implements JobHandler<'suggest_topics'> {
       const queueLength = await tx.queueItem.count({ where: { userId } });
       const slots = Math.max(0, Math.min(ctx.job.payload.missing, QUEUE_TARGET_LENGTH - queueLength));
       const toQueue = shuffle(fresh.map(({ id }) => id)).slice(0, slots);
-      if (toQueue.length > 0) {
-        const last = await tx.queueItem.aggregate({ where: { userId }, _max: { position: true } });
-        const firstPosition = (last._max.position ?? 0) + 1;
-        await tx.queueItem.createMany({
-          data: toQueue.map((topicId, index) => ({
-            userId,
-            topicId,
-            position: firstPosition + index,
-          })),
-        });
-      }
+      await appendToQueue(tx, userId, toQueue);
 
       await ctx.markSucceeded(tx);
     });

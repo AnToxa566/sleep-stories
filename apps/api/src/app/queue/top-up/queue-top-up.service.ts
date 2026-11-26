@@ -4,6 +4,7 @@ import { PrismaService } from '../../platform/prisma/prisma.service';
 import { JobQueue } from '../../providers/job-queue/job-queue';
 import { GenerationJobsService } from '../../generation/jobs/generation-jobs.service';
 import { GenerationLimitsService, remaining } from '../../generation/limits/generation-limits.service';
+import { appendToQueue } from '../append-to-queue/append-to-queue';
 import { findReady, findWithoutAudio, findWithoutStory } from '../../topics/candidates/topic-candidates';
 import { QUEUE_TARGET_LENGTH, QUEUE_TOP_UP_THRESHOLD } from '../policy/queue-policy';
 import { planTopUp } from './top-up-plan';
@@ -85,21 +86,10 @@ export class QueueTopUpService {
         });
 
         const topicIds = [...plan.queueReady, ...plan.queueWithoutAudio, ...plan.queueWithoutStory];
-        if (topicIds.length > 0) {
-          const last = await tx.queueItem.aggregate({ where: { userId }, _max: { position: true } });
-          const firstPosition = (last._max.position ?? 0) + 1;
-          // skipDuplicates cannot hide a duplicate here: the row lock serialises runs of this
-          // person and the candidate queries exclude topics already in the queue, so every row
-          // is new and the counts above stay exact.
-          await tx.queueItem.createMany({
-            data: topicIds.map((topicId, index) => ({
-              userId,
-              topicId,
-              position: firstPosition + index,
-            })),
-            skipDuplicates: true,
-          });
-        }
+        // skipDuplicates cannot hide a duplicate here: the row lock serialises runs of this
+        // person and the candidate queries exclude topics already in the queue, so every row
+        // is new and the counts above stay exact.
+        await appendToQueue(tx, userId, topicIds, { skipDuplicates: true });
 
         // The only job a top-up may create.
         const created =

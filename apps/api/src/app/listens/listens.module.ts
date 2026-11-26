@@ -6,5 +6,6 @@ import { ListensService } from './listen-report/listens.service';
 @Module({
   controllers: [ListensController],
   providers: [ListensService],
+  exports: [ListensService],
 })
 export class ListensModule {}

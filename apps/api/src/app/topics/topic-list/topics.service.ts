@@ -4,7 +4,6 @@ import {
   type TopicsQuery,
   type TopicsResponse,
 } from '@sleep-stories/contracts';
-import { lockUserRow } from '../../platform/prisma/lock-user-row/lock-user-row';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import { readHeardTopicIds } from '../../listens/heard/heard';
 import { findReady, findWithoutAudio, findWithoutStory } from '../candidates/topic-candidates';
@@ -20,10 +19,9 @@ import { buildTopicRows, TOPICS_LIST_MAX, type TopicInfo } from './topic-rows';
 // so are heard topics (marked `heard` and listed after the unheard ones), unless the `heard`
 // filter says otherwise.
 //
-// `list` is a plain read: no transaction, no lock, no row changed. The one write of this
-// class is `markUnheard`. Every query on a person's data is scoped by `userId`, which the
-// caller takes from the verified token. Neither method creates a `generation_jobs` row
-// (AGENTS.md architecture rule 10).
+// `list` is a plain read: no transaction, no lock, no row changed. Every query on a person's
+// data is scoped by `userId`, which the caller takes from the verified token. It creates no
+// `generation_jobs` row (AGENTS.md architecture rule 10).
 @Injectable()
 export class TopicsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -95,19 +93,5 @@ export class TopicsService {
       readyOnly,
     });
     return TopicsResponseSchema.parse({ topics: rows });
-  }
-
-  // Makes the topic's story unheard for this person. Heard is derived from `listens`
-  // (`heard.ts`), so ALL of the person's rows for the story are deleted, in every voice,
-  // partial ones included. Cost: that part of the listening history is lost for good,
-  // accepted for a change with no migration and no new rule for the readers of `listens`
-  // (owner, 2026-11-26; ARCHITECTURE.md section 5). `userId` in the WHERE clause is what
-  // keeps other people's rows safe. The queue and the jobs are not touched. A listen report
-  // that arrives after this makes the story heard again.
-  async markUnheard(userId: string, topicId: string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      await lockUserRow(tx, userId);
-      await tx.listen.deleteMany({ where: { userId, story: { topicId } } });
-    });
   }
 }
