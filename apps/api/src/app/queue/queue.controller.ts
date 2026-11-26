@@ -2,14 +2,14 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nest
 import { ContinueResponseSchema, QueueResponseSchema } from '@sleep-stories/contracts';
 import type { ContinueResponse, QueueResponse } from '@sleep-stories/contracts';
 import { ZodSerializerDto } from 'nestjs-zod';
-import { CurrentUserId } from '../auth/current-user-id.decorator';
-import { GenerationStartService } from './generation-start.service';
-import { QueueContinueService } from './queue-continue.service';
-import { QueueEditService } from './queue-edit.service';
-import { QueueReadService } from './queue-read.service';
-import { QueueRebuildService } from './queue-rebuild.service';
-import { QueuePickService } from './queue-pick.service';
-import { QueueTopUpService } from './queue-top-up.service';
+import { CurrentUserId } from '../platform/auth/request/current-user-id.decorator';
+import { GenerationStartService } from './generate/generation-start.service';
+import { QueueContinueService } from './continue-night/queue-continue.service';
+import { QueueEditService } from './edit/queue-edit.service';
+import { QueueReadService } from './read/queue-read.service';
+import { QueueRebuildService } from './rebuild/queue-rebuild.service';
+import { QueuePickService } from './pick/queue-pick.service';
+import { QueueTopUpService } from './top-up/queue-top-up.service';
 import {
   AddToQueueRequestDto,
   QueueItemParamsDto,

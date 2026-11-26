@@ -5,10 +5,10 @@ import { Test } from '@nestjs/testing';
 import type { z } from 'zod';
 import { assertLocalDatabase } from '../../../test-support/assert-local-database';
 import { QueueTestData } from '../../../test-support/queue-test-data';
-import { envFilePaths, validateEnv } from '../../config/env';
-import { TopicSuggesterService } from '../../generation/topic-suggester.service';
-import { PrismaModule } from '../../prisma/prisma.module';
-import { PrismaService } from '../../prisma/prisma.service';
+import { envFilePaths, validateEnv } from '../../platform/config/env';
+import { TopicSuggesterService } from '../../generation/topic-suggester/topic-suggester.service';
+import { PrismaModule } from '../../platform/prisma/prisma.module';
+import { PrismaService } from '../../platform/prisma/prisma.service';
 import { JobQueue } from '../../providers/job-queue/job-queue';
 import { LlmProvider, LlmProviderError } from '../../providers/llm/llm.provider';
 import type {
@@ -17,9 +17,9 @@ import type {
 } from '../../providers/llm/llm.provider';
 import { ProvidersModule } from '../../providers/providers.module';
 import { QueueModule } from '../../queue/queue.module';
-import { QueueTopUpService } from '../../queue/queue-top-up.service';
-import { JobHandlerRegistry, type JobHandler } from '../job-handler';
-import { JobRunnerService } from '../job-runner.service';
+import { QueueTopUpService } from '../../queue/top-up/queue-top-up.service';
+import { JobHandlerRegistry, type JobHandler } from '../runner/job-handler';
+import { JobRunnerService } from '../runner/job-runner.service';
 import { SuggestTopicsHandler } from './suggest-topics.handler';
 
 // Runs against the REAL local database with the real PrismaModule and QueueModule and the

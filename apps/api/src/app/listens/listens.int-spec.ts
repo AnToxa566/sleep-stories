@@ -5,7 +5,7 @@ import {
   ListenReportResponseSchema,
 } from '@sleep-stories/contracts';
 import { type Harness, startHarness } from '../../test-support/http-harness';
-import { LISTEN_DURATION_SLACK_SEC } from './listens.service';
+import { LISTEN_DURATION_SLACK_SEC } from './listen-report/listens.service';
 
 // POST /api/listens against the real local database and the real AppModule.
 let h: Harness;

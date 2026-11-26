@@ -2,7 +2,7 @@ import { ElevenLabsClient, ElevenLabsError, ElevenLabsTimeoutError } from '@elev
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { STORY_TEXT_MAX_CHARS } from '@sleep-stories/contracts';
-import type { Env } from '../../config/env';
+import type { Env } from '../../platform/config/env';
 import { TtsProvider, TtsProviderError, type SynthesizeInput, type SynthesizeResult } from './tts.provider';
 
 // One deadline for the WHOLE call: the request and reading the audio body. A whole story

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ConfigService } from '@nestjs/config';
 import { z } from 'zod';
-import type { Env } from '../../config/env';
+import type { Env } from '../../platform/config/env';
 import { AnthropicLlmProvider } from './anthropic-llm.provider';
 import { LlmProviderError } from './llm.provider';
 

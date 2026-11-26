@@ -1,4 +1,4 @@
-import { isLoopbackDatabaseUrl, postgresUrlSchema } from '../app/config/env';
+import { isLoopbackDatabaseUrl, postgresUrlSchema } from '../app/platform/config/env';
 
 // Integration tests write to and delete from the real database, so they must
 // never reach the cloud project. Refuses unless DATABASE_URL points at a loopback

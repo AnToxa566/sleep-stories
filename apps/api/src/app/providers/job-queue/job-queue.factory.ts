@@ -1,5 +1,5 @@
 import type { HttpAdapterHost } from '@nestjs/core';
-import type { Env } from '../../config/env';
+import type { Env } from '../../platform/config/env';
 import { createCloudTasksJobQueue } from './cloud-tasks-job-queue';
 import { JobQueue, NoopJobQueue } from './job-queue';
 import type { LocalDispatchSecret } from './local-dispatch-secret';

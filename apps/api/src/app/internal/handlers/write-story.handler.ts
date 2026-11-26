@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GenerationError } from '../../generation/generation-error';
-import { StoryWriterService, type WriteStoryResult } from '../../generation/story-writer.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { GenerationError } from '../../generation/generation-error/generation-error';
+import { StoryWriterService, type WriteStoryResult } from '../../generation/story-writer/story-writer.service';
+import { PrismaService } from '../../platform/prisma/prisma.service';
 import { JobQueue } from '../../providers/job-queue/job-queue';
-import { GenerationJobsService } from '../../queue/generation-jobs.service';
-import type { JobContext, JobHandler } from '../job-handler';
+import { GenerationJobsService } from '../../generation/jobs/generation-jobs.service';
+import type { JobContext, JobHandler } from '../runner/job-handler';
 
 // write_story: one topic, one story, then the render_audio job for the requester's voice
 // (ARCHITECTURE.md section 6, "How jobs run", step 7).

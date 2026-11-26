@@ -1,8 +1,8 @@
 import type { INestApplication } from '@nestjs/common';
 import { GUARDS_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { DiscoveryService, ModulesContainer } from '@nestjs/core';
-import { IS_INTERNAL_KEY } from '../app/auth/internal-route.key';
-import { InternalAuthGuard } from '../app/internal/internal-auth.guard';
+import { IS_INTERNAL_KEY } from '../app/platform/auth/route-markers/internal-route.key';
+import { InternalAuthGuard } from '../app/internal/auth/internal-auth.guard';
 
 export interface DiscoveredRoute {
   // Controller class name and handler name, for the failure message.

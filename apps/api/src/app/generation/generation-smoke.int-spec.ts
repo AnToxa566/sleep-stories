@@ -3,13 +3,13 @@ import { INestApplicationContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { StoryStyleSchema } from '@sleep-stories/contracts';
 import { AppModule } from '../app.module';
-import { isLoopbackDatabaseUrl } from '../config/env';
-import { PrismaService } from '../prisma/prisma.service';
+import { isLoopbackDatabaseUrl } from '../platform/config/env';
+import { PrismaService } from '../platform/prisma/prisma.service';
 import { StorageService } from '../providers/storage/storage.service';
 import { TtsProviderError } from '../providers/tts/tts.provider';
 import { assertLocalDatabase } from '../../test-support/assert-local-database';
-import { AudioRendererService } from './audio-renderer.service';
-import { StoryWriterService } from './story-writer.service';
+import { AudioRendererService } from './audio-renderer/audio-renderer.service';
+import { StoryWriterService } from './story-writer/story-writer.service';
 
 // PAID smoke test: one real Anthropic call and one real ElevenLabs call, then a real
 // upload to the LOCAL Supabase Storage. It is skipped unless RUN_PAID_SMOKE=1, so the

@@ -29,10 +29,10 @@ const USERS_ROW_LOCK = /FROM\s+users\b[\s\S]{0,200}?FOR\s+UPDATE/i;
 const CLOUD_TASKS_SDK = /['"`]@google-cloud\/tasks(?:\/[^'"`]*)?['"`]/;
 
 const STORY_JOB_KIND_ALLOWED = [
-  'app/queue/generation-start-plan.ts',
+  'app/generation/start-plan/generation-start-plan.ts',
   'app/internal/handlers/write-story.handler.ts',
 ];
-const USERS_ROW_LOCK_ALLOWED = ['app/prisma/lock-user-row.ts'];
+const USERS_ROW_LOCK_ALLOWED = ['app/platform/prisma/lock-user-row/lock-user-row.ts'];
 const CLOUD_TASKS_SDK_ALLOWED = ['app/providers/job-queue/cloud-tasks-job-queue.ts'];
 
 function isSkipped(path: string): boolean {

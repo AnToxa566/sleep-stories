@@ -7,10 +7,10 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose';
 import type { CryptoKey } from 'jose';
 import { assertLocalDatabase } from '../../test-support/assert-local-database';
 import { QueueTestData } from '../../test-support/queue-test-data';
-import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../auth/access-token-verifier';
+import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../platform/auth/access-token/access-token-verifier';
 import { AppModule } from '../app.module';
-import type { Env } from '../config/env';
-import { PrismaService } from '../prisma/prisma.service';
+import type { Env } from '../platform/config/env';
+import { PrismaService } from '../platform/prisma/prisma.service';
 import { JobQueue } from '../providers/job-queue/job-queue';
 import { StorageService } from '../providers/storage/storage.service';
 

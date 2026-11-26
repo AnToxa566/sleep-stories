@@ -12,7 +12,7 @@ describe('LocalDispatchSecret', () => {
   });
 
   // The verifier that holds the instance is checked in
-  // internal/internal-credential.verifier.spec.ts (providers/ must not import internal/).
+  // internal/auth/internal-credential.verifier.spec.ts (providers/ must not import internal/).
   it('does not reveal the secret when logged, inspected or serialised, alone or in a holder', () => {
     const secret = new LocalDispatchSecret();
     const printed = [

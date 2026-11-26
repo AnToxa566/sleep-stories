@@ -9,16 +9,16 @@ import type { CryptoKey } from 'jose';
 import { assertInternalRoutesAreGuarded } from '../../test-support/internal-routes';
 import { assertLocalDatabase } from '../../test-support/assert-local-database';
 import { QueueTestData } from '../../test-support/queue-test-data';
-import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../auth/access-token-verifier';
+import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../platform/auth/access-token/access-token-verifier';
 import { AppModule } from '../app.module';
-import type { Env } from '../config/env';
-import { PrismaService } from '../prisma/prisma.service';
+import type { Env } from '../platform/config/env';
+import { PrismaService } from '../platform/prisma/prisma.service';
 import { JobQueue } from '../providers/job-queue/job-queue';
 import { LlmProviderError } from '../providers/llm/llm.provider';
-import { QueueTopUpService } from '../queue/queue-top-up.service';
+import { QueueTopUpService } from '../queue/top-up/queue-top-up.service';
 import { LocalDispatchSecret } from '../providers/job-queue/local-dispatch-secret';
-import { JOB_HANDLERS } from './job-handler';
-import type { JobContext, JobHandler } from './job-handler';
+import { JOB_HANDLERS } from './runner/job-handler';
+import type { JobContext, JobHandler } from './runner/job-handler';
 
 // The real AppModule against the REAL local database, listening on a random port, with
 // fake job handlers (no provider is ever called; the provider keys are fakes from the

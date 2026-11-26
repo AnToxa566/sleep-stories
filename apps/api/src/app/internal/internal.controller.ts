@@ -2,11 +2,11 @@ import { Body, Controller, HttpCode, Post, ServiceUnavailableException } from '@
 import { RunJobResponseSchema, SweepJobsResponseSchema } from '@sleep-stories/contracts';
 import type { RunJobResponse, SweepJobsResponse } from '@sleep-stories/contracts';
 import { ZodSerializerDto } from 'nestjs-zod';
-import { apiErrorBody } from '../errors/api-error-body';
+import { apiErrorBody } from '../platform/errors/api-error-body';
 import { RunJobDto } from './internal.dto';
-import { InternalRoute } from './internal-route.decorator';
-import { JobRunnerService } from './job-runner.service';
-import { JobSweeperService } from './job-sweeper.service';
+import { InternalRoute } from './auth/internal-route.decorator';
+import { JobRunnerService } from './runner/job-runner.service';
+import { JobSweeperService } from './runner/job-sweeper.service';
 
 // Called by Cloud Tasks (run) and Cloud Scheduler (sweep), or by the local queue in
 // development. Every route is @InternalRoute(): InternalAuthGuard authenticates the caller

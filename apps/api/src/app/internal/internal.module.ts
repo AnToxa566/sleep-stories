@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Env } from '../config/env';
+import type { Env } from '../platform/config/env';
 import { GenerationModule } from '../generation/generation.module';
 import { LocalDispatchSecret } from '../providers/job-queue/local-dispatch-secret';
 import { QueueModule } from '../queue/queue.module';
@@ -9,10 +9,10 @@ import {
   createInternalCredentialVerifier,
   googleKeySet,
   InternalCredentialVerifier,
-} from './internal-credential.verifier';
-import { JOB_HANDLERS, type JobHandler, JobHandlerRegistry } from './job-handler';
-import { JobRunnerService } from './job-runner.service';
-import { JobSweeperService } from './job-sweeper.service';
+} from './auth/internal-credential.verifier';
+import { JOB_HANDLERS, type JobHandler, JobHandlerRegistry } from './runner/job-handler';
+import { JobRunnerService } from './runner/job-runner.service';
+import { JobSweeperService } from './runner/job-sweeper.service';
 import { RenderAudioHandler } from './handlers/render-audio.handler';
 import { SuggestTopicsHandler } from './handlers/suggest-topics.handler';
 import { WriteStoryHandler } from './handlers/write-story.handler';

@@ -7,7 +7,7 @@ import { StoryStyleSchema } from '../../common/story-style/story-style';
 
 // Must match the Prisma enum JobKind in apps/api/prisma/schema.prisma.
 // contracts cannot import the generated Prisma client, so the comparison test
-// lives in apps/api (src/app/prisma/job-kind.spec.ts).
+// lives in apps/api (src/app/platform/prisma/checks/job-kind.spec.ts).
 export const JobKindSchema = z.enum(['suggest_topics', 'write_story', 'render_audio']);
 
 // The payload of a generation job, discriminated by `kind`. The column is JSON,

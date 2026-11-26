@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Env } from '../../config/env';
+import type { Env } from '../../platform/config/env';
 
 // Thrown for every signing failure. The message is fixed on purpose: it never carries
 // the storage URL, the key, the bucket or an object path, because Nest logs an
@@ -45,7 +45,7 @@ export function storyAudioPath(storyId: string, voiceId: string): string {
 export class StorageService {
   private readonly client: SupabaseClient;
   private readonly bucket: string;
-  // Local development only (see STORAGE_PUBLIC_URL in config/env.ts). The local Supabase
+  // Local development only (see STORAGE_PUBLIC_URL in platform/config/env.ts). The local Supabase
   // stack signs URLs with the host of SUPABASE_URL (127.0.0.1), which a phone cannot
   // reach. The token is bound to the object path, not the host, so swapping the origin
   // keeps the URL valid. Buys a playable sample on a real phone; costs a dev-only knob,

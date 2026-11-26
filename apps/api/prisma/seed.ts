@@ -19,8 +19,8 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { z } from 'zod';
 import { PrismaClient } from '../src/generated/prisma/client';
-import { addDatabaseTlsIssues, databaseTlsShape, postgresUrlSchema } from '../src/app/config/env';
-import { resolveDatabaseSsl } from '../src/app/prisma/database-tls';
+import { addDatabaseTlsIssues, databaseTlsShape, postgresUrlSchema } from '../src/app/platform/config/env';
+import { resolveDatabaseSsl } from '../src/app/platform/prisma/database-tls/database-tls';
 import { INTEREST_SEEDS, sampleAudioPathFor, TTS_PROVIDER, VOICE_SEEDS } from './seed-data';
 import { decideSeedTarget } from './seed-target';
 

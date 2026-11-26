@@ -1,12 +1,12 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { StoryStyle } from '@sleep-stories/contracts';
-import { GenerationError } from '../../generation/generation-error';
-import { TopicSuggesterService } from '../../generation/topic-suggester.service';
-import { lockUserRow } from '../../prisma/lock-user-row';
-import { PrismaService } from '../../prisma/prisma.service';
-import { QUEUE_TARGET_LENGTH } from '../../queue/queue-policy';
-import type { JobContext, JobHandler } from '../job-handler';
+import { GenerationError } from '../../generation/generation-error/generation-error';
+import { TopicSuggesterService } from '../../generation/topic-suggester/topic-suggester.service';
+import { lockUserRow } from '../../platform/prisma/lock-user-row/lock-user-row';
+import { PrismaService } from '../../platform/prisma/prisma.service';
+import { QUEUE_TARGET_LENGTH } from '../../queue/policy/queue-policy';
+import type { JobContext, JobHandler } from '../runner/job-handler';
 
 // How many of the person's latest topics the model is told not to repeat.
 const EXISTING_TOPICS_LIMIT = 150;

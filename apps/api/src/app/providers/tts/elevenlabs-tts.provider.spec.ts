@@ -1,6 +1,6 @@
 import { ElevenLabsClient, ElevenLabsError, ElevenLabsTimeoutError } from '@elevenlabs/elevenlabs-js';
 import { ConfigService } from '@nestjs/config';
-import type { Env } from '../../config/env';
+import type { Env } from '../../platform/config/env';
 import { ElevenLabsTtsProvider } from './elevenlabs-tts.provider';
 import { TtsProviderError } from './tts.provider';
 

@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpAdapterHost } from '@nestjs/core';
-import type { Env } from '../config/env';
+import type { Env } from '../platform/config/env';
 import { JobQueue } from './job-queue/job-queue';
 import { createJobQueue } from './job-queue/job-queue.factory';
 import { LocalDispatchSecret } from './job-queue/local-dispatch-secret';

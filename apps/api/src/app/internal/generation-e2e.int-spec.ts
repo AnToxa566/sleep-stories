@@ -9,10 +9,10 @@ import type { z } from 'zod';
 import { assertLocalDatabase } from '../../test-support/assert-local-database';
 import { QueueTestData } from '../../test-support/queue-test-data';
 import { tinyMp3 } from '../../test-support/tiny-mp3';
-import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../auth/access-token-verifier';
+import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../platform/auth/access-token/access-token-verifier';
 import { AppModule } from '../app.module';
-import type { Env } from '../config/env';
-import { PrismaService } from '../prisma/prisma.service';
+import type { Env } from '../platform/config/env';
+import { PrismaService } from '../platform/prisma/prisma.service';
 import { LocalDispatchSecret } from '../providers/job-queue/local-dispatch-secret';
 import {
   LlmProvider,
@@ -24,8 +24,8 @@ import {
 } from '../providers/llm/llm.provider';
 import { StorageService } from '../providers/storage/storage.service';
 import { TtsProvider, type SynthesizeInput, type SynthesizeResult } from '../providers/tts/tts.provider';
-import { GenerationLimitsService } from '../queue/generation-limits.service';
-import { QueueTopUpService } from '../queue/queue-top-up.service';
+import { GenerationLimitsService } from '../generation/limits/generation-limits.service';
+import { QueueTopUpService } from '../queue/top-up/queue-top-up.service';
 
 // The end-to-end pipeline: the real AppModule against the REAL local database,
 // listening on a random port, JOB_QUEUE=local (jobs are dispatched over real HTTP by the

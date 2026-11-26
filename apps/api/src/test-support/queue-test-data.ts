@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { JobKind } from '@sleep-stories/contracts';
-import type { PrismaService } from '../app/prisma/prisma.service';
+import type { PrismaService } from '../app/platform/prisma/prisma.service';
 import type { JobStatus, Prisma, StoryStyle, TopicReason } from '../generated/prisma/client';
 
 // Builds rows for the queue integration tests and removes them afterwards. Every row uses

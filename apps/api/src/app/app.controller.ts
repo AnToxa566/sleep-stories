@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
-import { Public } from './auth/public.decorator';
-import { UnvalidatedResponse } from './validation/unvalidated-response.decorator';
+import { Public } from './platform/auth/route-markers/public.decorator';
+import { UnvalidatedResponse } from './platform/validation/response/unvalidated-response.decorator';
 
 @Controller()
 export class AppController {

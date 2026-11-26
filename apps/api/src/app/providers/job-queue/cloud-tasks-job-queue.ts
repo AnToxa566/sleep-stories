@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { CloudTasksClient, protos } from '@google-cloud/tasks';
-import { JOB_LEASE_MINUTES } from '../../queue/queue-policy';
+import { JOB_LEASE_MINUTES } from './job-lease';
 import { JobQueue } from './job-queue';
 
 // The production JobQueue: one Cloud Task per generation job (AGENTS.md architecture rule 6;

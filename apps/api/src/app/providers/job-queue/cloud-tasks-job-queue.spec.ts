@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { JOB_LEASE_MINUTES } from '../../queue/queue-policy';
+import { JOB_LEASE_MINUTES } from './job-lease';
 import { CloudTasksJobQueue, queuePathOf, RUN_JOB_PATH } from './cloud-tasks-job-queue';
 import type { CloudTasksClientLike } from './cloud-tasks-job-queue';
 

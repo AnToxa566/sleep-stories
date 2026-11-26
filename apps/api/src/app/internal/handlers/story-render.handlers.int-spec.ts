@@ -5,25 +5,25 @@ import { Test } from '@nestjs/testing';
 import type { GenerationJobPayload } from '@sleep-stories/contracts';
 import { assertLocalDatabase } from '../../../test-support/assert-local-database';
 import { QueueTestData } from '../../../test-support/queue-test-data';
-import { envFilePaths, validateEnv } from '../../config/env';
+import { envFilePaths, validateEnv } from '../../platform/config/env';
 import type {
   AudioRendererService,
   RenderAudioInput,
   RenderAudioResult,
-} from '../../generation/audio-renderer.service';
+} from '../../generation/audio-renderer/audio-renderer.service';
 import type {
   StoryWriterService,
   WriteStoryInput,
   WriteStoryResult,
-} from '../../generation/story-writer.service';
-import { PrismaModule } from '../../prisma/prisma.module';
-import { PrismaService } from '../../prisma/prisma.service';
+} from '../../generation/story-writer/story-writer.service';
+import { PrismaModule } from '../../platform/prisma/prisma.module';
+import { PrismaService } from '../../platform/prisma/prisma.service';
 import type { JobQueue } from '../../providers/job-queue/job-queue';
 import { LlmProviderError } from '../../providers/llm/llm.provider';
 import { TtsProviderError } from '../../providers/tts/tts.provider';
-import { dedupeKeyOf, GenerationJobsService } from '../../queue/generation-jobs.service';
-import { JobHandlerRegistry, type JobHandler } from '../job-handler';
-import { JobRunnerService } from '../job-runner.service';
+import { dedupeKeyOf, GenerationJobsService } from '../../generation/jobs/generation-jobs.service';
+import { JobHandlerRegistry, type JobHandler } from '../runner/job-handler';
+import { JobRunnerService } from '../runner/job-runner.service';
 import { RenderAudioHandler } from './render-audio.handler';
 import { WriteStoryHandler } from './write-story.handler';
 

@@ -66,7 +66,7 @@ RUN_MAX_INSTANCES=1
 # CPU boost is off on purpose (cold starts are accepted): the flag is --no-cpu-boost.
 
 # Plain (non-secret) environment of the service, used by slice 3.2. Checked
-# against apps/api/src/app/config/env.ts. Not set here, on purpose:
+# against apps/api/src/app/platform/config/env.ts. Not set here, on purpose:
 #   PORT (Cloud Run sets it), STORAGE_PUBLIC_URL (local development only),
 #   INTERNAL_OIDC_AUDIENCE and INTERNAL_OIDC_SERVICE_ACCOUNT (computed by deploy.sh).
 RUN_ENV_VARS=(

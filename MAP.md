@@ -28,15 +28,14 @@ Inside `contracts` the folders follow the domain (`common`, `preferences`, `queu
 
 | Folder | Responsible for |
 |---|---|
-| `auth` | Global deny-by-default JWT guard; the user id comes only from the verified token (S-2, §8) |
-| `me`, `users`, `interests`, `voices` | Profile and onboarding, reference data, signed sample URLs |
-| `queue` | The user-facing queue: read, edit, reorder, add, replace, top-up, rebuild, continue, the explicit start of generation, topics and topics on request (§6 "The user-facing queue API") |
-| `listens` | One listen report per story; never changes the queue (§6) |
-| `generation` | Three database-free services (topic suggester, story writer, audio renderer) and the prompts |
-| `internal` | `/internal/*`: the job executor, the sweeper and the three handlers; Google OIDC only (S-4, §6 "How jobs run") |
+| `preferences` | The person and their settings: `/me`, onboarding, the `users` row, interests, voices with signed sample URLs |
+| `listens` | One listen report per story and the rule of a heard story; never changes the queue (§6) |
+| `generation` | Limits, job records, the start plan, story state, and the content services (topic suggester, story writer, audio renderer) with the prompts |
+| `topics` | The «Темы» list, what a person may be offered, topics on request |
+| `queue` | The night queue: read, edit, reorder, add, replace, top-up, rebuild, continue, the explicit start of generation (§6 "The user-facing queue API") |
+| `internal` | `/internal/*`: Google OIDC only, the job runner, the sweeper and the three handlers (S-4, §6 "How jobs run") |
 | `providers` | The only place that touches paid or secret SDKs: LLM, TTS, storage, job queue (A-2, §4) |
-| `prisma` | The Prisma service, TLS pinning, `lockUserRow` (the one place that locks the `users` row) |
-| `config`, `validation`, `errors` | Zod-checked env that fails at boot; response validation that fails closed; one error body shape (S-5) |
+| `platform` | Technical base: the deny-by-default JWT guard, the user id only from the verified token (S-2, §8); Zod-checked env that fails at boot; the Prisma service, TLS pinning, `lockUserRow` (the one place that locks the `users` row); response validation that fails closed and one error body shape (S-5) |
 
 ## 3b. Deployment scripts (`infra/`, §12)
 

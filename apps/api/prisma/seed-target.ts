@@ -1,4 +1,4 @@
-import { isLoopbackDatabaseUrl } from '../src/app/config/env';
+import { isLoopbackDatabaseUrl } from '../src/app/platform/config/env';
 
 // Decides whether the seed may write to the database at `url`. Kept as a small
 // pure function so it can be tested and so seed.ts stays thin.

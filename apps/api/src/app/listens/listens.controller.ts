@@ -2,9 +2,9 @@ import { Body, Controller, HttpCode, Post } from '@nestjs/common';
 import { ListenReportResponseSchema } from '@sleep-stories/contracts';
 import type { ListenReportResponse } from '@sleep-stories/contracts';
 import { ZodSerializerDto } from 'nestjs-zod';
-import { CurrentUserId } from '../auth/current-user-id.decorator';
+import { CurrentUserId } from '../platform/auth/request/current-user-id.decorator';
 import { ListenReportRequestDto } from './listens.dto';
-import { ListensService } from './listens.service';
+import { ListensService } from './listen-report/listens.service';
 
 // The person is identified only by the verified token (CurrentUserId); the voice comes from
 // their preferences. The body names only the story. 200, not 201: the report may record

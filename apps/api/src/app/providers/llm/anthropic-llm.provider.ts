@@ -3,7 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { z } from 'zod';
-import type { Env } from '../../config/env';
+import type { Env } from '../../platform/config/env';
 import {
   LlmProvider,
   LlmProviderError,

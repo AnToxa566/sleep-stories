@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { createClient } from '@supabase/supabase-js';
-import type { Env } from '../../config/env';
+import type { Env } from '../../platform/config/env';
 import { StorageService, StorageSigningError, StorageUploadError, storyAudioPath } from './storage.service';
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn() }));

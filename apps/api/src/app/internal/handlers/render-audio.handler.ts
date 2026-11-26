@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { AudioRendererService } from '../../generation/audio-renderer.service';
-import { GenerationError } from '../../generation/generation-error';
-import { PrismaService } from '../../prisma/prisma.service';
-import type { JobContext, JobHandler } from '../job-handler';
+import { AudioRendererService } from '../../generation/audio-renderer/audio-renderer.service';
+import { GenerationError } from '../../generation/generation-error/generation-error';
+import { PrismaService } from '../../platform/prisma/prisma.service';
+import type { JobContext, JobHandler } from '../runner/job-handler';
 
 // render_audio: one story in one voice, one TTS request, one file. The provider call and the
 // upload run outside any transaction; the storage path is deterministic, so a retry
