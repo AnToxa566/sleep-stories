@@ -1,10 +1,10 @@
 import { StyleSheet, View } from 'react-native';
-import { Text } from '../ui/typography';
+import { Text } from '../ui/typography/typography';
 import { useMe } from '../api/queries';
 import { strings } from '../strings';
 import { colors, spacing, typeSizes } from '../theme/tokens';
-import { PrimaryButton } from '../ui/PrimaryButton';
-import { Screen } from '../ui/Screen';
+import { PrimaryButton } from '../ui/buttons/PrimaryButton';
+import { Screen } from '../ui/layout/Screen';
 
 // Shown when /me cannot be loaded for a reason other than 401 (server down, no network).
 // The one action refetches /me; on success the gate moves on by itself.

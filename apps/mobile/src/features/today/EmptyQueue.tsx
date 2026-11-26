@@ -1,11 +1,11 @@
 import { StyleSheet, View, type Animated } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { strings } from '../../strings';
 import { colors, radii, sizes, typeSizes } from '../../theme/tokens';
-import { Icon } from '../../ui/icons';
-import { PrimaryButton } from '../../ui/PrimaryButton';
-import { SecondaryButton } from '../../ui/SecondaryButton';
-import { SkeletonRows } from '../../ui/SkeletonRows';
+import { Icon } from '../../ui/icons/icons';
+import { PrimaryButton } from '../../ui/buttons/PrimaryButton';
+import { SecondaryButton } from '../../ui/buttons/SecondaryButton';
+import { SkeletonRows } from '../../ui/status/SkeletonRows';
 import { ProgressFill } from './ProgressFill';
 
 type Props = {

@@ -10,8 +10,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { colors } from '../../theme/tokens';
-import { Text } from '../../ui/typography';
-import { useReduceMotion } from '../../ui/use-reduce-motion';
+import { Text } from '../../ui/typography/typography';
+import { useReduceMotion } from '../../ui/motion/use-reduce-motion';
 import { MARQUEE_GAP, MARQUEE_HOLD_MS, marqueeGeometry } from './marquee-geometry';
 
 // Design 3a: one line, 24 px. The line height is fixed so the block never changes height,

@@ -1,8 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 import { strings } from '../../strings';
 import { spacing } from '../../theme/tokens';
-import { BackButton } from '../../ui/BackButton';
-import { ProgressSegments } from '../../ui/ProgressSegments';
+import { BackButton } from '../../ui/buttons/BackButton';
+import { ProgressSegments } from './ProgressSegments';
 
 type Props = {
   step: 1 | 2 | 3;

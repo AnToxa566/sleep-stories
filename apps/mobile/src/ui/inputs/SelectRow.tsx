@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from './typography';
-import { colors, sizes, typeSizes } from '../theme/tokens';
+import { Text } from '../typography/typography';
+import { colors, sizes, typeSizes } from '../../theme/tokens';
 
 type Props = {
   title: string;

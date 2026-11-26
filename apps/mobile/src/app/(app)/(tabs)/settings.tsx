@@ -3,8 +3,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { signOutEverywhere } from '../../../features/auth/session-store';
 import { strings } from '../../../strings';
 import { spacing } from '../../../theme/tokens';
-import { NightBackground } from '../../../ui/NightBackground';
-import { SecondaryButton } from '../../../ui/SecondaryButton';
+import { NightBackground } from '../../../ui/layout/NightBackground';
+import { SecondaryButton } from '../../../ui/buttons/SecondaryButton';
 
 // Temporary «Настройки»: one sign-out button, for testing on a phone. The root layout's gate
 // sends the signed-out person to the auth screens. The real settings screen replaces this.

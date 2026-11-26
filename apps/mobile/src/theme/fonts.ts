@@ -4,7 +4,7 @@
 //
 // Why a family per weight: React Native on Android does not pick a font file by `fontWeight`
 // for a custom font, so each weight is its own family name and `fontWeight` is translated by
-// `fontFamilyForWeight` (used by `ui/typography.tsx`, which every screen uses instead of the
+// `fontFamilyForWeight` (used by `ui/typography/typography.tsx`, which every screen uses instead of the
 // raw `Text` and `TextInput`).
 
 export const fontFamilies = {

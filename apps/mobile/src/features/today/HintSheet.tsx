@@ -1,10 +1,10 @@
 import { StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { strings } from '../../strings';
 import { colors, typeSizes } from '../../theme/tokens';
-import { BottomSheet } from '../../ui/BottomSheet';
-import { Icon } from '../../ui/icons';
-import { SecondaryButton } from '../../ui/SecondaryButton';
+import { BottomSheet } from '../../ui/layout/BottomSheet';
+import { Icon } from '../../ui/icons/icons';
+import { SecondaryButton } from '../../ui/buttons/SecondaryButton';
 
 type Props = {
   visible: boolean;

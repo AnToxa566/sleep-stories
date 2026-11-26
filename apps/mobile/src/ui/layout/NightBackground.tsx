@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
-import { colors } from '../theme/tokens';
+import { colors } from '../../theme/tokens';
 
 // Two soft glows over the dark base: violet at the top edge, coral at the bottom edge.
 // Drawn with SVG radial gradients so no extra gradient package is needed. Each glow is an

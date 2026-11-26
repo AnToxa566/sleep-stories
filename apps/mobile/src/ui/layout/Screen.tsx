@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NightBackground } from './NightBackground';
-import { spacing } from '../theme/tokens';
+import { spacing } from '../../theme/tokens';
 
 type Props = {
   children: ReactNode;

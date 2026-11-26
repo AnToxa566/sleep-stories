@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { colors } from '../theme/tokens';
+import { colors } from '../../theme/tokens';
 
 type Props = {
   on: boolean;

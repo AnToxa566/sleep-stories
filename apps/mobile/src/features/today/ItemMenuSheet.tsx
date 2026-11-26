@@ -1,8 +1,8 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { colors, typeSizes } from '../../theme/tokens';
-import { BottomSheet } from '../../ui/BottomSheet';
-import { Icon, type IconName } from '../../ui/icons';
+import { BottomSheet } from '../../ui/layout/BottomSheet';
+import { Icon, type IconName } from '../../ui/icons/icons';
 import type { MenuEntry, MenuView } from './rows';
 
 type Props = {

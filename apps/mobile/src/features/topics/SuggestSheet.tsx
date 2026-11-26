@@ -1,11 +1,11 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { strings } from '../../strings';
 import { colors, typeSizes } from '../../theme/tokens';
-import { BottomSheet } from '../../ui/BottomSheet';
-import { Chip } from '../../ui/Chip';
-import { Icon } from '../../ui/icons';
-import { PrimaryButton } from '../../ui/PrimaryButton';
-import { Text } from '../../ui/typography';
+import { BottomSheet } from '../../ui/layout/BottomSheet';
+import { Chip } from '../../ui/inputs/Chip';
+import { Icon } from '../../ui/icons/icons';
+import { PrimaryButton } from '../../ui/buttons/PrimaryButton';
+import { Text } from '../../ui/typography/typography';
 import type { SheetChip, SheetOptions, SheetSelection } from './suggest-sheet';
 
 type Props = {

@@ -1,10 +1,10 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { strings } from '../../strings';
 import { colors, minTouchTarget, spacing, typeSizes } from '../../theme/tokens';
-import { HeardMark } from '../../ui/HeardMark';
-import { Icon } from '../../ui/icons';
+import { HeardMark } from '../../ui/status/HeardMark';
+import { Icon } from '../../ui/icons/icons';
 import type { TopicRowView } from './topic-rows';
 
 // Minimum height of a row in the designs (frames s-topics, s-replace). A long title takes a

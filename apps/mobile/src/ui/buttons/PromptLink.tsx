@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet } from 'react-native';
-import { Text } from './typography';
-import { colors, minTouchTarget, typeSizes } from '../theme/tokens';
+import { Text } from '../typography/typography';
+import { colors, minTouchTarget, typeSizes } from '../../theme/tokens';
 
 type Props = {
   // The muted question and the brighter action, e.g. "Нет аккаунта?" + "Создать".

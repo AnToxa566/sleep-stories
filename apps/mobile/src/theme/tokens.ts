@@ -78,7 +78,7 @@ export const radii = {
 // Every touch target is at least this tall and wide (platform guidance: 44).
 export const minTouchTarget = 44;
 
-// Sizes only. The font is Onest, chosen per weight in `fonts.ts` and applied by `ui/typography.tsx`.
+// Sizes only. The font is Onest, chosen per weight in `fonts.ts` and applied by `ui/typography/typography.tsx`.
 export const typeSizes = {
   eyebrow: 11,
   caption: 13,

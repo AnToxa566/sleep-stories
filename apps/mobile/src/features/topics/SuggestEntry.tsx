@@ -1,9 +1,9 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { strings } from '../../strings';
 import { colors, typeSizes } from '../../theme/tokens';
-import { Icon } from '../../ui/icons';
-import { SecondaryButton } from '../../ui/SecondaryButton';
-import { Text } from '../../ui/typography';
+import { Icon } from '../../ui/icons/icons';
+import { SecondaryButton } from '../../ui/buttons/SecondaryButton';
+import { Text } from '../../ui/typography/typography';
 
 // Two of the three ways into «Подобрать новые темы» (the third is «Ещё темы» in the heading):
 // the block at the end of the list (design frames 2e, 2e·4) and the empty filter (2e·1).

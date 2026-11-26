@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
-import { Text } from './typography';
-import { colors, spacing, typeSizes } from '../theme/tokens';
+import { Text } from '../../ui/typography/typography';
+import { colors, spacing, typeSizes } from '../../theme/tokens';
 
 type Props = {
   eyebrow: string;

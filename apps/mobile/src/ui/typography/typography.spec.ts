@@ -1,12 +1,12 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
-// Every screen sets its text in Onest through `ui/typography.tsx`. The raw `Text` and
+// Every screen sets its text in Onest through `ui/typography/typography.tsx`. The raw `Text` and
 // `TextInput` from React Native would draw the system font, and nothing else would notice.
 // A text scan: a type-only import (`type TextInput`) is allowed.
 
-const SRC_ROOT = join(__dirname, '..');
-const WRAPPER = 'ui/typography.tsx';
+const SRC_ROOT = join(__dirname, '..', '..');
+const WRAPPER = 'ui/typography/typography.tsx';
 
 function listSources(dir: string): string[] {
   const found: string[] = [];

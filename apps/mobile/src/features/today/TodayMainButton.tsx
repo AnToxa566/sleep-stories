@@ -1,8 +1,8 @@
 import { StyleSheet, View, type Animated } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { colors, radii, sizes, typeSizes } from '../../theme/tokens';
-import { Icon } from '../../ui/icons';
-import { PrimaryButton } from '../../ui/PrimaryButton';
+import { Icon } from '../../ui/icons/icons';
+import { PrimaryButton } from '../../ui/buttons/PrimaryButton';
 import type { MainButtonView } from './main-button';
 import { ProgressFill } from './ProgressFill';
 

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { strings, styleCopy } from '../../strings';
 import { colors, spacing } from '../../theme/tokens';
-import { Icon } from '../../ui/icons';
-import { NightBackground } from '../../ui/NightBackground';
-import { Orb } from '../../ui/Orb';
+import { Icon } from '../../ui/icons/icons';
+import { NightBackground } from '../../ui/layout/NightBackground';
+import { Orb } from '../../ui/orb/Orb';
 import { MarqueeTitle } from './MarqueeTitle';
 import { PlayerHeader } from './PlayerHeader';
 import { positionLabel, type PlayerState } from './player-machine';

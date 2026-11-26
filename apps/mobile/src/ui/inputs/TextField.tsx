@@ -1,7 +1,7 @@
 import type { Ref } from 'react';
 import { StyleSheet, View, type TextInput as NativeTextInput, type TextInputProps } from 'react-native';
-import { Text, TextInput } from './typography';
-import { colors, sizes, spacing, typeSizes } from '../theme/tokens';
+import { Text, TextInput } from '../typography/typography';
+import { colors, sizes, spacing, typeSizes } from '../../theme/tokens';
 
 type Props = Omit<TextInputProps, 'style' | 'placeholderTextColor' | 'accessibilityLabel'> & {
   // Spoken label for screen readers. The designs show only the placeholder, so it is not drawn.

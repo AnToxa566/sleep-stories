@@ -1,9 +1,9 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { strings } from '../../strings';
 import { colors, minTouchTarget, spacing } from '../../theme/tokens';
-import { BackButton } from '../../ui/BackButton';
-import { Icon } from '../../ui/icons';
+import { BackButton } from '../../ui/buttons/BackButton';
+import { Icon } from '../../ui/icons/icons';
 
 type Props = {
   // «1 / 3»

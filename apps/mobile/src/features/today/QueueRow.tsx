@@ -1,7 +1,7 @@
 import type { QueueItem } from '@sleep-stories/contracts';
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { Gesture, GestureDetector, type PanGesture } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
@@ -13,8 +13,8 @@ import { useIsActive, useReorderableDrag } from 'react-native-reorderable-list';
 import { scheduleOnRN } from 'react-native-worklets';
 import { strings } from '../../strings';
 import { colors, spacing, typeSizes } from '../../theme/tokens';
-import { HeardMark } from '../../ui/HeardMark';
-import { Icon } from '../../ui/icons';
+import { HeardMark } from '../../ui/status/HeardMark';
+import { Icon } from '../../ui/icons/icons';
 import { formatPosition } from './plural';
 import { deriveRow } from './rows';
 

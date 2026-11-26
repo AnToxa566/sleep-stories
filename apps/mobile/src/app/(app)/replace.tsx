@@ -2,7 +2,7 @@ import type { QueueItem } from '@sleep-stories/contracts';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HintSheet } from '../../features/today/HintSheet';
 import { formatPosition } from '../../features/today/plural';
@@ -15,13 +15,13 @@ import { deriveTopicRow, replaceCandidates } from '../../features/topics/topic-r
 import { useTopics } from '../../features/topics/use-topics';
 import { strings } from '../../strings';
 import { colors, minTouchTarget, sizes, spacing, typeSizes } from '../../theme/tokens';
-import { BackButton } from '../../ui/BackButton';
-import { NightBackground } from '../../ui/NightBackground';
-import { PrimaryButton } from '../../ui/PrimaryButton';
-import { SecondaryButton } from '../../ui/SecondaryButton';
-import { SkeletonRows } from '../../ui/SkeletonRows';
-import { showToast } from '../../ui/toast-store';
-import { ToastHost } from '../../ui/ToastHost';
+import { BackButton } from '../../ui/buttons/BackButton';
+import { NightBackground } from '../../ui/layout/NightBackground';
+import { PrimaryButton } from '../../ui/buttons/PrimaryButton';
+import { SecondaryButton } from '../../ui/buttons/SecondaryButton';
+import { SkeletonRows } from '../../ui/status/SkeletonRows';
+import { showToast } from '../../ui/toast/toast-store';
+import { ToastHost } from '../../ui/toast/ToastHost';
 
 // The screen «Замена» (design frame s-replace): pick one topic to put in the place of a queue
 // item. A stack screen above the tabs, so it has no bottom bar; the back button (and the

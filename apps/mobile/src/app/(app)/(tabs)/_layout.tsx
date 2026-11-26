@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router/js-tabs';
 import { colors } from '../../../theme/tokens';
-import { TabBar } from '../../../ui/TabBar';
+import { TabBar } from '../../../ui/navigation/TabBar';
 
 // «Сегодня», «Темы» and «Настройки» are three tabs of one navigator with our own bar. What this buys: the bar
 // is part of the layout (below the screens, in flow) and never goes away; a tab keeps its

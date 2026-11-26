@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useMe } from '../../api/queries';
 import { strings } from '../../strings';
 import { colors, spacing } from '../../theme/tokens';
-import { Chip } from '../../ui/Chip';
+import { Chip } from '../../ui/inputs/Chip';
 import { FilterSheet } from './FilterSheet';
 import {
   HEARD_OPTIONS,

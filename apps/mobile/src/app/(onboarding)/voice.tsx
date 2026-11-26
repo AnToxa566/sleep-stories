@@ -1,18 +1,18 @@
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { useVoices } from '../../api/queries';
 import { OnboardingHeader } from '../../features/onboarding/OnboardingHeader';
 import { useOnboardingStore } from '../../features/onboarding/onboarding-store';
 import { useVoiceSample } from '../../features/onboarding/useVoiceSample';
 import { strings } from '../../strings';
 import { colors, minTouchTarget, spacing, typeSizes } from '../../theme/tokens';
-import { Icon } from '../../ui/icons';
-import { PrimaryButton } from '../../ui/PrimaryButton';
-import { Screen } from '../../ui/Screen';
-import { SecondaryButton } from '../../ui/SecondaryButton';
-import { SelectRow } from '../../ui/SelectRow';
-import { StepHeading } from '../../ui/StepHeading';
+import { Icon } from '../../ui/icons/icons';
+import { PrimaryButton } from '../../ui/buttons/PrimaryButton';
+import { Screen } from '../../ui/layout/Screen';
+import { SecondaryButton } from '../../ui/buttons/SecondaryButton';
+import { SelectRow } from '../../ui/inputs/SelectRow';
+import { StepHeading } from '../../features/onboarding/StepHeading';
 
 // Step 1 of 3. Voices come from GET /voices. The round control on each row plays that voice's
 // sample (one at a time, see useVoiceSample) and does not select the row; tapping the row

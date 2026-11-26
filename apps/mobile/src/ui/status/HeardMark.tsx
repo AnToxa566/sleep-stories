@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
-import { Text } from './typography';
-import { colors, typeSizes } from '../theme/tokens';
-import { Icon } from './icons';
+import { Text } from '../typography/typography';
+import { colors, typeSizes } from '../../theme/tokens';
+import { Icon } from '../icons/icons';
 
 // «· ✓ Прослушана» at the end of the data line of a story row (queue, topics, replace): a
 // separator dot, a check icon, then the label. The caller passes its own string.

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet } from 'react-native';
-import { Icon } from './icons';
-import { minTouchTarget } from '../theme/tokens';
+import { Icon } from '../icons/icons';
+import { minTouchTarget } from '../../theme/tokens';
 
 type Props = {
   onPress: () => void;

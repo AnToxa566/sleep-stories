@@ -1,7 +1,7 @@
 import { useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../../../ui/typography';
+import { Text } from '../../../ui/typography/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useInterests, useMe } from '../../../api/queries';
 import { EmptyQueue } from '../../../features/today/EmptyQueue';
@@ -30,12 +30,12 @@ import { useCollectingProgress } from '../../../features/today/use-collecting-pr
 import { useCreatingProgress } from '../../../features/today/use-creating-progress';
 import { strings } from '../../../strings';
 import { colors, spacing, typeSizes } from '../../../theme/tokens';
-import { Icon } from '../../../ui/icons';
-import { NightBackground } from '../../../ui/NightBackground';
-import { SecondaryButton } from '../../../ui/SecondaryButton';
-import { SkeletonRows } from '../../../ui/SkeletonRows';
-import { showToast } from '../../../ui/toast-store';
-import { ToastHost } from '../../../ui/ToastHost';
+import { Icon } from '../../../ui/icons/icons';
+import { NightBackground } from '../../../ui/layout/NightBackground';
+import { SecondaryButton } from '../../../ui/buttons/SecondaryButton';
+import { SkeletonRows } from '../../../ui/status/SkeletonRows';
+import { showToast } from '../../../ui/toast/toast-store';
+import { ToastHost } from '../../../ui/toast/ToastHost';
 
 // The screen «Сегодня» (design frames 2a to 2a·14): greeting, the main button with its caption,
 // the night queue (reorder by handle, swipe to remove, item menu), the empty states and toasts.

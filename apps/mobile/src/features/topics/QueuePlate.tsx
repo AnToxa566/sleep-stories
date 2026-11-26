@@ -1,8 +1,8 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { strings } from '../../strings';
 import { colors, minTouchTarget, spacing, typeSizes } from '../../theme/tokens';
-import { Icon } from '../../ui/icons';
+import { Icon } from '../../ui/icons/icons';
 import { queuePlateText, showQueuePlate } from './topic-rows';
 
 // Height of the plate in the design (frame s-topics).

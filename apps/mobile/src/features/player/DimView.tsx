@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet } from 'react-native';
 import { colors } from '../../theme/tokens';
-import { Orb } from '../../ui/Orb';
+import { Orb } from '../../ui/orb/Orb';
 
 type Props = {
   // A touch anywhere. It leaves the dimmed look: back to the player view, or to 3c during the

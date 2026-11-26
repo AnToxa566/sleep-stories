@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { stackScreenOptions } from '../../ui/stack-options';
+import { stackScreenOptions } from '../../ui/navigation/stack-options';
 
 // The main area: the tabs («Сегодня», «Темы») at the bottom of the stack, with the screens
 // that sit above them and have no bar («Замена», the player) pushed on top. A cold start of a deep link

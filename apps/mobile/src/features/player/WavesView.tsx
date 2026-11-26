@@ -1,12 +1,12 @@
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import Svg, { Circle, G } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { strings } from '../../strings';
 import { colors, spacing } from '../../theme/tokens';
-import { Icon } from '../../ui/icons';
-import { NightBackground } from '../../ui/NightBackground';
-import { Orb } from '../../ui/Orb';
+import { Icon } from '../../ui/icons/icons';
+import { NightBackground } from '../../ui/layout/NightBackground';
+import { Orb } from '../../ui/orb/Orb';
 import { PlayerHeader } from './PlayerHeader';
 import { positionLabel, type PlayerState } from './player-machine';
 

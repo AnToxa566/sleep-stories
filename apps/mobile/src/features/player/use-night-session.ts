@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, BackHandler } from 'react-native';
 import type { QueueResponse } from '@sleep-stories/contracts';
 import { strings } from '../../strings';
-import { showToast } from '../../ui/toast-store';
+import { showToast } from '../../ui/toast/toast-store';
 import { useSessionStore } from '../auth/session-store';
 import { queueQueryKey } from '../today/queue-cache';
 import { topicsUserKey } from '../topics/topic-cache';

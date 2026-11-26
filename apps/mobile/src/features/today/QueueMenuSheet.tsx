@@ -1,8 +1,8 @@
 import { StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { strings } from '../../strings';
 import { colors, typeSizes } from '../../theme/tokens';
-import { BottomSheet } from '../../ui/BottomSheet';
+import { BottomSheet } from '../../ui/layout/BottomSheet';
 import { Entry } from './ItemMenuSheet';
 
 type Props = {

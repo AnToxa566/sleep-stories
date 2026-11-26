@@ -1,7 +1,7 @@
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../../../ui/typography';
+import { Text } from '../../../ui/typography/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useInterests, useMe } from '../../../api/queries';
 import { HintSheet } from '../../../features/today/HintSheet';
@@ -40,11 +40,11 @@ import {
 import { useTopics } from '../../../features/topics/use-topics';
 import { strings } from '../../../strings';
 import { colors, spacing, typeSizes } from '../../../theme/tokens';
-import { NightBackground } from '../../../ui/NightBackground';
-import { SecondaryButton } from '../../../ui/SecondaryButton';
-import { SkeletonRows } from '../../../ui/SkeletonRows';
-import { showToast } from '../../../ui/toast-store';
-import { ToastHost } from '../../../ui/ToastHost';
+import { NightBackground } from '../../../ui/layout/NightBackground';
+import { SecondaryButton } from '../../../ui/buttons/SecondaryButton';
+import { SkeletonRows } from '../../../ui/status/SkeletonRows';
+import { showToast } from '../../../ui/toast/toast-store';
+import { ToastHost } from '../../../ui/toast/ToastHost';
 
 // The screen «Темы» (design frame s-topics): the heading, the filter chips, the list of topics
 // with a «+» / «✓» button on each and the plate «В очереди: N». A tab of the tabs navigator:

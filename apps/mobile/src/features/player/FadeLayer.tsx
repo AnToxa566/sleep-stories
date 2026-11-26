@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Easing, StyleSheet } from 'react-native';
-import { useReduceMotion } from '../../ui/use-reduce-motion';
+import { useReduceMotion } from '../../ui/motion/use-reduce-motion';
 
 type Props = {
   visible: boolean;

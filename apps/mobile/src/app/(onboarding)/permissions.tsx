@@ -1,17 +1,17 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { useCompleteOnboarding } from '../../api/queries';
 import { OnboardingHeader } from '../../features/onboarding/OnboardingHeader';
 import { onboardingErrorMessage } from '../../features/onboarding/onboarding-errors';
 import { useOnboardingStore } from '../../features/onboarding/onboarding-store';
 import { strings } from '../../strings';
 import { colors, spacing, typeSizes } from '../../theme/tokens';
-import { Icon } from '../../ui/icons';
-import { PrimaryButton } from '../../ui/PrimaryButton';
-import { Screen } from '../../ui/Screen';
-import { StaticToggle } from '../../ui/StaticToggle';
-import { StepHeading } from '../../ui/StepHeading';
+import { Icon } from '../../ui/icons/icons';
+import { PrimaryButton } from '../../ui/buttons/PrimaryButton';
+import { Screen } from '../../ui/layout/Screen';
+import { StaticToggle } from '../../features/onboarding/StaticToggle';
+import { StepHeading } from '../../features/onboarding/StepHeading';
 
 // Step 3 of 3. Only the notifications / "Не беспокоить" row is drawn, with a toggle that
 // takes no presses and carries no logic. "Готово" sends all the answers in one request;

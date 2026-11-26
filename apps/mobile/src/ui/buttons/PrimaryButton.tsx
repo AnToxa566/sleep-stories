@@ -1,8 +1,8 @@
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { Text } from './typography';
+import { Text } from '../typography/typography';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { colors, radii, sizes, typeSizes } from '../theme/tokens';
-import { Icon, type IconName } from './icons';
+import { colors, radii, sizes, typeSizes } from '../../theme/tokens';
+import { Icon, type IconName } from '../icons/icons';
 
 const ICON_SIZE = 18;
 

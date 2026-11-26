@@ -1,9 +1,9 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from './typography';
-import { strings } from '../strings';
-import { colors, typeSizes } from '../theme/tokens';
-import { Icon, type IconName } from './icons';
+import { Text } from '../typography/typography';
+import { strings } from '../../strings';
+import { colors, typeSizes } from '../../theme/tokens';
+import { Icon, type IconName } from '../icons/icons';
 
 // Height of the bar without the bottom safe-area inset (design: 86 px with a 24 px bottom pad).
 const TAB_HEIGHT = 62;

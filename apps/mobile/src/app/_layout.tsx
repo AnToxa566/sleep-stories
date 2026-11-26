@@ -9,7 +9,7 @@ import { registerSignOutCleanup, useSessionStore } from '../features/auth/sessio
 import { resolveGate, toMeState } from '../features/gate/resolve-gate';
 import { useOnboardingStore } from '../features/onboarding/onboarding-store';
 import { useOnestFonts } from '../theme/load-fonts';
-import { stackScreenOptions } from '../ui/stack-options';
+import { stackScreenOptions } from '../ui/navigation/stack-options';
 
 // Keep the native splash up until the gate knows where to go and the fonts are ready. Module scope, as required:
 // it must run before the first render.

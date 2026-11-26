@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { colors, radii, sizes } from '../theme/tokens';
+import { colors, radii, sizes } from '../../theme/tokens';
 
 type Props = {
   // 1-based index of the current step, and the number of steps.

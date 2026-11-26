@@ -1,5 +1,5 @@
 import Svg, { Path } from 'react-native-svg';
-import { colors } from '../theme/tokens';
+import { colors } from '../../theme/tokens';
 
 // Generic line icons, drawn for this app on a 24 x 24 grid with a 1.6 px stroke.
 const PATHS = {

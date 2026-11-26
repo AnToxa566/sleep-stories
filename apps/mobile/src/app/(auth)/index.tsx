@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { strings } from '../../strings';
 import { colors, spacing, typeSizes } from '../../theme/tokens';
-import { Orb } from '../../ui/Orb';
-import { PrimaryButton } from '../../ui/PrimaryButton';
-import { Screen } from '../../ui/Screen';
-import { SecondaryButton } from '../../ui/SecondaryButton';
+import { Orb } from '../../ui/orb/Orb';
+import { PrimaryButton } from '../../ui/buttons/PrimaryButton';
+import { Screen } from '../../ui/layout/Screen';
+import { SecondaryButton } from '../../ui/buttons/SecondaryButton';
 
 // The first screen of a signed-out user: no form, two ways in. The one primary action is
 // "Создать аккаунт"; "У меня есть аккаунт" is the quiet alternative. Apple and Google are

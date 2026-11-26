@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet } from 'react-native';
-import { Text } from './typography';
-import { colors, radii, sizes, spacing, typeSizes } from '../theme/tokens';
-import { Icon, type IconName } from './icons';
+import { Text } from '../typography/typography';
+import { colors, radii, sizes, spacing, typeSizes } from '../../theme/tokens';
+import { Icon, type IconName } from '../icons/icons';
 
 type Props = {
   label: string;

@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
-import { Text } from './typography';
-import { colors, typeSizes } from '../theme/tokens';
+import { Text } from '../typography/typography';
+import { colors, typeSizes } from '../../theme/tokens';
 
 const WIDTHS = ['72%', '58%', '66%'] as const;
 

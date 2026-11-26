@@ -11,8 +11,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { colors } from '../theme/tokens';
-import { strings } from '../strings';
+import { colors } from '../../theme/tokens';
+import { strings } from '../../strings';
 
 type Props = {
   visible: boolean;

@@ -1,8 +1,8 @@
 import { Pressable, StyleSheet } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { strings } from '../../strings';
 import { colors } from '../../theme/tokens';
-import { Orb } from '../../ui/Orb';
+import { Orb } from '../../ui/orb/Orb';
 
 type Props = {
   // A touch anywhere: the person is awake, back to «Сегодня».

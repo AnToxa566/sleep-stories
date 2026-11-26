@@ -7,7 +7,7 @@ import {
   type TextInputProps,
   type TextProps,
 } from 'react-native';
-import { fontFamilyForWeight } from '../theme/fonts';
+import { fontFamilyForWeight } from '../../theme/fonts';
 
 // The app's `Text` and `TextInput`: the same as React Native's, set in Onest. Screens import
 // these and never the raw ones (a spec scans for that). The weight is still written as

@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { stackScreenOptions } from '../../ui/stack-options';
+import { stackScreenOptions } from '../../ui/navigation/stack-options';
 
 // `voice` is the first step. Route files are otherwise ordered alphabetically, which would
 // put `interests` first, so the initial route is stated, and `voice` is listed first too.

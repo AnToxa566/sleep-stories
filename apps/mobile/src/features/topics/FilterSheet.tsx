@@ -1,8 +1,8 @@
 import { StyleSheet, View } from 'react-native';
-import { Text } from '../../ui/typography';
+import { Text } from '../../ui/typography/typography';
 import { colors } from '../../theme/tokens';
-import { BottomSheet } from '../../ui/BottomSheet';
-import { SelectRow } from '../../ui/SelectRow';
+import { BottomSheet } from '../../ui/layout/BottomSheet';
+import { SelectRow } from '../../ui/inputs/SelectRow';
 
 type Props<T extends string> = {
   visible: boolean;

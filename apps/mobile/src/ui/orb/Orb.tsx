@@ -9,7 +9,7 @@ import {
   orbLayout,
   type ConicStop,
 } from './orb-geometry';
-import { useReduceMotion } from './use-reduce-motion';
+import { useReduceMotion } from '../motion/use-reduce-motion';
 
 // The sleeping-mind orb from the designs (the intro mark; the player reuses it larger later).
 // Four layers, as in the design: a soft glow, a spinning conic ring, a faint spinning sheen

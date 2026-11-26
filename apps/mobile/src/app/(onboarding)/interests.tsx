@@ -2,7 +2,7 @@ import { CUSTOM_INTEREST_MAX_LENGTH, StoryStyleSchema } from '@sleep-stories/con
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { Text, TextInput } from '../../ui/typography';
+import { Text, TextInput } from '../../ui/typography/typography';
 import { useInterests } from '../../api/queries';
 import { resolveInterestEntry } from '../../features/onboarding/catalogue-match';
 import { displayCustomTitle } from '../../features/onboarding/display-title';
@@ -13,12 +13,12 @@ import {
 } from '../../features/onboarding/onboarding-store';
 import { strings, styleCopy } from '../../strings';
 import { colors, spacing, typeSizes } from '../../theme/tokens';
-import { Chip } from '../../ui/Chip';
-import { Icon } from '../../ui/icons';
-import { PrimaryButton } from '../../ui/PrimaryButton';
-import { Screen } from '../../ui/Screen';
-import { SecondaryButton } from '../../ui/SecondaryButton';
-import { StepHeading } from '../../ui/StepHeading';
+import { Chip } from '../../ui/inputs/Chip';
+import { Icon } from '../../ui/icons/icons';
+import { PrimaryButton } from '../../ui/buttons/PrimaryButton';
+import { Screen } from '../../ui/layout/Screen';
+import { SecondaryButton } from '../../ui/buttons/SecondaryButton';
+import { StepHeading } from '../../features/onboarding/StepHeading';
 
 // Step 2 of 3: interest chips (from GET /interests), own topics and story styles. "Дальше"
 // needs at least one interest (catalogue or own) and one style.

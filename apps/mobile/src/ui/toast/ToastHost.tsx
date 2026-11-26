@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
-import { Text } from './typography';
-import { colors, radii, typeSizes } from '../theme/tokens';
-import { Icon, type IconName } from './icons';
+import { Text } from '../typography/typography';
+import { colors, radii, typeSizes } from '../../theme/tokens';
+import { Icon, type IconName } from '../icons/icons';
 import { TOAST_DURATION_MS, useToastStore, type Toast, type ToastKind } from './toast-store';
 
 type Props = {
