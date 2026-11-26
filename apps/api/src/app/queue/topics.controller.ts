@@ -1,14 +1,15 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { SuggestionStatusResponseSchema, TopicsResponseSchema } from '@sleep-stories/contracts';
 import type { SuggestionStatusResponse, TopicsResponse } from '@sleep-stories/contracts';
 import { ZodSerializerDto } from 'nestjs-zod';
 import { CurrentUserId } from '../auth/current-user-id.decorator';
-import { SuggestTopicsRequestDto, TopicsQueryDto } from './queue.dto';
+import { SuggestTopicsRequestDto, TopicParamsDto, TopicsQueryDto } from './queue.dto';
 import { TopicSuggestService } from './topic-suggest.service';
 import { TopicsService } from './topics.service';
 
-// The «Темы» list and its «Подобрать темы» sheet. The person is the verified token only; the
-// query and the body hold filters and a selection, never a person.
+// The «Темы» list, its «Подобрать темы» sheet, and the removal of a topic's heard mark. The
+// person is the verified token only; the path, the query and the body hold a topic, filters
+// or a selection, never a person.
 @Controller('topics')
 export class TopicsController {
   constructor(
@@ -42,5 +43,15 @@ export class TopicsController {
     @Body() body: SuggestTopicsRequestDto,
   ): Promise<SuggestionStatusResponse> {
     return this.suggester.start(userId, body);
+  }
+
+  // «Отметить как не прослушанную». 204 for every well-formed topic id, also an unknown one
+  // or one only another person has listened to: nothing to delete is a success, and the
+  // answer does not tell whether a topic exists. Under /topics, not /queue, because the
+  // heard mark does not depend on the queue. No job (architecture rule 10).
+  @Delete(':topicId/heard')
+  @HttpCode(204)
+  unmarkHeard(@CurrentUserId() userId: string, @Param() params: TopicParamsDto): Promise<void> {
+    return this.topics.markUnheard(userId, params.topicId);
   }
 }

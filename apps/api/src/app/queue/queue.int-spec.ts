@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { ApiErrorResponseSchema, QueueResponseSchema } from '@sleep-stories/contracts';
+import { ApiErrorResponseSchema, QueueResponseSchema, TopicsResponseSchema } from '@sleep-stories/contracts';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose';
 import type { CryptoKey } from 'jose';
 import { assertLocalDatabase } from '../../test-support/assert-local-database';
@@ -64,11 +64,13 @@ async function call(method: string, path: string, userId?: string, body?: unknow
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await response.text();
-  return { status: response.status, text, json: JSON.parse(text) as unknown };
+  // A 204 has no body.
+  return { status: response.status, text, json: text === '' ? null : (JSON.parse(text) as unknown) };
 }
 const getQueue = (userId?: string) => call('GET', '/queue', userId);
 const del = (userId: string | undefined, itemId: string) => call('DELETE', `/queue/items/${itemId}`, userId);
 const put = (userId: string | undefined, itemIds: unknown) => call('PUT', '/queue/order', userId, { itemIds });
+const unmark = (userId: string | undefined, topicId: string) => call('DELETE', `/topics/${topicId}/heard`, userId);
 
 beforeAll(async () => {
   const pair = await generateKeyPair('ES256', { extractable: true });
@@ -201,6 +203,7 @@ describe('authentication', () => {
       await getQueue(),
       await del(undefined, randomUUID()),
       await put(undefined, []),
+      await unmark(undefined, randomUUID()),
     ]) {
       expect(result.status).toBe(401);
       expect(ApiErrorResponseSchema.parse(result.json)).toMatchObject({ statusCode: 401, code: 'unauthorized' });
@@ -674,5 +677,128 @@ describe('POST /api/queue/collect and the collecting flag', () => {
     const w = await pooled();
     await data.job({ userId: w.userId, kind: 'write_story', status: 'pending' });
     expect(QueueResponseSchema.parse((await getQueue(w.userId)).json).collecting).toBe(false);
+  });
+});
+
+describe('DELETE /api/topics/:topicId/heard', () => {
+  // The person has heard `target` (a whole listen, a partial one and one in a second voice)
+  // and `other`; a second person has heard `target` too.
+  async function heardWorld() {
+    const voiceId = await data.voice();
+    const secondVoiceId = await data.voice();
+    const interestId = await data.interest();
+    const userId = await data.user({ voiceId, interestIds: [interestId] });
+    const strangerId = await data.user({ voiceId, interestIds: [interestId] });
+    const story = async () => {
+      const topic = await data.topic({ interestId, story: true, audioVoiceIds: [voiceId, secondVoiceId] });
+      return { topicId: topic.topicId, storyId: topic.storyId as string };
+    };
+    const target = await story();
+    const other = await story();
+    await data.listen(userId, target.storyId, voiceId);
+    await data.listen(userId, target.storyId, voiceId, 20);
+    await data.listen(userId, target.storyId, secondVoiceId);
+    await data.listen(userId, other.storyId, voiceId);
+    await data.listen(strangerId, target.storyId, voiceId);
+    return { userId, strangerId, target, other };
+  }
+  const listensOf = (userId: string) =>
+    prisma.listen.findMany({
+      where: { userId },
+      orderBy: { id: 'asc' },
+      select: { id: true, storyId: true, voiceId: true, listenedSec: true },
+    });
+  const queueHeard = async (userId: string) =>
+    QueueResponseSchema.parse((await getQueue(userId)).json).items.map((item) => [item.topicId, item.heard]);
+  const unheardTopicIds = async (userId: string) => {
+    const response = await call('GET', '/topics?heard=false', userId);
+    expect(response.status).toBe(200);
+    return TopicsResponseSchema.parse(response.json).topics.map((row) => row.id);
+  };
+
+  it('answers 204 with no body and makes the topic unheard, leaving the queue as it was', async () => {
+    const w = await heardWorld();
+    await data.queueItem(w.userId, w.other.topicId, 2);
+    await data.queueItem(w.userId, w.target.topicId, 5);
+    const itemsBefore = await prisma.queueItem.findMany({ where: { userId: w.userId }, orderBy: { position: 'asc' } });
+    expect(await queueHeard(w.userId)).toEqual([
+      [w.other.topicId, true],
+      [w.target.topicId, true],
+    ]);
+    expect(await unheardTopicIds(w.userId)).not.toContain(w.target.topicId);
+
+    const response = await unmark(w.userId, w.target.topicId);
+
+    expect(response).toMatchObject({ status: 204, text: '' });
+    expect(await queueHeard(w.userId)).toEqual([
+      [w.other.topicId, true],
+      [w.target.topicId, false],
+    ]);
+    expect(await prisma.queueItem.findMany({ where: { userId: w.userId }, orderBy: { position: 'asc' } })).toEqual(
+      itemsBefore,
+    );
+    expect(await unheardTopicIds(w.userId)).toContain(w.target.topicId);
+  });
+
+  it('deletes all of the caller\'s rows for that story and nothing else', async () => {
+    const w = await heardWorld();
+    const otherStoryBefore = (await listensOf(w.userId)).filter((row) => row.storyId === w.other.storyId);
+    const strangerBefore = await listensOf(w.strangerId);
+    expect(otherStoryBefore).toHaveLength(1);
+    expect(strangerBefore).toHaveLength(1);
+
+    expect((await unmark(w.userId, w.target.topicId)).status).toBe(204);
+
+    expect(await listensOf(w.userId)).toEqual(otherStoryBefore);
+    expect(await listensOf(w.strangerId)).toEqual(strangerBefore);
+  });
+
+  it('answers 204 and deletes nothing for an unknown topic, a topic with no story and a topic only others heard', async () => {
+    const w = await heardWorld();
+    const noStory = await data.topic();
+    const strangersOnly = await data.topic({ story: true });
+    await data.listen(w.strangerId, strangersOnly.storyId as string, await data.voice());
+    const mine = await listensOf(w.userId);
+    const theirs = await listensOf(w.strangerId);
+
+    for (const topicId of [randomUUID(), noStory.topicId, strangersOnly.topicId]) {
+      expect(await unmark(w.userId, topicId)).toMatchObject({ status: 204, text: '' });
+    }
+
+    expect(await listensOf(w.userId)).toEqual(mine);
+    expect(await listensOf(w.strangerId)).toEqual(theirs);
+  });
+
+  it('answers 204 again on a repeat', async () => {
+    const w = await heardWorld();
+    expect((await unmark(w.userId, w.target.topicId)).status).toBe(204);
+    const after = await listensOf(w.userId);
+    expect((await unmark(w.userId, w.target.topicId)).status).toBe(204);
+    expect(await listensOf(w.userId)).toEqual(after);
+  });
+
+  it('answers 400 for a malformed topic id', async () => {
+    const w = await heardWorld();
+    const before = await listensOf(w.userId);
+    const response = await unmark(w.userId, 'not-a-uuid');
+    expect(response.status).toBe(400);
+    expect(ApiErrorResponseSchema.parse(response.json)).toMatchObject({ code: 'validation_failed' });
+    expect(await listensOf(w.userId)).toEqual(before);
+  });
+
+  it('creates no generation job and enqueues nothing', async () => {
+    const w = await heardWorld();
+    await data.queueItem(w.userId, w.target.topicId, 1);
+    const jobsBefore = await prisma.generationJob.count();
+    await unmark(w.userId, w.target.topicId);
+    expect(await prisma.generationJob.count()).toBe(jobsBefore);
+    expect(jobQueue.enqueued).toEqual([]);
+  });
+
+  it('takes the users-row lock', async () => {
+    const w = await heardWorld();
+    const { response } = await requestWhileLockHeld(w.userId, () => unmark(w.userId, w.target.topicId));
+    expect(response.status).toBe(204);
+    expect((await listensOf(w.userId)).map((row) => row.storyId)).toEqual([w.other.storyId]);
   });
 });

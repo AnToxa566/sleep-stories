@@ -76,6 +76,10 @@ export const TopicsResponseSchema = z.strictObject({
   topics: z.array(TopicRowSchema),
 });
 
+// The path of DELETE /api/topics/:topicId/heard («Отметить как не прослушанную»;
+// ARCHITECTURE.md section 6). The request has no body and the answer is 204 with no body.
+export const TopicParamsSchema = z.strictObject({ topicId: z.uuid() });
+
 export type TopicsQuery = z.infer<typeof TopicsQuerySchema>;
 export type TopicRow = z.infer<typeof TopicRowSchema>;
 export type TopicsResponse = z.infer<typeof TopicsResponseSchema>;

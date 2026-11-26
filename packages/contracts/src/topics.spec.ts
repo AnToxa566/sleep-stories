@@ -3,6 +3,7 @@ import {
   SuggestionStatusResponseSchema,
   SuggestedTopicSchema,
   SuggestedTopicsSchema,
+  TopicParamsSchema,
   TopicRowSchema,
   TopicsQuerySchema,
   TopicsResponseSchema,
@@ -202,5 +203,15 @@ describe('SuggestionStatusResponseSchema', () => {
         suggestions: { left: 0, limit: 5, nextAt: 'tomorrow' },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('TopicParamsSchema', () => {
+  it('accepts a uuid and refuses anything else, including an extra key', () => {
+    const topicId = '00000000-0000-4000-8000-000000000001';
+    expect(TopicParamsSchema.safeParse({ topicId }).success).toBe(true);
+    expect(TopicParamsSchema.safeParse({ topicId: 'abc' }).success).toBe(false);
+    expect(TopicParamsSchema.safeParse({}).success).toBe(false);
+    expect(TopicParamsSchema.safeParse({ topicId, userId: topicId }).success).toBe(false);
   });
 });
