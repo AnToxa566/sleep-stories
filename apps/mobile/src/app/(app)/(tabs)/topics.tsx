@@ -4,13 +4,13 @@ import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../../../ui/typography/typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useInterests, useMe } from '../../../api/queries';
-import { HintSheet } from '../../../features/today/HintSheet';
-import { useAddToQueue, useQueue, useRemoveQueueItem } from '../../../features/today/queue-queries';
-import { deriveHintText } from '../../../features/today/rows';
-import { QUEUE_PLATE_HEIGHT, QueuePlate } from '../../../features/topics/QueuePlate';
-import { SuggestEmpty, SuggestFooter } from '../../../features/topics/SuggestEntry';
-import { SuggestSheet } from '../../../features/topics/SuggestSheet';
-import { useTopicSuggestion } from '../../../features/topics/suggest-queries';
+import { HintSheet } from '../../../features/today/sheets/HintSheet';
+import { useAddToQueue, useQueue, useRemoveQueueItem } from '../../../features/today/queue-data/queue-queries';
+import { deriveHintText } from '../../../features/today/queue-list/rows';
+import { QUEUE_PLATE_HEIGHT, QueuePlate } from '../../../features/topics/topic-list/QueuePlate';
+import { SuggestEmpty, SuggestFooter } from '../../../features/topics/suggest/SuggestEntry';
+import { SuggestSheet } from '../../../features/topics/suggest/SuggestSheet';
+import { useTopicSuggestion } from '../../../features/topics/suggest/suggest-queries';
 import {
   formatClock,
   hasChoice,
@@ -21,23 +21,23 @@ import {
   toggle,
   type SheetOptions,
   type SheetSelection,
-} from '../../../features/topics/suggest-sheet';
-import { TopicFilterBar } from '../../../features/topics/TopicFilterBar';
-import { TopicQueueRow } from '../../../features/topics/TopicRow';
+} from '../../../features/topics/suggest/suggest-sheet';
+import { TopicFilterBar } from '../../../features/topics/filter/TopicFilterBar';
+import { TopicQueueRow } from '../../../features/topics/topic-list/TopicRow';
 import {
   READY_PARAM,
   filterFromParams,
   readyParamRequested,
   withReady,
   type TopicFilter,
-} from '../../../features/topics/topic-filter';
+} from '../../../features/topics/filter/topic-filter';
 import {
   deriveTopicRow,
   queueItemIdByTopic,
   showQueuePlate,
   type TopicRowView,
-} from '../../../features/topics/topic-rows';
-import { useTopics } from '../../../features/topics/use-topics';
+} from '../../../features/topics/topic-list/topic-rows';
+import { useTopics } from '../../../features/topics/topic-data/use-topics';
 import { strings } from '../../../strings';
 import { colors, spacing, typeSizes } from '../../../theme/tokens';
 import { NightBackground } from '../../../ui/layout/NightBackground';

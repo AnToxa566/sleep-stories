@@ -1,5 +1,5 @@
 import { env } from '../config/env';
-import { supabase } from '../features/auth/supabase';
+import { supabase } from '../features/auth/session/supabase';
 import { createApiClient } from './api-client';
 
 // The app's one API client: the bearer token is read from the Supabase session per request.

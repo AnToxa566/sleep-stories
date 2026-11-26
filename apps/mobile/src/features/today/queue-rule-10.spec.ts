@@ -19,19 +19,19 @@ const COLLECT = /useCollectQueue\b|\/queue\/collect/;
 // topic suggestion, never a story job. A tap, like «Собрать подборку».
 const REBUILD = /useRebuildQueue\b|\/queue\/rebuild/;
 
-const DEFINITION = 'features/today/queue-queries.ts';
+const DEFINITION = 'features/today/queue-data/queue-queries.ts';
 
 // POST /topics/suggest («Подобрать темы» on «Темы»; owner, 2026-11-22) starts one topic
 // suggestion, never a story job. A tap in the sheet, like «Собрать подборку»: the hook lives in
 // the suggest queries module and only the «Темы» screen uses it.
 const SUGGEST = /useTopicSuggestion\b|\/topics\/suggest\b/;
-const SUGGEST_QUERIES = 'features/topics/suggest-queries.ts';
+const SUGGEST_QUERIES = 'features/topics/suggest/suggest-queries.ts';
 const TOPICS_SCREEN = 'app/(app)/(tabs)/topics.tsx';
 
 // POST /queue/continue (the touch during the waves after the last story) may create at most a
 // topic suggestion on the server. Only the player feature may name it.
 const CONTINUE = /useContinueQueue\b|\/queue\/continue/;
-const PLAYER_QUERIES = 'features/player/player-queries.ts';
+const PLAYER_QUERIES = 'features/player/session/player-queries.ts';
 
 // A user action may call the mutations: the screen and the components under features/today.
 function isScreenOrComponent(path: string): boolean {

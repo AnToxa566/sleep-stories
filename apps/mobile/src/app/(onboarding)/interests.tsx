@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '../../ui/typography/typography';
 import { useInterests } from '../../api/queries';
-import { resolveInterestEntry } from '../../features/onboarding/catalogue-match';
-import { displayCustomTitle } from '../../features/onboarding/display-title';
-import { OnboardingHeader } from '../../features/onboarding/OnboardingHeader';
+import { resolveInterestEntry } from '../../features/onboarding/interests/catalogue-match';
+import { displayCustomTitle } from '../../features/onboarding/interests/display-title';
+import { OnboardingHeader } from '../../features/onboarding/steps/OnboardingHeader';
 import {
   isInterestsStepValid,
   useOnboardingStore,
@@ -18,7 +18,7 @@ import { Icon } from '../../ui/icons/icons';
 import { PrimaryButton } from '../../ui/buttons/PrimaryButton';
 import { Screen } from '../../ui/layout/Screen';
 import { SecondaryButton } from '../../ui/buttons/SecondaryButton';
-import { StepHeading } from '../../features/onboarding/StepHeading';
+import { StepHeading } from '../../features/onboarding/steps/StepHeading';
 
 // Step 2 of 3: interest chips (from GET /interests), own topics and story styles. "Дальше"
 // needs at least one interest (catalogue or own) and one style.

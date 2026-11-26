@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { queryClient } from '../api/query-client';
 import { useMe } from '../api/queries';
-import { registerSignOutCleanup, useSessionStore } from '../features/auth/session-store';
+import { registerSignOutCleanup, useSessionStore } from '../features/auth/session/session-store';
 import { resolveGate, toMeState } from '../features/gate/resolve-gate';
 import { useOnboardingStore } from '../features/onboarding/onboarding-store';
 import { useOnestFonts } from '../theme/load-fonts';

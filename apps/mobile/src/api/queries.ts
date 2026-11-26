@@ -7,7 +7,7 @@ import {
   type MeResponse,
 } from '@sleep-stories/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSessionStore } from '../features/auth/session-store';
+import { useSessionStore } from '../features/auth/session/session-store';
 import { apiFetch } from './api-fetch';
 
 export const meQueryKey = (userId: string | null) => ['me', userId] as const;

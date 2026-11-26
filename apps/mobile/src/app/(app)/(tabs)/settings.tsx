@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { signOutEverywhere } from '../../../features/auth/session-store';
+import { signOutEverywhere } from '../../../features/auth/session/session-store';
 import { strings } from '../../../strings';
 import { spacing } from '../../../theme/tokens';
 import { NightBackground } from '../../../ui/layout/NightBackground';

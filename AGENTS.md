@@ -99,7 +99,7 @@ The owner works alone and must stay the owner of the architecture: every change 
 - Contracts: `packages/contracts/src/**` (the specs excluded).
 - Guard tests: `architecture.spec.ts`, `queue-rule-10.spec.ts`, the boundary rules in `eslint.config.mjs`.
 - Session on the device: `apps/mobile/src/features/auth/**` and the auth header in `apps/mobile/src/api`.
-- The night player's logic: `apps/mobile/src/features/player/night-engine.ts` and `player-machine.ts` (state that is hard to debug without a phone).
+- The night player's logic: `apps/mobile/src/features/player/engine/night-engine.ts` and `player-machine.ts` (state that is hard to debug without a phone).
 - Dependencies and native build: a new dependency in `package.json`, `apps/mobile/app.json`, `apps/mobile/eas.json`.
 - The rules themselves: `AGENTS.md`, `ARCHITECTURE.md`, `SECURITY.md`, `MAP.md`, `.claude/**`.
 

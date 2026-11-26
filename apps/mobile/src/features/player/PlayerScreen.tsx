@@ -2,13 +2,13 @@ import { useState, useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import { strings } from '../../strings';
 import { colors } from '../../theme/tokens';
-import { AsleepView } from './AsleepView';
-import { DimView } from './DimView';
-import { FadeLayer } from './FadeLayer';
-import type { NightEngine } from './night-engine';
-import { PlayerView } from './PlayerView';
-import { useIdleDim, useNightKeepAwake, useNightSession } from './use-night-session';
-import { WavesView } from './WavesView';
+import { AsleepView } from './views/AsleepView';
+import { DimView } from './views/DimView';
+import { FadeLayer } from './views/FadeLayer';
+import type { NightEngine } from './engine/night-engine';
+import { PlayerView } from './views/PlayerView';
+import { useIdleDim, useNightKeepAwake, useNightSession } from './session/use-night-session';
+import { WavesView } from './views/WavesView';
 
 // How the dimmed look (3b, and the dimmed waves) and the asleep screen (3d) fade in and out.
 // In is slow so that the screen does not flash dark; out is quicker so that a touch is answered.
