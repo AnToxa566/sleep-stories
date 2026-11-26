@@ -1,70 +1,9 @@
 import {
-  SuggestTopicsRequestSchema,
-  SuggestionStatusResponseSchema,
-  SuggestedTopicSchema,
-  SuggestedTopicsSchema,
   TopicParamsSchema,
   TopicRowSchema,
   TopicsQuerySchema,
   TopicsResponseSchema,
-} from './topics';
-
-const topic = { title: 'Почему небо голубое', style: 'facts', interest: 'space' };
-
-describe('SuggestedTopicSchema', () => {
-  it('accepts a title, a style and an interest slug', () => {
-    expect(SuggestedTopicSchema.safeParse(topic).success).toBe(true);
-  });
-
-  it('accepts a null interest', () => {
-    expect(SuggestedTopicSchema.safeParse({ ...topic, interest: null }).success).toBe(true);
-  });
-
-  it('trims the title', () => {
-    expect(SuggestedTopicSchema.parse({ ...topic, title: '  Луна  ' }).title).toBe('Луна');
-  });
-
-  it.each(['', '   ', 'a'.repeat(121), 'two\nlines', 'tab\there', 'a b'])(
-    'rejects the title %j',
-    (title) => {
-      expect(SuggestedTopicSchema.safeParse({ ...topic, title }).success).toBe(false);
-    },
-  );
-
-  it('accepts a 120-character title', () => {
-    expect(SuggestedTopicSchema.safeParse({ ...topic, title: 'a'.repeat(120) }).success).toBe(true);
-  });
-
-  it('rejects an unknown style', () => {
-    expect(SuggestedTopicSchema.safeParse({ ...topic, style: 'poem' }).success).toBe(false);
-  });
-
-  it('rejects a bad interest slug', () => {
-    expect(SuggestedTopicSchema.safeParse({ ...topic, interest: 'Deep Space' }).success).toBe(false);
-  });
-
-  it('rejects a missing interest and an extra key', () => {
-    const withoutInterest = { title: topic.title, style: topic.style };
-    expect(SuggestedTopicSchema.safeParse(withoutInterest).success).toBe(false);
-    expect(SuggestedTopicSchema.safeParse({ ...topic, extra: 1 }).success).toBe(false);
-  });
-});
-
-describe('SuggestedTopicsSchema', () => {
-  it('accepts any count up to 20, including a short batch', () => {
-    expect(SuggestedTopicsSchema.safeParse({ topics: [topic] }).success).toBe(true);
-    expect(SuggestedTopicsSchema.safeParse({ topics: Array(20).fill(topic) }).success).toBe(true);
-  });
-
-  it('rejects 21 topics', () => {
-    expect(SuggestedTopicsSchema.safeParse({ topics: Array(21).fill(topic) }).success).toBe(false);
-  });
-
-  it('rejects a bad topic and an extra key', () => {
-    expect(SuggestedTopicsSchema.safeParse({ topics: [{ ...topic, style: 'x' }] }).success).toBe(false);
-    expect(SuggestedTopicsSchema.safeParse({ topics: [], extra: 1 }).success).toBe(false);
-  });
-});
+} from './topic-list';
 
 describe('TopicsQuerySchema', () => {
   it('accepts no filter, a style, ready as text, or both', () => {
@@ -142,67 +81,6 @@ describe('TopicsResponseSchema', () => {
   it('accepts an empty list and rejects an extra key', () => {
     expect(TopicsResponseSchema.safeParse({ topics: [] }).success).toBe(true);
     expect(TopicsResponseSchema.safeParse({ topics: [], next: 'x' }).success).toBe(false);
-  });
-});
-
-describe('SuggestTopicsRequestSchema', () => {
-  const ok = { styles: ['facts'], interestSlugs: ['space'], customInterests: [] };
-
-  it('accepts one style and one catalogue or typed interest', () => {
-    expect(SuggestTopicsRequestSchema.safeParse(ok).success).toBe(true);
-    expect(
-      SuggestTopicsRequestSchema.safeParse({ ...ok, interestSlugs: [], customInterests: ['кошки'] })
-        .success,
-    ).toBe(true);
-  });
-
-  it('normalises typed interests like onboarding does', () => {
-    const parsed = SuggestTopicsRequestSchema.parse({ ...ok, customInterests: ['  Кошки '] });
-    expect(parsed.customInterests).toEqual(['кошки']);
-  });
-
-  it.each([
-    { ...ok, styles: [] },
-    { ...ok, interestSlugs: [], customInterests: [] },
-    { ...ok, styles: ['facts', 'facts'] },
-    { ...ok, userId: '3f2b8c1e-5a4d-4e6f-8a7b-9c0d1e2f3a4b' },
-    { styles: ['facts'], interestSlugs: ['space'] },
-  ])('rejects %j', (body) => {
-    expect(SuggestTopicsRequestSchema.safeParse(body).success).toBe(false);
-  });
-});
-
-describe('SuggestionStatusResponseSchema', () => {
-  const id = '3f2b8c1e-5a4d-4e6f-8a7b-9c0d1e2f3a4b';
-
-  it('accepts no suggestion yet, a running one and a used-up cap', () => {
-    expect(
-      SuggestionStatusResponseSchema.safeParse({
-        latest: null,
-        suggestions: { left: 5, limit: 5, nextAt: null },
-      }).success,
-    ).toBe(true);
-    expect(
-      SuggestionStatusResponseSchema.safeParse({
-        latest: { id, state: 'running' },
-        suggestions: { left: 0, limit: 5, nextAt: '2026-11-23T02:14:00.000Z' },
-      }).success,
-    ).toBe(true);
-  });
-
-  it('rejects an unknown state and a non-ISO time', () => {
-    expect(
-      SuggestionStatusResponseSchema.safeParse({
-        latest: { id, state: 'pending' },
-        suggestions: { left: 5, limit: 5, nextAt: null },
-      }).success,
-    ).toBe(false);
-    expect(
-      SuggestionStatusResponseSchema.safeParse({
-        latest: null,
-        suggestions: { left: 0, limit: 5, nextAt: 'tomorrow' },
-      }).success,
-    ).toBe(false);
   });
 });
 

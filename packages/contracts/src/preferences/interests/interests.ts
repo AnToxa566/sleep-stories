@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SlugSchema } from '../../common/slug/slug';
+import { hasUniqueEntries } from '../../common/unique/unique';
 
 // One catalogue interest as served by GET /api/interests.
 export const InterestSchema = z.strictObject({
@@ -10,6 +11,15 @@ export const InterestSchema = z.strictObject({
 export const InterestsResponseSchema = z.strictObject({
   interests: z.array(InterestSchema),
 });
+
+export const INTEREST_SLUGS_MAX_COUNT = 50;
+
+// The catalogue interests a person picked. May be empty: custom interests alone are enough
+// (the rule about the total is on each request that carries both lists).
+export const InterestSlugsSchema = z
+  .array(SlugSchema)
+  .max(INTEREST_SLUGS_MAX_COUNT)
+  .refine(hasUniqueEntries, { error: 'Interest slugs must be unique' });
 
 export type Interest = z.infer<typeof InterestSchema>;
 export type InterestsResponse = z.infer<typeof InterestsResponseSchema>;
@@ -36,8 +46,6 @@ export const CustomInterestSchema = z
 export const CustomInterestsSchema = z
   .array(CustomInterestSchema)
   .max(CUSTOM_INTERESTS_MAX_COUNT)
-  .refine((values) => new Set(values).size === values.length, {
-    error: 'Custom interests must be unique',
-  });
+  .refine(hasUniqueEntries, { error: 'Custom interests must be unique' });
 
 export type CustomInterest = z.infer<typeof CustomInterestSchema>;

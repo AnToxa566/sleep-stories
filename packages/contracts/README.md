@@ -44,6 +44,7 @@ A folder groups by meaning, not by kind of code: there are no `types`, `schemas`
 
 - **Nothing imports from `server`.** The only exception is `src/index.ts`, which re-exports it.
 - `queue`, `topics` and `listens` do not import from each other. What two of them need moves to `common`.
+- `no-restricted-imports` in `eslint.config.mjs` of this folder enforces the table (the `allowedImports` map). It checks relative imports of the form `../../<domain>/...`. A change of the table changes the map in the same commit.
 - The apps can still import `server` schemas through the package entry point: the folder marks the boundary inside this package and does not hide anything from the apps. Never put a secret here.
 
 ## Module folders

@@ -1,6 +1,8 @@
 import { z } from 'zod';
-import { CUSTOM_INTERESTS_MAX_COUNT } from '../../preferences/interests/interests';
-import { INTEREST_SLUGS_MAX_COUNT } from '../../preferences/onboarding/onboarding';
+import {
+  CUSTOM_INTERESTS_MAX_COUNT,
+  INTEREST_SLUGS_MAX_COUNT,
+} from '../../preferences/interests/interests';
 import { StoryStyleSchema } from '../../common/story-style/story-style';
 
 // Must match the Prisma enum JobKind in apps/api/prisma/schema.prisma.
