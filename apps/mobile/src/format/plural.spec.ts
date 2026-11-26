@@ -1,4 +1,4 @@
-import { strings } from '../../strings';
+import { strings } from '../strings';
 import { formatDuration, formatPosition, pluralRu } from './plural';
 
 const forms = strings.today.nouns.generation;

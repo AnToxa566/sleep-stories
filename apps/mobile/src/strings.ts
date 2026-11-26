@@ -107,7 +107,7 @@ export const strings = {
 
   // The screen «Сегодня» (design frames 2a, 2a·1 to 2a·14). Number-dependent phrases are
   // functions that take already-declined nouns: the declension itself lives in
-  // features/today/plural.ts, so copy stays here and logic stays testable.
+  // format/plural.ts, so copy stays here and logic stays testable.
   today: {
     greeting: 'Добрый вечер',
     title: 'Что послушаем сегодня перед сном?',

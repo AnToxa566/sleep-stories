@@ -6,17 +6,13 @@ import { ApiContractError, ApiError, ApiUnavailableError } from '../../../api/ap
 import { strings } from '../../../strings';
 import { hasCreating } from '../main-button/main-button';
 import { removeItem } from './queue-edit';
-import { pluralRu } from '../plural';
+import { pluralRu } from '../../../format/plural';
 
-// Pure helpers for the queue query: the cache key, the polling rule, optimistic cache
-// updates and the error mapping. Nothing here imports React Native, Expo or React, so it is
-// unit-tested. The hooks that use it are in queue-queries.ts.
+// Pure helpers for the queue query: the polling rule, optimistic cache updates, what to read
+// again after an error and the toast after a rebuild. Nothing here imports React Native, Expo
+// or React, so it is unit-tested. The hooks that use it are in queue-queries.ts.
 
 export const QUEUE_POLL_MS = 5000;
-
-// The user id only separates one account's cache from another's. It is never sent: the API
-// reads the person from the token.
-export const queueQueryKey = (userId: string | null) => ['queue', userId] as const;
 
 // Every queue mutation carries this key, so the number of queue edits in flight is known.
 export const QUEUE_MUTATION_KEY = ['queue', 'mutation'] as const;
@@ -76,26 +72,6 @@ export function withOrder(queue: QueueResponse, itemIds: readonly string[]): Que
     ordered.push(item);
   }
   return { ...queue, items: ordered };
-}
-
-// The message for the toast after a failed request. Any code the screen does not know is
-// the generic one. Fixed Russian copy only; nothing from the error goes to the person.
-export function toastForError(error: unknown): string {
-  const text = strings.today.errors;
-  if (error instanceof ApiError) {
-    switch (error.code) {
-      case 'generation_limit_reached':
-        return text.notEnoughGenerations;
-      case 'topic_unavailable':
-        return text.noOtherStory;
-      case 'queue_order_mismatch':
-      case 'queue_item_not_found':
-        return text.queueChanged;
-      default:
-        return text.generic;
-    }
-  }
-  return text.generic;
 }
 
 // Whether the queue on screen may no longer match the server after this error, so it must

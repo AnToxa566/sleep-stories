@@ -8,8 +8,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../../api/api-fetch';
 import { useSessionStore } from '../../auth/session/session-store';
-import { queueQueryKey } from '../../today/queue-data/queue-cache';
-import { topicsUserKey } from '../../topics/topic-data/topic-cache';
+import { queueQueryKey, topicsUserKey } from '../../../api/query-keys';
 import { urlsByStoryId } from '../engine/player-stories';
 
 // The three requests of the stories player. The pure parts are in player-stories.ts.

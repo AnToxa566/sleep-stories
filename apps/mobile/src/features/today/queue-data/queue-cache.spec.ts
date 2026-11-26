@@ -1,14 +1,11 @@
 import type { QueueItem, QueueResponse } from '@sleep-stories/contracts';
 import { ApiContractError, ApiError, ApiUnavailableError } from '../../../api/api-client';
-import { strings } from '../../../strings';
 import {
   QUEUE_POLL_MS,
-  queueQueryKey,
   isNothingToCollect,
   queueRefetchInterval,
   rebuiltToast,
   shouldRefetchAfterError,
-  toastForError,
   withOrder,
   withoutItem,
 } from './queue-cache';
@@ -22,13 +19,6 @@ function item(n: number, state: 'not_ready' | 'creating' | 'failed' = 'not_ready
 function queue(items: QueueItem[], collecting = false): QueueResponse {
   return { items, generations: { left: 3, limit: 5 }, collecting };
 }
-
-describe('queueQueryKey', () => {
-  it('separates accounts', () => {
-    expect(queueQueryKey('a')).toEqual(['queue', 'a']);
-    expect(queueQueryKey('a')).not.toEqual(queueQueryKey('b'));
-  });
-});
 
 describe('queueRefetchInterval', () => {
   it('does not poll before the first answer', () => {
@@ -82,23 +72,6 @@ describe('withOrder', () => {
     expect(withOrder(before, [ID(3), ID(1)])).toBe(before);
     expect(withOrder(before, [ID(3), ID(1), ID(9)])).toBe(before);
     expect(withOrder(before, [ID(1), ID(1), ID(2)])).toBe(before);
-  });
-});
-
-describe('toastForError', () => {
-  const text = strings.today.errors;
-  it('maps the known codes', () => {
-    expect(toastForError(new ApiError(429, 'generation_limit_reached'))).toBe(text.notEnoughGenerations);
-    expect(toastForError(new ApiError(404, 'topic_unavailable'))).toBe(text.noOtherStory);
-    expect(toastForError(new ApiError(409, 'queue_order_mismatch'))).toBe(text.queueChanged);
-    expect(toastForError(new ApiError(404, 'queue_item_not_found'))).toBe(text.queueChanged);
-  });
-  it('uses the generic message for everything else', () => {
-    expect(toastForError(new ApiError(500, null))).toBe(text.generic);
-    expect(toastForError(new ApiError(400, 'validation_failed'))).toBe(text.generic);
-    expect(toastForError(new ApiUnavailableError('network'))).toBe(text.generic);
-    expect(toastForError(new ApiContractError())).toBe(text.generic);
-    expect(toastForError('boom')).toBe(text.generic);
   });
 });
 

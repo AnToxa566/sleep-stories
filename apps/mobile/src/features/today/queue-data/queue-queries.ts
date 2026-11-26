@@ -16,20 +16,20 @@ import {
 import { z } from 'zod';
 import { apiFetch } from '../../../api/api-fetch';
 import { useSessionStore } from '../../auth/session/session-store';
+import { topicsUserKey } from '../../../api/query-keys';
 import {
   applyOptimisticAdd,
   restoreTopics,
   toastForTopicError,
-  topicsUserKey,
   withQueueMembership,
   type TopicsSnapshot,
 } from '../../topics/topic-data/topic-cache';
+import { toastForError } from '../../../api/error-toast';
+import { queueQueryKey } from '../../../api/query-keys';
 import {
   QUEUE_MUTATION_KEY,
-  queueQueryKey,
   queueRefetchInterval,
   shouldRefetchAfterError,
-  toastForError,
   withOrder,
   withoutItem,
 } from './queue-cache';

@@ -15,7 +15,7 @@ import { strings } from '../../../strings';
 import { colors, spacing, typeSizes } from '../../../theme/tokens';
 import { HeardMark } from '../../../ui/status/HeardMark';
 import { Icon } from '../../../ui/icons/icons';
-import { formatPosition } from '../plural';
+import { formatPosition } from '../../../format/plural';
 import { deriveRow } from './rows';
 
 // How long a row must be held still before it can be dragged. Tune it here. React Native's own

@@ -1,6 +1,6 @@
 import type { QueueItem, QueueResponse } from '@sleep-stories/contracts';
 import { strings } from '../../../strings';
-import { pluralRu } from '../plural';
+import { pluralRu } from '../../../format/plural';
 
 type Generations = QueueResponse['generations'];
 

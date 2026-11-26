@@ -1,20 +1,18 @@
 import type { QueueItem, TopicsResponse } from '@sleep-stories/contracts';
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { ApiError } from '../../../api/api-client';
+import { topicsUserKey } from '../../../api/query-keys';
 import { strings } from '../../../strings';
-import { toastForError } from '../../today/queue-data/queue-cache';
+import { toastForError } from '../../../api/error-toast';
 import type { TopicFilter } from '../filter/topic-filter';
 
-// Pure helpers for the cached list «Темы»: its key and how the list follows the queue when the
+// Pure helpers for the cached list «Темы»: its keys and how the list follows the queue when the
 // queue changes. No React, no Expo: unit-tested. The hooks are in use-topics.ts and in
 // features/today/queue-data/queue-queries.ts.
 
-// The key carries the user id only to keep accounts apart; it is not sent. Every filter has its
-// own cached list, and `topicsUserKey` is the prefix of all of them.
-export const topicsUserKey = (userId: string | null) => ['topics', userId] as const;
-
+// Every filter has its own cached list; `topicsUserKey` is the prefix of all of them.
 export const topicsQueryKey = (userId: string | null, filter: TopicFilter) =>
-  ['topics', userId, filter.style, filter.ready, filter.heard] as const;
+  [...topicsUserKey(userId), filter.style, filter.ready, filter.heard] as const;
 
 // The list with `inQueue` set for the given topics. Used for the optimistic add. Other
 // topics, and the order, are untouched.

@@ -12,7 +12,7 @@ import { apiFetch } from '../../../api/api-fetch';
 import { strings } from '../../../strings';
 import { useSessionStore } from '../../auth/session/session-store';
 import { finishedSuggestion, isSuggesting } from './suggest-sheet';
-import { topicsUserKey } from '../topic-data/topic-cache';
+import { topicsUserKey } from '../../../api/query-keys';
 
 // «Подобрать новые темы» on «Темы» (ARCHITECTURE.md section 6, "Topics on request").
 //

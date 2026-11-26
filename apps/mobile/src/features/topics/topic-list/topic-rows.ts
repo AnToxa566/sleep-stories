@@ -1,6 +1,6 @@
 import type { QueueItem, TopicRow } from '@sleep-stories/contracts';
 import { strings, styleCopy } from '../../../strings';
-import { formatDuration } from '../../today/plural';
+import { formatDuration } from '../../../format/plural';
 
 // Pure helpers for the lists «Темы» and «Замена». No React Native.
 

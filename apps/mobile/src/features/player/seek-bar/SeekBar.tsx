@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Text } from '../../../ui/typography/typography';
 import { strings } from '../../../strings';
 import { colors } from '../../../theme/tokens';
-import { formatDuration } from '../../today/plural';
+import { formatDuration } from '../../../format/plural';
 import {
   fractionAfterStep,
   fractionAtSliderValue,

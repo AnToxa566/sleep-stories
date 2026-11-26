@@ -5,7 +5,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { Text } from '../../ui/typography/typography';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HintSheet } from '../../features/today/sheets/HintSheet';
-import { formatPosition } from '../../features/today/plural';
+import { formatPosition } from '../../format/plural';
 import { useQueue, useReplaceQueueItem } from '../../features/today/queue-data/queue-queries';
 import { deriveHintText, deriveRow } from '../../features/today/queue-list/rows';
 import { TopicFilterBar } from '../../features/topics/filter/TopicFilterBar';
