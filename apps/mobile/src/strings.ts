@@ -188,6 +188,7 @@ export const strings = {
       another: 'Другая история',
       anotherHint: 'Тот же стиль, новый рассказ',
       chooseFromTopics: 'Выбрать из тем',
+      markUnheard: 'Отметить как не прослушанную',
       remove: 'Убрать',
     },
 

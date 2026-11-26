@@ -13,6 +13,7 @@ import {
   type QueryClient,
   type QueryKey,
 } from '@tanstack/react-query';
+import { z } from 'zod';
 import { apiFetch } from '../../api/api-fetch';
 import { useSessionStore } from '../auth/session-store';
 import {
@@ -34,7 +35,7 @@ import {
 } from './queue-cache';
 import { replacedTitle, titleOf } from './queue-edit';
 
-// The queue of the screen «Сегодня»: one read and six writes. The pure parts (cache key,
+// The queue of the screen «Сегодня»: one read and ten writes. The pure parts (cache key,
 // polling rule, optimistic updates, error mapping) are in queue-cache.ts and tested there.
 //
 // MONEY (AGENTS.md architecture rule 10): `useGenerateAll` and `useGenerateOne` only return
@@ -412,5 +413,38 @@ export function useRebuildQueue(
     },
     onError: onErrorRefetch(queryClient, key, callbacks),
     onSettled: () => settle(queryClient, key),
+  });
+}
+
+// A 204 has no body, so there is no schema for it in contracts: the client reads an empty body
+// as null. It also reads a non-JSON body as null, so this schema rejects only a 2xx that
+// carries JSON other than `null`.
+const NoContentSchema = z.null();
+
+// DELETE /topics/:topicId/heard: «Отметить как не прослушанную» in the item menu. The server
+// deletes the person's listens of this topic's story (heard is derived from them). Creates no
+// job and spends no generation (rule 10). Not optimistic, and the answer carries no queue, so
+// there is nothing to commit: when the request settles, the topic lists are read again, and so
+// is the queue (by `settle`, here or in the edit that is still in flight). That also covers a
+// timeout after the server applied the change. It needs the queue mutation key: while it is in
+// flight, `commit` drops another edit's answer, which may be older than this change.
+export function useMarkUnheard(callbacks: QueueMutationCallbacks = {}) {
+  const queryClient = useQueryClient();
+  const key = useQueueKey();
+  const userId = useSessionStore((state) => state.userId);
+  return useMutation<null, unknown, string, SnapshotContext>({
+    mutationKey: QUEUE_MUTATION_KEY,
+    mutationFn: (topicId) =>
+      apiFetch({
+        method: 'DELETE',
+        path: `/topics/${encodeURIComponent(topicId)}/heard`,
+        responseSchema: NoContentSchema,
+      }),
+    onMutate: onMutateSnapshot(queryClient, key),
+    onError: onErrorRefetch(queryClient, key, callbacks),
+    onSettled: () => {
+      settle(queryClient, key);
+      void queryClient.invalidateQueries({ queryKey: topicsUserKey(userId) });
+    },
   });
 }

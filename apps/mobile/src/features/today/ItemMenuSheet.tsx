@@ -15,6 +15,8 @@ type Props = {
   onAnother: () => void;
   // «Выбрать из тем»: opens the replace screen for this item.
   onChooseFromTopics: () => void;
+  // «Отметить как не прослушанную»: removes the heard mark of this item's story.
+  onMarkUnheard: () => void;
   onRemove: () => void;
 };
 
@@ -53,7 +55,8 @@ export function Entry({ icon, entry, onPress, tone = 'normal', chevron = false }
 
 // The menu of one queue item (design frame 2a·8): header with number, title and status, then
 // «Создать сейчас» (only for items that need a generation), «Другая история», «Выбрать из
-// тем» (opens the replace screen) and «Убрать».
+// тем» (opens the replace screen), «Отметить как не прослушанную» (only for heard items) and
+// «Убрать».
 export function ItemMenuSheet({
   visible,
   onClose,
@@ -61,6 +64,7 @@ export function ItemMenuSheet({
   onCreateNow,
   onAnother,
   onChooseFromTopics,
+  onMarkUnheard,
   onRemove,
 }: Props) {
   return (
@@ -79,6 +83,9 @@ export function ItemMenuSheet({
           ) : null}
           <Entry icon="refresh" entry={menu.another} onPress={onAnother} />
           <Entry icon="compass" entry={menu.chooseFromTopics} onPress={onChooseFromTopics} chevron />
+          {menu.markUnheard ? (
+            <Entry icon="check" entry={menu.markUnheard} onPress={onMarkUnheard} />
+          ) : null}
           <Entry icon="close" entry={menu.remove} onPress={onRemove} tone="accent" />
         </View>
       ) : null}

@@ -94,6 +94,22 @@ describe('deriveMenu', () => {
     expect(menu.chooseFromTopics).toMatchObject({ label: 'Выбрать из тем', enabled: true });
   });
 
+  it('hides «Отметить как не прослушанную» for an unheard item of every state', () => {
+    for (const item of [ready, notReady, creating, failed]) {
+      expect(deriveMenu(item, 0, gens(5)).markUnheard).toBeNull();
+    }
+  });
+
+  it('offers «Отметить как не прослушанную» for a heard item, ready or not', () => {
+    for (const item of [ready, notReady, creating, failed]) {
+      expect(deriveMenu({ ...item, heard: true }, 0, gens(0)).markUnheard).toEqual({
+        label: 'Отметить как не прослушанную',
+        detail: null,
+        enabled: true,
+      });
+    }
+  });
+
   it('writes the header as in the design', () => {
     const menu = deriveMenu(notReady, 1, gens(2));
     expect(menu.position).toBe('История 02');

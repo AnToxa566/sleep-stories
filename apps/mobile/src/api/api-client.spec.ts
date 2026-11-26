@@ -1,4 +1,5 @@
 import { MeResponseSchema, CompleteOnboardingRequestSchema } from '@sleep-stories/contracts';
+import { z } from 'zod';
 import { ApiContractError, ApiError, ApiUnavailableError, createApiClient } from './api-client';
 
 const TOKEN = 'eyJ.secret-token-value.signature';
@@ -47,6 +48,16 @@ describe('apiFetch', () => {
     await expect(apiFetch(me)).resolves.toEqual(notOnboarded);
     expect(calls[0]?.url).toBe(`${BASE}/me`);
     expect((calls[0]?.init.headers as Record<string, string>)['Authorization']).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('resolves a bodyless DELETE answered 204 with a null schema', async () => {
+    const { apiFetch, calls } = setup(() => new Response(null, { status: 204 }));
+    await expect(
+      apiFetch({ method: 'DELETE', path: '/topics/x/heard', responseSchema: z.null() }),
+    ).resolves.toBeNull();
+    expect(calls[0]?.init.method).toBe('DELETE');
+    expect(calls[0]?.init.body).toBeUndefined();
+    expect(calls[0]?.init.headers).not.toHaveProperty('Content-Type');
   });
 
   it('throws ApiContractError when the body does not match the schema', async () => {

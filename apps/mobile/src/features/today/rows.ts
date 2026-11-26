@@ -99,6 +99,8 @@ export interface MenuView {
   readonly another: MenuEntry;
   // Opens the replace screen for the item.
   readonly chooseFromTopics: MenuEntry;
+  // «Отметить как не прослушанную». Only for heard items, whatever their state (null otherwise).
+  readonly markUnheard: MenuEntry | null;
   readonly remove: MenuEntry;
 }
 
@@ -122,6 +124,7 @@ export function deriveMenu(item: QueueItem, index: number, generations: Generati
     createNow,
     another: { label: copy.another, detail: copy.anotherHint, enabled: true },
     chooseFromTopics: { label: copy.chooseFromTopics, detail: null, enabled: true },
+    markUnheard: item.heard ? { label: copy.markUnheard, detail: null, enabled: true } : null,
     remove: { label: copy.remove, detail: null, enabled: true },
   };
 }

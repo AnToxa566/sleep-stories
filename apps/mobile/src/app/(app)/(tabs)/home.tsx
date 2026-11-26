@@ -16,6 +16,7 @@ import {
   useCollectQueue,
   useGenerateAll,
   useGenerateOne,
+  useMarkUnheard,
   useQueue,
   useRebuildQueue,
   useRemoveQueueItem,
@@ -113,6 +114,7 @@ export default function Home() {
     },
   });
   const rebuildMutate = rebuild.mutate;
+  const markUnheard = useMarkUnheard({ onError: showErrorToast });
   const generateAll = useGenerateAll({ onError: showErrorToast });
   const generateOne = useGenerateOne({ onError: showErrorToast });
   const generating = generateAll.isPending || generateOne.isPending;
@@ -120,6 +122,7 @@ export default function Home() {
   const removeMutate = removeItem.mutate;
   const reorderMutate = reorder.mutate;
   const anotherMutate = another.mutate;
+  const markUnheardMutate = markUnheard.mutate;
   const generateAllMutate = generateAll.mutate;
   const generateOneMutate = generateOne.mutate;
 
@@ -205,6 +208,12 @@ export default function Home() {
     setMenuOpen(false);
     if (menuItemId !== null) router.push({ pathname: '/replace', params: { itemId: menuItemId } });
   };
+  // The topic comes from the live item, the one the sheet shows: «Другая история» changes it.
+  const onMenuMarkUnheard = () => {
+    setMenuOpen(false);
+    const topicId = items?.find((item) => item.id === menuItemId)?.topicId;
+    if (topicId !== undefined) markUnheardMutate(topicId);
+  };
   const onMenuRemove = () => {
     setMenuOpen(false);
     if (menuItemId !== null) removeMutate(menuItemId);
@@ -287,6 +296,7 @@ export default function Home() {
         onCreateNow={onMenuCreateNow}
         onAnother={onMenuAnother}
         onChooseFromTopics={onMenuChooseFromTopics}
+        onMarkUnheard={onMenuMarkUnheard}
         onRemove={onMenuRemove}
       />
       <QueueMenuSheet
