@@ -3,7 +3,7 @@ import { MeResponseSchema } from '@sleep-stories/contracts';
 import type { MeResponse } from '@sleep-stories/contracts';
 import { ZodSerializerDto } from 'nestjs-zod';
 import { CurrentUserId } from '../../platform/auth/request/current-user-id.decorator';
-import { ChangeVoiceDto, CompleteOnboardingDto } from './me.dto';
+import { ChangeInterestsDto, ChangeVoiceDto, CompleteOnboardingDto } from './me.dto';
 import { MeService } from './me.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { PreferencesUpdateService } from './preferences-update.service';
@@ -41,5 +41,15 @@ export class MeController {
   @ZodSerializerDto(MeResponseSchema)
   changeVoice(@CurrentUserId() userId: string, @Body() body: ChangeVoiceDto): Promise<MeResponse> {
     return this.preferencesUpdate.changeVoice(userId, body);
+  }
+
+  // Both interest lists and nothing else. Not the onboarding PUT, for the same reasons.
+  @Put('interests')
+  @ZodSerializerDto(MeResponseSchema)
+  changeInterests(
+    @CurrentUserId() userId: string,
+    @Body() body: ChangeInterestsDto,
+  ): Promise<MeResponse> {
+    return this.preferencesUpdate.changeInterests(userId, body);
   }
 }

@@ -32,7 +32,7 @@ let issuer: string;
 let signingKey: CryptoKey;
 const createdUserIds: string[] = [];
 let usersBefore: number;
-// Test voices, stories and queue items (with their own people) for the narrator tests.
+// Test voices, stories and queue items (with their own people) for the settings tests.
 let data: QueueTestData;
 
 const topUpRun = jest.fn(async () => undefined);
@@ -97,6 +97,8 @@ const putOnboarding = async (userId: string, body: unknown) =>
   call('PUT', '/me/onboarding', { token: await tokenFor(userId), body });
 const putVoice = async (userId: string, body: unknown) =>
   call('PUT', '/me/voice', { token: await tokenFor(userId), body });
+const putInterests = async (userId: string, body: unknown) =>
+  call('PUT', '/me/interests', { token: await tokenFor(userId), body });
 
 const BODY_A = { voiceSlug: 'anna', styles: ['history', 'facts'], interestSlugs: ['space', 'history', 'ocean'] };
 const BODY_B = { voiceSlug: 'lev', styles: ['fairy_tale'], interestSlugs: ['art', 'music'] };
@@ -660,6 +662,211 @@ describe('PUT /api/me/voice', () => {
   });
 });
 
+describe('PUT /api/me/interests', () => {
+  const TYPED = ['кофе', 'дождь', 'чай'];
+  const NEW_BODY = { interestSlugs: ['space', 'music'], customInterests: ['дождь', 'поезда', 'кофе', 'маяки'] };
+  const typedRows = (userId: string) =>
+    prisma.userCustomInterest.findMany({ where: { userId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+  // Everything the route may or may not write, with ids and times, so a rewrite shows too.
+  async function storedSettings(userId: string) {
+    const [preference, interests, customInterests] = await Promise.all([
+      prisma.userPreference.findUniqueOrThrow({ where: { userId } }),
+      prisma.userInterest.findMany({ where: { userId }, orderBy: { interestId: 'asc' } }),
+      typedRows(userId),
+    ]);
+    return { preference, interests, customInterests };
+  }
+  const onboarded = async (customInterests: string[] = TYPED) => {
+    const userId = newUserId();
+    expect((await putOnboarding(userId, { ...BODY_A, customInterests })).status).toBe(200);
+    return userId;
+  };
+  const expected = (interestSlugs: string[], customInterests: string[]) => ({
+    ...EXPECTED_A,
+    preferences: { ...EXPECTED_A.preferences, interestSlugs, customInterests },
+  });
+
+  it('writes only the difference: a kept typed row keeps its id and time, and GET /me reads it back', async () => {
+    const userId = await onboarded();
+    const before = await storedSettings(userId);
+
+    const result = await putInterests(userId, NEW_BODY);
+
+    expect(result.status).toBe(200);
+    // Kept titles stay in their old order; new ones follow in request order.
+    const read = expected(['space', 'music'], ['кофе', 'дождь', 'поезда', 'маяки']);
+    const parsed = MeResponseSchema.parse(result.json);
+    expect(parsed.preferences?.interestSlugs.slice().sort()).toEqual(['music', 'space']);
+    expect(parsed.preferences?.customInterests).toEqual(read.preferences.customInterests);
+    expect((await getMe(userId)).json).toEqual(result.json);
+
+    const after = await storedSettings(userId);
+    expect(after.preference).toEqual(before.preference);
+    expect(after.customInterests.slice(0, 2)).toEqual(before.customInterests.slice(0, 2));
+    expect(after.customInterests.map((row) => row.title)).toEqual(read.preferences.customInterests);
+    const oldIds = before.customInterests.map((row) => row.id);
+    expect(after.customInterests.slice(2).filter((row) => oldIds.includes(row.id))).toEqual([]);
+    expect(after.interests).toHaveLength(2);
+    // The catalogue row that stays is not recreated.
+    const space = await prisma.interest.findUniqueOrThrow({ where: { slug: 'space' } });
+    const spaceRow = (rows: typeof before.interests) => rows.find((row) => row.interestId === space.id);
+    expect(spaceRow(after.interests)).toEqual(spaceRow(before.interests));
+  });
+
+  it('changes nothing when the saved lists are sent again, normalised or not', async () => {
+    const userId = await onboarded();
+    const before = await storedSettings(userId);
+    const result = await putInterests(userId, {
+      interestSlugs: BODY_A.interestSlugs,
+      customInterests: [' ЧАЙ ', 'кофе', 'Дождь'],
+    });
+    expect(result.status).toBe(200);
+    expect(result.json).toEqual(expected(EXPECTED_A.preferences.interestSlugs, TYPED));
+    expect(await storedSettings(userId)).toEqual(before);
+  });
+
+  it("empties one list at a time and deletes only the caller's rows", async () => {
+    const userId = await onboarded();
+    const other = await onboarded();
+    const otherBefore = await storedSettings(other);
+
+    const noTyped = await putInterests(userId, { interestSlugs: ['space'], customInterests: [] });
+    expect(noTyped.status).toBe(200);
+    expect(noTyped.json).toEqual(expected(['space'], []));
+    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 1, customInterests: 0 });
+    expect(await storedSettings(other)).toEqual(otherBefore);
+
+    const noCatalogue = await putInterests(userId, { interestSlugs: [], customInterests: ['кофе'] });
+    expect(noCatalogue.status).toBe(200);
+    expect(noCatalogue.json).toEqual(expected([], ['кофе']));
+    expect(await rowCounts(userId)).toEqual({ users: 1, preferences: 1, interests: 0, customInterests: 1 });
+    expect(await storedSettings(other)).toEqual(otherBefore);
+  });
+
+  it('answers 401 without a token', async () => {
+    expectError(await call('PUT', '/me/interests', { body: NEW_BODY }), 401, 'unauthorized');
+  });
+
+  it('refuses a body that names a user and changes neither person', async () => {
+    const a = await onboarded();
+    const b = await onboarded();
+    const before = [await storedSettings(a), await storedSettings(b)];
+    expectError(await putInterests(a, { ...NEW_BODY, userId: b }), 400, 'validation_failed');
+    expect([await storedSettings(a), await storedSettings(b)]).toEqual(before);
+  });
+
+  it("changes only the caller's interests, whatever a header or the query says", async () => {
+    const a = await onboarded();
+    const b = await onboarded();
+    const before = await storedSettings(b);
+    const result = await call('PUT', `/me/interests?userId=${b}`, {
+      token: await tokenFor(a),
+      body: { interestSlugs: [], customInterests: ['маяки'] },
+      headers: { 'x-user-id': b },
+    });
+    expect(result.status).toBe(200);
+    expect((await getMe(a)).json).toEqual(expected([], ['маяки']));
+    expect(await storedSettings(b)).toEqual(before);
+  });
+
+  it.each([
+    ['without customInterests', { interestSlugs: ['space'] }],
+    ['without interestSlugs', { customInterests: ['кофе'] }],
+    ['with no interest at all', { interestSlugs: [], customInterests: [] }],
+  ])('answers 400 for a body %s and changes nothing', async (_label, body) => {
+    const userId = await onboarded();
+    const before = await storedSettings(userId);
+    expectError(await putInterests(userId, body), 400, 'validation_failed');
+    expect(await storedSettings(userId)).toEqual(before);
+  });
+
+  it('answers 400 before onboarding and creates no rows', async () => {
+    const stranger = newUserId();
+    expectError(await putInterests(stranger, NEW_BODY), 400, 'validation_failed');
+    expect(await rowCounts(stranger)).toEqual({ users: 0, preferences: 0, interests: 0, customInterests: 0 });
+
+    const signedInOnly = newUserId();
+    await getMe(signedInOnly); // creates the users row
+    expectError(await putInterests(signedInOnly, NEW_BODY), 400, 'validation_failed');
+    expect(await rowCounts(signedInOnly)).toEqual({ users: 1, preferences: 0, interests: 0, customInterests: 0 });
+  });
+
+  it('answers 422 for an unknown slug, an inactive one or a new colliding title, and changes nothing', async () => {
+    const userId = await onboarded();
+    const before = await storedSettings(userId);
+
+    expectError(
+      await putInterests(userId, { ...NEW_BODY, interestSlugs: ['music', 'no-such-interest'] }),
+      422,
+      'unknown_interest',
+    );
+    const collision = await putInterests(userId, { interestSlugs: ['art'], customInterests: ['маяки', ' МУЗЫКА '] });
+    expectError(collision, 422, 'validation_failed');
+    expect(collision.text.toLowerCase()).not.toContain('музыка');
+    // NEW_BODY holds `space`; afterEach turns it on again.
+    await prisma.interest.update({ where: { slug: 'space' }, data: { isActive: false } });
+    expectError(await putInterests(userId, NEW_BODY), 422, 'unknown_interest');
+
+    expect(await storedSettings(userId)).toEqual(before);
+  });
+
+  it('does not let a kept title that now repeats a catalogue title block saving', async () => {
+    await prisma.interest.update({ where: { slug: 'space' }, data: { isActive: false } });
+    const userId = newUserId();
+    expect((await putOnboarding(userId, { ...BODY_B, customInterests: ['космос'] })).status).toBe(200);
+    await prisma.interest.update({ where: { slug: 'space' }, data: { isActive: true } });
+    const [kept] = await typedRows(userId);
+
+    const result = await putInterests(userId, { interestSlugs: ['art'], customInterests: ['космос', 'кофе'] });
+
+    expect(result.status).toBe(200);
+    expect(result.json).toMatchObject({ preferences: { interestSlugs: ['art'], customInterests: ['космос', 'кофе'] } });
+    expect((await typedRows(userId))[0]).toEqual(kept);
+  });
+
+  it('removes a saved interest that was deactivated, once a save leaves it out', async () => {
+    const userId = await onboarded();
+    await prisma.interest.update({ where: { slug: 'space' }, data: { isActive: false } });
+    const result = await putInterests(userId, { interestSlugs: ['history', 'ocean'], customInterests: TYPED });
+    expect(result.status).toBe(200);
+    expect(result.json).toEqual(expected(['history', 'ocean'], TYPED));
+    expect((await rowCounts(userId)).interests).toBe(2);
+  });
+
+  it('creates no job, never runs the top-up and leaves the queue, the styles and the voice alone', async () => {
+    const voiceId = await data.voice();
+    const userId = await data.user({ voiceId, styles: ['history'] });
+    await prisma.userCustomInterest.create({ data: { userId, title: 'кофе' } });
+    const [kept] = await typedRows(userId);
+    const plain = await data.topic();
+    await data.queueItem(userId, plain.topicId, 1);
+    // A waiting topic search that names the typed row by id.
+    await data.job({
+      userId,
+      kind: 'suggest_topics',
+      status: 'pending',
+      payload: { kind: 'suggest_topics', userId, selection: { interestIds: [], customInterestIds: [kept.id] } },
+    });
+    const rows = async () => ({
+      jobs: await prisma.generationJob.findMany({ where: { requestedByUserId: userId }, orderBy: { id: 'asc' } }),
+      allJobs: await prisma.generationJob.count(),
+      queue: await prisma.queueItem.findMany({ where: { userId }, orderBy: { position: 'asc' } }),
+      preference: await prisma.userPreference.findUniqueOrThrow({ where: { userId } }),
+    });
+    const before = await rows();
+    topUpRun.mockClear();
+    jobQueue.enqueued = [];
+
+    const result = await putInterests(userId, { interestSlugs: ['space'], customInterests: ['кофе', 'маяки'] });
+
+    expect(result.status).toBe(200);
+    expect(await rows()).toEqual(before);
+    expect((await typedRows(userId))[0]).toEqual(kept);
+    expect(topUpRun).not.toHaveBeenCalled();
+    expect(jobQueue.enqueued).toEqual([]);
+  });
+});
+
 // Holds a row lock on the user in its own transaction until release() is called.
 async function holdUserLock(userId: string, mode: 'FOR UPDATE' | 'FOR NO KEY UPDATE') {
   let release!: () => void;
@@ -742,6 +949,24 @@ describe('the row lock that serialises submits by one user', () => {
       await lock.release();
       expect((await put).status).toBe(200);
       expect((await getMe(userId)).json).toMatchObject({ preferences: { voiceSlug: 'lev' } });
+    } finally {
+      await lock.release().catch(() => undefined);
+    }
+  });
+
+  it('an interests change waits for the same lock', async () => {
+    const userId = newUserId();
+    await putOnboarding(userId, BODY_A);
+    // It does not update the users row, so it can only wait because the service takes its
+    // own FOR UPDATE lock. The new rows' foreign key check (FOR KEY SHARE) passes this one.
+    const lock = await holdUserLock(userId, 'FOR NO KEY UPDATE');
+    try {
+      const put = putInterests(userId, { interestSlugs: ['art'], customInterests: [] });
+      expect(await waits(put, 1000)).toBe(true);
+      expect((await getMe(userId)).json).toEqual(EXPECTED_A);
+      await lock.release();
+      expect((await put).status).toBe(200);
+      expect((await getMe(userId)).json).toMatchObject({ preferences: { interestSlugs: ['art'] } });
     } finally {
       await lock.release().catch(() => undefined);
     }
