@@ -1,18 +1,20 @@
 import { BadRequestException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import type {
   ChangeInterestsRequest,
+  ChangeStylesRequest,
   ChangeVoiceRequest,
   MeResponse,
 } from '@sleep-stories/contracts';
 import { apiErrorBody } from '../../../platform/errors/api-error-body';
 import { lockUserRow } from '../../../platform/prisma/lock-user-row/lock-user-row';
 import { PrismaService } from '../../../platform/prisma/prisma.service';
+import { inCanonicalOrder } from '../../story-styles/story-styles';
 import { MeService } from '../me.service';
 
 // Changes to the preferences of a person who has finished onboarding (ARCHITECTURE.md
-// section 6, "Changing the narrator" and "Changing the interests"). It creates no job and does
-// not run the queue top-up, so it can never cost money (AGENTS.md architecture rule 10); no queue, top-up or jobs
-// service is injected here on purpose.
+// section 6, "Changing the narrator", "Changing the interests" and "Changing the styles"). It
+// creates no job and does not run the queue top-up, so it can never cost money (AGENTS.md
+// architecture rule 10); no queue, top-up or jobs service is injected here on purpose.
 @Injectable()
 export class PreferencesUpdateService {
   constructor(
@@ -129,6 +131,33 @@ export class PreferencesUpdateService {
         await tx.userCustomInterest.createMany({
           data: newTitles.map((title, index) => ({ userId, title, createdAt: new Date(base + index) })),
         });
+      }
+    });
+
+    return this.me.getMe(userId);
+  }
+
+  // Replaces the story styles and nothing else: no job, no top-up, no queue edit, even for a
+  // new style (owner, 2026-11-27). `userId` comes from the verified token only. 400 before
+  // onboarding is finished, and no row is created. A job that already exists is not touched.
+  //
+  // The users-row lock comes first. It orders the change against a «Подобрать темы» request,
+  // which checks its styles against these under the same lock, and against the onboarding PUT.
+  async changeStyles(userId: string, request: ChangeStylesRequest): Promise<MeResponse> {
+    await this.prisma.$transaction(async (tx) => {
+      const userExists = await lockUserRow(tx, userId);
+
+      // updateMany for the same reason as in changeVoice: a missing row is a count of 0.
+      const updated = userExists
+        ? await tx.userPreference.updateMany({
+            where: { userId },
+            data: { styles: inCanonicalOrder(request.styles) },
+          })
+        : { count: 0 };
+      if (updated.count === 0) {
+        throw new BadRequestException(
+          apiErrorBody(400, 'validation_failed', 'Onboarding is not finished'),
+        );
       }
     });
 

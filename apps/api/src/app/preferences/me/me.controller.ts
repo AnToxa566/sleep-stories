@@ -3,7 +3,12 @@ import { MeResponseSchema } from '@sleep-stories/contracts';
 import type { MeResponse } from '@sleep-stories/contracts';
 import { ZodSerializerDto } from 'nestjs-zod';
 import { CurrentUserId } from '../../platform/auth/request/current-user-id.decorator';
-import { ChangeInterestsDto, ChangeVoiceDto, CompleteOnboardingDto } from './me.dto';
+import {
+  ChangeInterestsDto,
+  ChangeStylesDto,
+  ChangeVoiceDto,
+  CompleteOnboardingDto,
+} from './me.dto';
 import { MeService } from './me.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { PreferencesUpdateService } from './preferences-update/preferences-update.service';
@@ -51,5 +56,15 @@ export class MeController {
     @Body() body: ChangeInterestsDto,
   ): Promise<MeResponse> {
     return this.preferencesUpdate.changeInterests(userId, body);
+  }
+
+  // The story styles and nothing else. Not the onboarding PUT, for the same reasons.
+  @Put('styles')
+  @ZodSerializerDto(MeResponseSchema)
+  changeStyles(
+    @CurrentUserId() userId: string,
+    @Body() body: ChangeStylesDto,
+  ): Promise<MeResponse> {
+    return this.preferencesUpdate.changeStyles(userId, body);
   }
 }

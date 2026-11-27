@@ -6,6 +6,7 @@ export * from './preferences/interests/interests';
 export * from './preferences/interests-change/interests-change';
 export * from './preferences/me/me';
 export * from './preferences/onboarding/onboarding';
+export * from './preferences/styles-change/styles-change';
 export * from './preferences/voice-change/voice-change';
 export * from './preferences/voices/voices';
 

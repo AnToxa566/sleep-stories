@@ -1,5 +1,6 @@
 import {
   ChangeInterestsRequestSchema,
+  ChangeStylesRequestSchema,
   ChangeVoiceRequestSchema,
   CompleteOnboardingRequestSchema,
 } from '@sleep-stories/contracts';
@@ -9,3 +10,4 @@ import { createZodDto } from 'nestjs-zod';
 export class CompleteOnboardingDto extends createZodDto(CompleteOnboardingRequestSchema) {}
 export class ChangeVoiceDto extends createZodDto(ChangeVoiceRequestSchema) {}
 export class ChangeInterestsDto extends createZodDto(ChangeInterestsRequestSchema) {}
+export class ChangeStylesDto extends createZodDto(ChangeStylesRequestSchema) {}

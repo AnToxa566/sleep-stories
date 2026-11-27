@@ -260,3 +260,37 @@ describe('PreferencesUpdateService.changeInterests', () => {
     expect(names().filter((name) => /delete|create|commit/.test(name))).toEqual([]);
   });
 });
+
+// The voice fake serves here too: a call to voice.findFirst would show in the call list.
+describe('PreferencesUpdateService.changeStyles', () => {
+  it('locks the users row first, writes only the styles in canonical order, then reads', async () => {
+    const { service, calls, names } = makeService();
+
+    expect(await service.changeStyles(USER_ID, { styles: ['history', 'facts'] })).toEqual(ME);
+
+    expect(names()).toEqual(['lockUserRow', 'userPreference.updateMany', 'commit', 'me.getMe']);
+    expect(calls[0].args).toMatchObject({ values: [USER_ID] });
+    expect(calls[1].args).toEqual({
+      where: { userId: USER_ID },
+      data: { styles: ['facts', 'history'] },
+    });
+    expect(calls[3].args).toBe(USER_ID);
+  });
+
+  it.each([
+    ['a person without preferences', { updated: 0 }, ['lockUserRow', 'userPreference.updateMany']],
+    ['a person without a users row', { userExists: false }, ['lockUserRow']],
+  ])('refuses %s with 400, with no commit and no read', async (_label, options, expected) => {
+    const { service, names } = makeService(options);
+
+    const { error, body } = await refusal(service.changeStyles(USER_ID, { styles: ['facts'] }));
+
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect(body).toMatchObject({
+      statusCode: 400,
+      code: 'validation_failed',
+      message: 'Onboarding is not finished',
+    });
+    expect(names()).toEqual(expected);
+  });
+});

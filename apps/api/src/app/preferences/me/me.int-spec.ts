@@ -99,6 +99,8 @@ const putVoice = async (userId: string, body: unknown) =>
   call('PUT', '/me/voice', { token: await tokenFor(userId), body });
 const putInterests = async (userId: string, body: unknown) =>
   call('PUT', '/me/interests', { token: await tokenFor(userId), body });
+const putStyles = async (userId: string, body: unknown) =>
+  call('PUT', '/me/styles', { token: await tokenFor(userId), body });
 
 const BODY_A = { voiceSlug: 'anna', styles: ['history', 'facts'], interestSlugs: ['space', 'history', 'ocean'] };
 const BODY_B = { voiceSlug: 'lev', styles: ['fairy_tale'], interestSlugs: ['art', 'music'] };
@@ -862,6 +864,125 @@ describe('PUT /api/me/interests', () => {
     expect(result.status).toBe(200);
     expect(await rows()).toEqual(before);
     expect((await typedRows(userId))[0]).toEqual(kept);
+    expect(topUpRun).not.toHaveBeenCalled();
+    expect(jobQueue.enqueued).toEqual([]);
+  });
+});
+
+describe('PUT /api/me/styles', () => {
+  // Everything the route may or may not write, with ids and times, so a rewrite shows too.
+  async function storedSettings(userId: string) {
+    const [preference, interests, customInterests] = await Promise.all([
+      prisma.userPreference.findUniqueOrThrow({ where: { userId } }),
+      prisma.userInterest.findMany({ where: { userId }, orderBy: { interestId: 'asc' } }),
+      prisma.userCustomInterest.findMany({ where: { userId }, orderBy: { id: 'asc' } }),
+    ]);
+    return { preference, interests, customInterests };
+  }
+  const onboarded = async () => {
+    const userId = newUserId();
+    expect((await putOnboarding(userId, { ...BODY_A, customInterests: ['кофе'] })).status).toBe(200);
+    return userId;
+  };
+  const withStyles = (styles: string[]) => ({
+    ...EXPECTED_A,
+    preferences: { ...EXPECTED_A.preferences, styles, customInterests: ['кофе'] },
+  });
+
+  it('stores the styles in canonical order, changes nothing else, and GET /me reads them back', async () => {
+    const userId = await onboarded();
+    const other = await onboarded();
+    const before = await storedSettings(userId);
+    const otherBefore = await storedSettings(other);
+
+    const result = await putStyles(userId, { styles: ['history', 'fairy_tale'] });
+
+    expect(result.status).toBe(200);
+    expect(MeResponseSchema.parse(result.json)).toEqual(withStyles(['fairy_tale', 'history']));
+    expect((await getMe(userId)).json).toEqual(result.json);
+    // The voice and both interest lists keep their rows, ids and times.
+    expect(await storedSettings(userId)).toEqual({
+      ...before,
+      preference: {
+        ...before.preference,
+        styles: ['fairy_tale', 'history'],
+        updatedAt: expect.any(Date),
+      },
+    });
+    expect(await storedSettings(other)).toEqual(otherBefore);
+  });
+
+  it('answers 401 without a token', async () => {
+    expectError(await call('PUT', '/me/styles', { body: { styles: ['facts'] } }), 401, 'unauthorized');
+  });
+
+  it.each([
+    ['without styles', {}],
+    ['with no style', { styles: [] }],
+    ['with a repeated style', { styles: ['facts', 'facts'] }],
+    ['with an unknown style', { styles: ['poetry'] }],
+  ])('answers 400 for a body %s and changes nothing', async (_label, body) => {
+    const userId = await onboarded();
+    const before = await storedSettings(userId);
+    expectError(await putStyles(userId, body), 400, 'validation_failed');
+    expect(await storedSettings(userId)).toEqual(before);
+  });
+
+  it('refuses a body that names a user and changes neither person', async () => {
+    const a = await onboarded();
+    const b = await onboarded();
+    const before = [await storedSettings(a), await storedSettings(b)];
+    expectError(await putStyles(a, { styles: ['fairy_tale'], userId: b }), 400, 'validation_failed');
+    expect([await storedSettings(a), await storedSettings(b)]).toEqual(before);
+  });
+
+  it("changes only the caller's styles, whatever a header or the query says", async () => {
+    const a = await onboarded();
+    const b = await onboarded();
+    const before = await storedSettings(b);
+    const result = await call('PUT', `/me/styles?userId=${b}`, {
+      token: await tokenFor(a),
+      body: { styles: ['fairy_tale'] },
+      headers: { 'x-user-id': b },
+    });
+    expect(result.status).toBe(200);
+    expect((await getMe(a)).json).toEqual(withStyles(['fairy_tale']));
+    expect(await storedSettings(b)).toEqual(before);
+  });
+
+  it('answers 400 before onboarding and creates no rows', async () => {
+    const stranger = newUserId();
+    expectError(await putStyles(stranger, { styles: ['facts'] }), 400, 'validation_failed');
+    expect(await rowCounts(stranger)).toEqual({ users: 0, preferences: 0, interests: 0, customInterests: 0 });
+
+    const signedInOnly = newUserId();
+    await getMe(signedInOnly); // creates the users row
+    expectError(await putStyles(signedInOnly, { styles: ['facts'] }), 400, 'validation_failed');
+    expect(await rowCounts(signedInOnly)).toEqual({ users: 1, preferences: 0, interests: 0, customInterests: 0 });
+  });
+
+  it('creates no job, never runs the top-up and leaves the queue alone, a removed style included', async () => {
+    const voiceId = await data.voice();
+    const userId = await data.user({ voiceId, styles: ['history'] });
+    const plain = await data.topic();
+    await data.queueItem(userId, plain.topicId, 1);
+    // A waiting topic search is not touched by the change.
+    await data.job({ userId, kind: 'suggest_topics', status: 'pending' });
+    const rows = async () => ({
+      jobs: await prisma.generationJob.findMany({ where: { requestedByUserId: userId }, orderBy: { id: 'asc' } }),
+      allJobs: await prisma.generationJob.count(),
+      queue: await prisma.queueItem.findMany({ where: { userId }, orderBy: { position: 'asc' } }),
+    });
+    const before = await rows();
+    const { preference } = await storedSettings(userId);
+    topUpRun.mockClear();
+    jobQueue.enqueued = [];
+
+    const result = await putStyles(userId, { styles: ['fairy_tale'] });
+
+    expect(result.status).toBe(200);
+    expect(await rows()).toEqual(before);
+    expect((await storedSettings(userId)).preference.voiceId).toBe(preference.voiceId);
     expect(topUpRun).not.toHaveBeenCalled();
     expect(jobQueue.enqueued).toEqual([]);
   });
