@@ -56,16 +56,19 @@ export const strings = {
     },
   },
 
+  // The shared voice list (ui/voice).
+  voice: {
+    playSample: 'Послушать голос',
+    stopSample: 'Остановить',
+    playFailed: 'Не удалось воспроизвести образец. Попробуйте ещё раз',
+    loading: 'Загружаем голоса',
+    loadFailed: 'Не удалось загрузить голоса. Проверьте интернет и попробуйте ещё раз',
+  },
   onboarding: {
     stepOf: (current: number, total: number) => `Шаг ${current} из ${total}`,
     voice: {
       title: 'Выберите голос',
       subtitle: 'Его можно сменить в настройках',
-      playSample: 'Послушать голос',
-      stopSample: 'Остановить',
-      playFailed: 'Не удалось воспроизвести образец. Попробуйте ещё раз',
-      loading: 'Загружаем голоса',
-      loadFailed: 'Не удалось загрузить голоса. Проверьте интернет и попробуйте ещё раз',
     },
     interests: {
       title: 'Что вам интересно',

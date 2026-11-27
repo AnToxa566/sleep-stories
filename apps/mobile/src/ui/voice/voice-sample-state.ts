@@ -1,4 +1,4 @@
-// Pure state of the voice-sample player on the voice step. The Expo-backed part
+// Pure state of the voice-sample player. The Expo-backed part
 // (useVoiceSample.ts) feeds it events; nothing here touches audio, so it is unit-tested.
 //
 // One sample at a time: `slug` is the voice being played, or null. `failed` keeps the last

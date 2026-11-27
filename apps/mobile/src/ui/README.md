@@ -19,6 +19,7 @@ Two choices that follow from this:
 | `icons` | The icon set |
 | `buttons` | What a person taps to do something or to go somewhere: buttons and links |
 | `inputs` | What a person types into or chooses with: fields, chips, selectable rows |
+| `voice` | The voice list with its loading and error states, and the playback of the voice samples |
 | `layout` | What a screen is built on: the screen frame, the background, the bottom sheet |
 | `status` | What shows a state and takes no taps: skeletons, marks |
 | `toast` | The toast: its store and its host |
