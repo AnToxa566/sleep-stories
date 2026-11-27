@@ -4,10 +4,10 @@ import type {
   ChangeVoiceRequest,
   MeResponse,
 } from '@sleep-stories/contracts';
-import { apiErrorBody } from '../../platform/errors/api-error-body';
-import { lockUserRow } from '../../platform/prisma/lock-user-row/lock-user-row';
-import { PrismaService } from '../../platform/prisma/prisma.service';
-import { MeService } from './me.service';
+import { apiErrorBody } from '../../../platform/errors/api-error-body';
+import { lockUserRow } from '../../../platform/prisma/lock-user-row/lock-user-row';
+import { PrismaService } from '../../../platform/prisma/prisma.service';
+import { MeService } from '../me.service';
 
 // Changes to the preferences of a person who has finished onboarding (ARCHITECTURE.md
 // section 6, "Changing the narrator" and "Changing the interests"). It creates no job and does

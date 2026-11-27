@@ -1,8 +1,8 @@
 import { BadRequestException, HttpException, UnprocessableEntityException } from '@nestjs/common';
 import { ApiErrorResponseSchema } from '@sleep-stories/contracts';
 import type { MeResponse } from '@sleep-stories/contracts';
-import type { PrismaService } from '../../platform/prisma/prisma.service';
-import type { MeService } from './me.service';
+import type { PrismaService } from '../../../platform/prisma/prisma.service';
+import type { MeService } from '../me.service';
 import { PreferencesUpdateService } from './preferences-update.service';
 
 const USER_ID = '3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f';

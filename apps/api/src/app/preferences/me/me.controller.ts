@@ -6,7 +6,7 @@ import { CurrentUserId } from '../../platform/auth/request/current-user-id.decor
 import { ChangeInterestsDto, ChangeVoiceDto, CompleteOnboardingDto } from './me.dto';
 import { MeService } from './me.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
-import { PreferencesUpdateService } from './preferences-update.service';
+import { PreferencesUpdateService } from './preferences-update/preferences-update.service';
 
 // The user is identified only by the verified token (CurrentUserId). Nothing in
 // the body, query or headers can name or change the user.

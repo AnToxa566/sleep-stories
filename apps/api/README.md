@@ -42,6 +42,7 @@ A folder groups by meaning, not by kind of code: there are no `services`, `contr
 
 - Each concept or use case has its own folder (`queue/rebuild`, `topics/candidates`) with its code and specs.
 - The Nest module, the controller, its DTOs and the specs of the whole feature (the HTTP integration spec) lie at the root of the domain folder. In `preferences` each part with its own Nest module (`me`, `interests`, `voices`, `users`) keeps those inside its folder.
+- Nothing else piles up at such a root. Besides the files of the previous line it holds only the service the part is named after (`me.service.ts` and its spec). Every further piece of logic, a new use case above all, gets its own folder there with its spec (`me/preferences-update/`). "It is only one service and a spec" is no reason to skip the folder: adding a file to an existing folder is a layout decision too. Why: a flat folder mixes unrelated logic, and each new file makes the next one look natural.
 - A spec lies next to the code it tests. Integration specs end in `.int-spec.ts`.
 - No `index.ts` barrels: import a file directly.
 - Keep a rule that needs no Nest and no database in a file of its own (`generation-start-plan.ts`, `top-up-plan.ts`, `queue-order.ts`), so it can be tested without either.
