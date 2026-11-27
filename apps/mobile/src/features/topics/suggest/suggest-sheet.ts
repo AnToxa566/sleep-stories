@@ -6,6 +6,7 @@ import type {
   SuggestionStatusResponse,
 } from '@sleep-stories/contracts';
 import { strings, styleCopy } from '../../../strings';
+import { displayCustomTitle } from '../../../ui/interests/display-title';
 import { STYLE_ORDER } from '../filter/topic-filter';
 
 // The sheet «Подобрать новые темы» on «Темы» (design frames 2e·2 to 2e·7) and the state of its
@@ -36,8 +37,9 @@ const customKey = (text: string) => `c:${text}`;
 const styleKey = (style: StoryStyle) => `s:${style}`;
 
 // The person's interests (catalogue ones in the catalogue's order, then the typed ones) and
-// styles. Labels are lowercase as in the design; typed interests are already lowercase after
-// the contract's normalisation. A chosen slug missing from the catalogue (deactivated) is left
+// styles. Labels are capitalised as in onboarding and «Настройки», not lowercase as the design
+// draws them (owner, 2026-11-27); only the label of a typed interest changes, never its key or
+// the value sent. A chosen slug missing from the catalogue (deactivated) is left
 // out: the server would refuse it.
 export function sheetOptions(
   preferences: Pick<Preferences, 'styles' | 'interestSlugs' | 'customInterests'>,
@@ -49,9 +51,12 @@ export function sheetOptions(
       .filter((interest) => chosen.has(interest.slug))
       .map((interest) => ({
         key: interestKey(interest.slug),
-        label: interest.title.toLocaleLowerCase('ru'),
+        label: interest.title,
       })),
-    ...preferences.customInterests.map((text) => ({ key: customKey(text), label: text })),
+    ...preferences.customInterests.map((text) => ({
+      key: customKey(text),
+      label: displayCustomTitle(text),
+    })),
   ];
   const styles = STYLE_ORDER.filter((style) => preferences.styles.includes(style)).map(
     (style) => ({ key: styleKey(style), label: styleCopy[style].label }),

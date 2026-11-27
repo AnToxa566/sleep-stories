@@ -32,9 +32,9 @@ const status = (
 describe('sheetOptions', () => {
   it('offers only the person’s interests (catalogue order, then typed) and styles (app order)', () => {
     expect(options.interests).toEqual([
-      { key: 'i:history', label: 'история' },
-      { key: 'i:space', label: 'космос' },
-      { key: 'c:морские звёзды', label: 'морские звёзды' },
+      { key: 'i:history', label: 'История' },
+      { key: 'i:space', label: 'Космос' },
+      { key: 'c:морские звёзды', label: 'Морские звёзды' },
     ]);
     expect(options.styles).toEqual([
       { key: 's:facts', label: 'Факты' },

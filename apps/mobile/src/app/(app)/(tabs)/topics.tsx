@@ -180,10 +180,15 @@ export default function Topics() {
     (key: string) => setSelection((current) => ({ ...current, styles: toggle(current.styles, key) })),
     [],
   );
-  // «Изменить» opens the tab «Настройки», from which the screens «Интересы» and «Стили» open.
-  const openSettings = useCallback(() => {
+  // «Изменить» opens the screen that edits that choice; back returns to «Темы», with the sheet
+  // closed.
+  const openEditInterests = useCallback(() => {
     setSheetOpen(false);
-    router.navigate('/settings');
+    router.navigate('/edit-interests');
+  }, [router]);
+  const openEditStyles = useCallback(() => {
+    setSheetOpen(false);
+    router.navigate('/edit-styles');
   }, [router]);
   const suggestions = suggestion.status?.suggestions;
   const canGo = suggestions !== undefined && suggestions.left > 0 && hasChoice(selection) && !suggesting;
@@ -295,7 +300,8 @@ export default function Topics() {
         selection={selection}
         onToggleInterest={toggleInterest}
         onToggleStyle={toggleStyle}
-        onChangeSettings={openSettings}
+        onChangeInterests={openEditInterests}
+        onChangeStyles={openEditStyles}
         canGo={canGo}
         onGo={go}
         caption={caption}

@@ -128,7 +128,6 @@ export const strings = {
     unknown: '—',
     // The frame of the screens that edit one setting (settings/edit-screen).
     editScreen: {
-      back: 'Настройки',
       save: 'Сохранить изменения',
     },
     // The screen «Рассказчик» (design frame 4c).

@@ -21,8 +21,10 @@ type Props = {
   onBack: () => void;
 };
 
-// The frame of a screen that edits one setting (design frames 4c and 4d): the way back to
-// «Настройки», the title, the content and the save button. It only draws.
+// The frame of a screen that edits one setting (design frames 4c and 4d): the way back, the
+// title, the content and the save button. It only draws. The link says «Назад», not
+// «Настройки» as the design draws it: these screens also open from the sheet «Подобрать темы»
+// on «Темы», and back returns there (owner, 2026-11-27).
 export function SettingsEditScreen({
   title,
   subtitle,
@@ -46,12 +48,12 @@ export function SettingsEditScreen({
           <View style={styles.topBar}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={copy.back}
+              accessibilityLabel={strings.common.back}
               onPress={onBack}
               style={({ pressed }) => [styles.back, pressed && styles.pressed]}
             >
               <Icon name="back" size={20} color={colors.accent} />
-              <Text style={styles.backText}>{copy.back}</Text>
+              <Text style={styles.backText}>{strings.common.back}</Text>
             </Pressable>
           </View>
         }

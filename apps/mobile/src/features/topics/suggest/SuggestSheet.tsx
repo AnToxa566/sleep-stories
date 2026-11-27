@@ -15,8 +15,9 @@ type Props = {
   selection: SheetSelection;
   onToggleInterest: (key: string) => void;
   onToggleStyle: (key: string) => void;
-  // «Изменить»: the settings (not built yet: the tab «Настройки» for now).
-  onChangeSettings: () => void;
+  // «Изменить» next to a heading: the screen that edits that choice.
+  onChangeInterests: () => void;
+  onChangeStyles: () => void;
   canGo: boolean;
   onGo: () => void;
   caption: string;
@@ -32,7 +33,8 @@ export function SuggestSheet({
   selection,
   onToggleInterest,
   onToggleStyle,
-  onChangeSettings,
+  onChangeInterests,
+  onChangeStyles,
   canGo,
   onGo,
   caption,
@@ -52,7 +54,7 @@ export function SuggestSheet({
           chips={options.interests}
           selected={selection.interests}
           onToggle={onToggleInterest}
-          onChange={onChangeSettings}
+          onChange={onChangeInterests}
           first
         />
         <Group
@@ -60,7 +62,7 @@ export function SuggestSheet({
           chips={options.styles}
           selected={selection.styles}
           onToggle={onToggleStyle}
-          onChange={onChangeSettings}
+          onChange={onChangeStyles}
         />
         <View style={styles.action}>
           <PrimaryButton label={copy.go} onPress={onGo} disabled={!canGo} />
