@@ -4,10 +4,11 @@ import { UsersModule } from '../users/users.module';
 import { MeController } from './me.controller';
 import { MeService } from './me.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
+import { PreferencesUpdateService } from './preferences-update.service';
 
 @Module({
   imports: [UsersModule, QueueModule],
   controllers: [MeController],
-  providers: [MeService, OnboardingService],
+  providers: [MeService, OnboardingService, PreferencesUpdateService],
 })
 export class MeModule {}

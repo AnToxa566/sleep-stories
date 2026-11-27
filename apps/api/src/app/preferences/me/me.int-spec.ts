@@ -2,15 +2,18 @@ import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { ApiErrorResponseSchema, MeResponseSchema } from '@sleep-stories/contracts';
+import { ApiErrorResponseSchema, MeResponseSchema, QueueResponseSchema } from '@sleep-stories/contracts';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose';
 import type { CryptoKey } from 'jose';
 import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../../platform/auth/access-token/access-token-verifier';
 import { AppModule } from '../../app.module';
 import type { Env } from '../../platform/config/env';
 import { PrismaService } from '../../platform/prisma/prisma.service';
+import { JobQueue } from '../../providers/job-queue/job-queue';
+import { StorageService } from '../../providers/storage/storage.service';
 import { QueueTopUpService } from '../../queue/top-up/queue-top-up.service';
 import { assertLocalDatabase } from '../../../test-support/assert-local-database';
+import { QueueTestData } from '../../../test-support/queue-test-data';
 
 // Runs against the REAL local database with the real AppModule: the real guard,
 // validation pipe, services and Prisma. Only the key source of the access-token
@@ -29,6 +32,19 @@ let issuer: string;
 let signingKey: CryptoKey;
 const createdUserIds: string[] = [];
 let usersBefore: number;
+// Test voices, stories and queue items (with their own people) for the narrator tests.
+let data: QueueTestData;
+
+const topUpRun = jest.fn(async () => undefined);
+
+// A recording fake: the real queue (JOB_QUEUE=local) would run a job with the paid providers.
+class RecordingQueue extends JobQueue {
+  enqueued: string[] = [];
+  async enqueue(jobId: string): Promise<void> {
+    this.enqueued.push(jobId);
+  }
+}
+const jobQueue = new RecordingQueue();
 
 function newUserId(): string {
   const id = randomUUID();
@@ -79,6 +95,8 @@ async function call(
 const getMe = async (userId: string) => call('GET', '/me', { token: await tokenFor(userId) });
 const putOnboarding = async (userId: string, body: unknown) =>
   call('PUT', '/me/onboarding', { token: await tokenFor(userId), body });
+const putVoice = async (userId: string, body: unknown) =>
+  call('PUT', '/me/voice', { token: await tokenFor(userId), body });
 
 const BODY_A = { voiceSlug: 'anna', styles: ['history', 'facts'], interestSlugs: ['space', 'history', 'ocean'] };
 const BODY_B = { voiceSlug: 'lev', styles: ['fairy_tale'], interestSlugs: ['art', 'music'] };
@@ -126,7 +144,12 @@ beforeAll(async () => {
     // is a no-op and no job rows are created. The trigger itself is proved in
     // internal/generation-e2e.int-spec.ts.
     .overrideProvider(QueueTopUpService)
-    .useValue({ run: async () => undefined })
+    .useValue({ run: topUpRun })
+    // GET /queue signs the audio of ready items; the narrator tests read it.
+    .overrideProvider(StorageService)
+    .useValue({ signMany: async (paths: readonly string[]) => paths.map((_p, i) => `https://signed.example.test/opaque-${i}`) })
+    .overrideProvider(JobQueue)
+    .useValue(jobQueue)
     .compile();
   app = moduleRef.createNestApplication();
   app.setGlobalPrefix('api'); // main.ts does this; the test app has to as well
@@ -134,6 +157,7 @@ beforeAll(async () => {
   await app.listen(0);
   baseUrl = await app.getUrl();
   prisma = app.get(PrismaService);
+  data = new QueueTestData(prisma);
   usersBefore = await prisma.user.count();
 });
 
@@ -145,6 +169,7 @@ afterEach(async () => {
 
 afterAll(async () => {
   if (prisma) {
+    await data.cleanup();
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
     // Nothing of ours is left, and the table is back to its size before the suite.
     expect(await prisma.user.count({ where: { id: { in: createdUserIds } } })).toBe(0);
@@ -495,6 +520,146 @@ describe('isolation between users (security rule 2)', () => {
   });
 });
 
+describe('PUT /api/me/voice', () => {
+  // Everything a person's settings consist of, with ids and times, so a rewrite shows too.
+  async function storedSettings(userId: string) {
+    const [preference, interests, customInterests] = await Promise.all([
+      prisma.userPreference.findUniqueOrThrow({ where: { userId }, include: { voice: true } }),
+      prisma.userInterest.findMany({ where: { userId }, orderBy: { interestId: 'asc' } }),
+      prisma.userCustomInterest.findMany({ where: { userId }, orderBy: { id: 'asc' } }),
+    ]);
+    return {
+      voiceSlug: preference.voice.slug,
+      voiceId: preference.voiceId,
+      styles: preference.styles,
+      interests,
+      customInterests,
+    };
+  }
+  const withVoice = (voiceSlug: string) => ({
+    ...EXPECTED_A,
+    preferences: { ...EXPECTED_A.preferences, voiceSlug, customInterests: ['кофе', 'дождь'] },
+  });
+  const onboarded = async () => {
+    const userId = newUserId();
+    expect((await putOnboarding(userId, { ...BODY_A, customInterests: ['кофе', 'дождь'] })).status).toBe(200);
+    return userId;
+  };
+  const slugOf = async (voiceId: string) =>
+    (await prisma.voice.findUniqueOrThrow({ where: { id: voiceId }, select: { slug: true } })).slug;
+
+  it('changes the voice and nothing else, and GET /me reads it back', async () => {
+    const userId = await onboarded();
+    const before = await storedSettings(userId);
+
+    const result = await putVoice(userId, { voiceSlug: 'lev' });
+
+    expect(result.status).toBe(200);
+    expect(MeResponseSchema.parse(result.json)).toEqual(withVoice('lev'));
+    expect((await getMe(userId)).json).toEqual(withVoice('lev'));
+    const after = await storedSettings(userId);
+    const lev = await prisma.voice.findUniqueOrThrow({ where: { slug: 'lev' } });
+    expect(after).toEqual({ ...before, voiceSlug: 'lev', voiceId: lev.id });
+  });
+
+  it('accepts the voice the person already has', async () => {
+    const userId = await onboarded();
+    const before = await storedSettings(userId);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await putVoice(userId, { voiceSlug: 'anna' });
+      expect(result.status).toBe(200);
+      expect(result.json).toEqual(withVoice('anna'));
+    }
+    expect(await storedSettings(userId)).toEqual(before);
+  });
+
+  it('answers 401 without a token', async () => {
+    expectError(await call('PUT', '/me/voice', { body: { voiceSlug: 'lev' } }), 401, 'unauthorized');
+  });
+
+  it('refuses a body that names a user and changes neither person', async () => {
+    const a = await onboarded();
+    const b = await onboarded();
+    expectError(await putVoice(a, { voiceSlug: 'lev', userId: b }), 400, 'validation_failed');
+    expect((await getMe(a)).json).toEqual(withVoice('anna'));
+    expect((await getMe(b)).json).toEqual(withVoice('anna'));
+  });
+
+  it("changes only the caller's voice, whatever a header or the query says", async () => {
+    const a = await onboarded();
+    const b = await onboarded();
+    const before = await storedSettings(b);
+    const result = await call('PUT', `/me/voice?userId=${b}`, {
+      token: await tokenFor(a),
+      body: { voiceSlug: 'lev' },
+      headers: { 'x-user-id': b },
+    });
+    expect(result.status).toBe(200);
+    expect((await getMe(a)).json).toEqual(withVoice('lev'));
+    expect(await storedSettings(b)).toEqual(before);
+  });
+
+  it('answers 422 unknown_voice for an unknown voice and for a deactivated one', async () => {
+    const userId = await onboarded();
+    expect((await putVoice(userId, { voiceSlug: 'lev' })).status).toBe(200);
+    const before = await storedSettings(userId);
+
+    expectError(await putVoice(userId, { voiceSlug: 'no-such-voice' }), 422, 'unknown_voice');
+    await prisma.voice.update({ where: { slug: 'anna' }, data: { isActive: false } });
+    expectError(await putVoice(userId, { voiceSlug: 'anna' }), 422, 'unknown_voice');
+
+    expect(await storedSettings(userId)).toEqual(before);
+  });
+
+  it('answers 400 before onboarding and creates neither a users row nor preferences', async () => {
+    const stranger = newUserId();
+    expectError(await putVoice(stranger, { voiceSlug: 'lev' }), 400, 'validation_failed');
+    expect(await rowCounts(stranger)).toEqual({ users: 0, preferences: 0, interests: 0, customInterests: 0 });
+
+    const signedInOnly = newUserId();
+    await getMe(signedInOnly); // creates the users row
+    expectError(await putVoice(signedInOnly, { voiceSlug: 'lev' }), 400, 'validation_failed');
+    expect(await rowCounts(signedInOnly)).toEqual({ users: 1, preferences: 0, interests: 0, customInterests: 0 });
+  });
+
+  it('creates no job, leaves the queue and its jobs alone and never runs the top-up', async () => {
+    const oldVoiceId = await data.voice();
+    const newVoiceId = await data.voice();
+    const userId = await data.user({ voiceId: oldVoiceId });
+    const ready = await data.topic({ story: true, audioVoiceIds: [oldVoiceId] });
+    const plain = await data.topic();
+    await data.queueItem(userId, ready.topicId, 1);
+    await data.queueItem(userId, plain.topicId, 2);
+    // A job in flight is not touched by the change.
+    await data.job({ userId, kind: 'write_story', status: 'running' });
+    const rows = async () => ({
+      jobs: await prisma.generationJob.findMany({ where: { requestedByUserId: userId }, orderBy: { id: 'asc' } }),
+      allJobs: await prisma.generationJob.count(),
+      queue: await prisma.queueItem.findMany({ where: { userId }, orderBy: { position: 'asc' } }),
+    });
+    const states = async () => {
+      const result = await call('GET', '/queue', { token: await tokenFor(userId) });
+      expect(result.status).toBe(200);
+      return QueueResponseSchema.parse(result.json).items.map((item) => item.state);
+    };
+    const before = await rows();
+    topUpRun.mockClear();
+    jobQueue.enqueued = [];
+
+    expect(await states()).toEqual(['ready', 'not_ready']);
+    expect((await putVoice(userId, { voiceSlug: await slugOf(newVoiceId) })).status).toBe(200);
+    expect(await states()).toEqual(['not_ready', 'not_ready']);
+    expect(await rows()).toEqual(before);
+    // The audio of the old voice is still there, so switching back restores "ready".
+    expect((await putVoice(userId, { voiceSlug: await slugOf(oldVoiceId) })).status).toBe(200);
+    expect(await states()).toEqual(['ready', 'not_ready']);
+
+    expect(await rows()).toEqual(before);
+    expect(topUpRun).not.toHaveBeenCalled();
+    expect(jobQueue.enqueued).toEqual([]);
+  });
+});
+
 // Holds a row lock on the user in its own transaction until release() is called.
 async function holdUserLock(userId: string, mode: 'FOR UPDATE' | 'FOR NO KEY UPDATE') {
   let release!: () => void;
@@ -559,6 +724,24 @@ describe('the row lock that serialises submits by one user', () => {
       const result = await put;
       expect(result.status).toBe(200);
       expect(result.json).toEqual(EXPECTED_A);
+    } finally {
+      await lock.release().catch(() => undefined);
+    }
+  });
+
+  it('a voice change waits for the same lock', async () => {
+    const userId = newUserId();
+    await putOnboarding(userId, BODY_A);
+    // The update does not touch the foreign key columns, so it can only wait because the
+    // service takes its own FOR UPDATE lock.
+    const lock = await holdUserLock(userId, 'FOR NO KEY UPDATE');
+    try {
+      const put = putVoice(userId, { voiceSlug: 'lev' });
+      expect(await waits(put, 1000)).toBe(true);
+      expect((await getMe(userId)).json).toEqual(EXPECTED_A);
+      await lock.release();
+      expect((await put).status).toBe(200);
+      expect((await getMe(userId)).json).toMatchObject({ preferences: { voiceSlug: 'lev' } });
     } finally {
       await lock.release().catch(() => undefined);
     }

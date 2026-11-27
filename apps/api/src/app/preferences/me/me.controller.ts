@@ -3,9 +3,10 @@ import { MeResponseSchema } from '@sleep-stories/contracts';
 import type { MeResponse } from '@sleep-stories/contracts';
 import { ZodSerializerDto } from 'nestjs-zod';
 import { CurrentUserId } from '../../platform/auth/request/current-user-id.decorator';
-import { CompleteOnboardingDto } from './me.dto';
+import { ChangeVoiceDto, CompleteOnboardingDto } from './me.dto';
 import { MeService } from './me.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
+import { PreferencesUpdateService } from './preferences-update.service';
 
 // The user is identified only by the verified token (CurrentUserId). Nothing in
 // the body, query or headers can name or change the user.
@@ -15,6 +16,7 @@ export class MeController {
   constructor(
     private readonly me: MeService,
     private readonly onboarding: OnboardingService,
+    private readonly preferencesUpdate: PreferencesUpdateService,
   ) {}
 
   @Get()
@@ -31,5 +33,13 @@ export class MeController {
     @Body() body: CompleteOnboardingDto,
   ): Promise<MeResponse> {
     return this.onboarding.complete(userId, body);
+  }
+
+  // The narrator only. The onboarding PUT is not used for this: it rewrites every
+  // preference and runs the queue top-up.
+  @Put('voice')
+  @ZodSerializerDto(MeResponseSchema)
+  changeVoice(@CurrentUserId() userId: string, @Body() body: ChangeVoiceDto): Promise<MeResponse> {
+    return this.preferencesUpdate.changeVoice(userId, body);
   }
 }
