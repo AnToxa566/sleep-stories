@@ -1,18 +1,17 @@
 import type { MeResponse } from '@sleep-stories/contracts';
 import { QueryClient, QueryObserver, type QueryKey } from '@tanstack/react-query';
-import { queueQueryKey, topicsUserKey } from './query-keys';
-import {
-  applyVoiceSaved,
-  applyVoiceSaveFailed,
-  type VoiceChangeKeys,
-} from './voice-change-cache';
+import { queueQueryKey, topicsUserKey } from '../query-keys';
+import { applyPreferenceSaved, applyPreferenceSaveFailed } from './preference-change-cache';
 
-const keys: VoiceChangeKeys = {
+// The keys of a change of the narrator.
+const keys = {
   me: ['me', 'user-a'],
   queue: queueQueryKey('user-a'),
   topics: topicsUserKey('user-a'),
   voices: ['voices'],
 };
+const staleOnSaved: QueryKey[] = [keys.queue, keys.topics];
+const staleOnFailed: QueryKey[] = [keys.me, keys.queue, keys.topics, keys.voices];
 // Two cached lists under the topics prefix.
 const topicLists: QueryKey[] = [
   [...keys.topics, 'all'],
@@ -27,7 +26,7 @@ function me(voiceSlug: string): MeResponse {
   };
 }
 
-describe('voice change cache', () => {
+describe('preference change cache', () => {
   let queryClient: QueryClient;
   const invalidated = (key: QueryKey) => queryClient.getQueryState(key)?.isInvalidated;
 
@@ -46,7 +45,7 @@ describe('voice change cache', () => {
   });
 
   it('puts the answer into /me and marks the queue and every topic list stale', async () => {
-    await applyVoiceSaved(queryClient, keys, me('lev'));
+    await applyPreferenceSaved(queryClient, keys.me, me('lev'), staleOnSaved);
 
     expect(queryClient.getQueryData(keys.me)).toEqual(me('lev'));
     expect(invalidated(keys.me)).toBe(false);
@@ -65,7 +64,7 @@ describe('voice change cache', () => {
       })
       .catch(() => undefined);
 
-    await applyVoiceSaved(queryClient, keys, me('lev'));
+    await applyPreferenceSaved(queryClient, keys.me, me('lev'), staleOnSaved);
     answer(me('anna'));
     await oldRead;
 
@@ -83,14 +82,14 @@ describe('voice change cache', () => {
     expect(queryFn).not.toHaveBeenCalled();
 
     // The read never answers, so this resolves only if it is not awaited.
-    await applyVoiceSaved(queryClient, keys, me('lev'));
+    await applyPreferenceSaved(queryClient, keys.me, me('lev'), staleOnSaved);
 
     expect(queryFn).toHaveBeenCalledTimes(1);
     unsubscribe();
   });
 
-  it('marks everything that depends on the narrator stale after a failure', () => {
-    applyVoiceSaveFailed(queryClient, keys);
+  it('marks everything that depends on the preference stale after a failure', () => {
+    applyPreferenceSaveFailed(queryClient, staleOnFailed);
 
     for (const key of [keys.me, keys.queue, ...topicLists, keys.voices]) {
       expect(invalidated(key)).toBe(true);

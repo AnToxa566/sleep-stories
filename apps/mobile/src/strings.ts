@@ -64,6 +64,13 @@ export const strings = {
     loading: 'Загружаем голоса',
     loadFailed: 'Не удалось загрузить голоса. Проверьте интернет и попробуйте ещё раз',
   },
+  // The shared interest picker (ui/interests).
+  interestPicker: {
+    customPlaceholder: 'Своя тема',
+    addCustomLabel: 'Добавить тему',
+    loading: 'Загружаем темы',
+    loadFailed: 'Не удалось загрузить темы. Проверьте интернет и попробуйте ещё раз',
+  },
   onboarding: {
     stepOf: (current: number, total: number) => `Шаг ${current} из ${total}`,
     voice: {
@@ -74,11 +81,7 @@ export const strings = {
       title: 'Что вам интересно',
       subtitle: 'Выберите несколько тем и стилей',
       stylesHeading: 'Стили',
-      customPlaceholder: 'Своя тема',
-      addCustomLabel: 'Добавить тему',
       removeCustomLabel: 'Убрать тему',
-      loading: 'Загружаем темы',
-      loadFailed: 'Не удалось загрузить темы. Проверьте интернет и попробуйте ещё раз',
     },
     permissions: {
       title: 'Разрешения',
@@ -123,12 +126,15 @@ export const strings = {
     allowance: (left: number, limit: number): string => `${left} из ${limit}`,
     // A value that is still loading or failed to load.
     unknown: '—',
+    // The frame of the screens that edit one setting (settings/edit-screen).
+    editScreen: {
+      back: 'Настройки',
+      save: 'Сохранить изменения',
+    },
     // The screen «Рассказчик» (design frame 4c).
     narratorScreen: {
-      back: 'Настройки',
       title: 'Рассказчик',
       subtitle: 'Нажмите ▶, чтобы послушать голос',
-      save: 'Сохранить изменения',
     },
     // The toasts after a save (design frame 4f).
     saveToasts: {

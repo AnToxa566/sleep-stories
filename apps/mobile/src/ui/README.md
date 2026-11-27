@@ -20,6 +20,7 @@ Two choices that follow from this:
 | `buttons` | What a person taps to do something or to go somewhere: buttons and links |
 | `inputs` | What a person types into or chooses with: fields, chips, selectable rows |
 | `voice` | The voice list with its loading and error states, and the playback of the voice samples |
+| `interests` | The interest picker (catalogue and typed chips, the field for an own topic, loading and error states) and the pure rules of its entries |
 | `layout` | What a screen is built on: the screen frame, the background, the bottom sheet |
 | `status` | What shows a state and takes no taps: skeletons, marks |
 | `toast` | The toast: its store and its host |
@@ -34,4 +35,4 @@ Two choices that follow from this:
 
 ## Dependencies
 
-`ui` imports only from `ui`, `src/theme` and `src/strings.ts`, never from `features`, `app`, `api` or `config`. `no-restricted-imports` in `apps/mobile/eslint.config.mjs` enforces this for relative imports. The rule relies on every file lying exactly one folder deep (`ui/<folder>/<file>`).
+Of the app's own code, `ui` imports only from `ui`, `src/theme` and `src/strings.ts`, never from `features`, `app`, `api` or `config`. Like all of the app it may use the shapes of `@sleep-stories/contracts` (`interests` checks a typed topic with the schema the API uses); the data comes in through props. `no-restricted-imports` in `apps/mobile/eslint.config.mjs` enforces this for relative imports. The rule relies on every file lying exactly one folder deep (`ui/<folder>/<file>`).
