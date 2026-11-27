@@ -8,7 +8,7 @@ import { useQueue } from '../../../features/today/queue-data/queue-queries';
 // «Настройки». The route gathers the values, because the allowance comes with the queue, which
 // belongs to `today`, and features/settings may not import it. The queue is only read here.
 // After a sign-out the root layout's gate sends the person to the auth screens.
-// `navigate`, not `push`: a double tap on the narrator row opens one screen.
+// `navigate`, not `push`: a double tap on a row opens one screen.
 export default function Settings() {
   const router = useRouter();
   const me = useMe();
@@ -27,6 +27,7 @@ export default function Settings() {
     <SettingsScreen
       summary={summary}
       onOpenNarrator={() => router.navigate('/narrator')}
+      onOpenInterests={() => router.navigate('/edit-interests')}
       onSignOut={() => void signOutEverywhere()}
     />
   );

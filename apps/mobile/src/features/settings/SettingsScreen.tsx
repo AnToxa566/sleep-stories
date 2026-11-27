@@ -16,13 +16,14 @@ const TOAST_GAP = 16;
 type Props = {
   summary: SettingsSummary;
   onOpenNarrator: () => void;
+  onOpenInterests: () => void;
   onSignOut: () => void;
 };
 
-// «Настройки» (design frame 4b). It shows the person's choices. The narrator row opens its
-// screen and «Выйти» signs out; the other rows and «Удалить аккаунт» are drawn but take no
-// taps yet.
-export function SettingsScreen({ summary, onOpenNarrator, onSignOut }: Props) {
+// «Настройки» (design frame 4b). It shows the person's choices. The narrator and interests
+// rows open their screens and «Выйти» signs out; the other rows and «Удалить аккаунт» are drawn
+// but take no taps yet.
+export function SettingsScreen({ summary, onOpenNarrator, onOpenInterests, onSignOut }: Props) {
   const copy = strings.settings;
   // The other tabs stay mounted, so only the screen in front draws the toast.
   const focused = useIsFocused();
@@ -41,7 +42,12 @@ export function SettingsScreen({ summary, onOpenNarrator, onSignOut }: Props) {
             />
           </SettingsSection>
           <SettingsSection title={copy.topicsSection}>
-            <SettingsRow label={copy.interests} value={summary.interests} accessory="chevron" />
+            <SettingsRow
+              label={copy.interests}
+              value={summary.interests}
+              accessory="chevron"
+              onPress={onOpenInterests}
+            />
             <SettingsRow label={copy.styles} value={summary.styles} accessory="chevron" />
           </SettingsSection>
           <SettingsSection title={copy.accountSection}>

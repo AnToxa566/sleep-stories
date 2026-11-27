@@ -136,12 +136,18 @@ export const strings = {
       title: 'Рассказчик',
       subtitle: 'Нажмите ▶, чтобы послушать голос',
     },
+    // The screen «Интересы» (design frame 4d).
+    interestsScreen: {
+      title: 'Интересы',
+      subtitle: 'Из этих тем собирается очередь на вечер',
+    },
     // The toasts after a save (design frame 4f).
     saveToasts: {
       doneLabel: 'Готово',
       // The design names the narrator («… изменён на Михаила»). The owner chose the plain
       // phrase: the names come from the server, and the app does not decline them.
       narratorSaved: 'Рассказчик изменён',
+      interestsSaved: 'Интересы обновлены',
       failed: 'Не получилось сохранить изменения',
     },
   },
