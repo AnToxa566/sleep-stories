@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useMe, useVoices } from '../../../api/queries';
 import { signOutEverywhere, useSessionStore } from '../../../features/auth/session/session-store';
 import { SettingsScreen } from '../../../features/settings/SettingsScreen';
@@ -7,7 +8,9 @@ import { useQueue } from '../../../features/today/queue-data/queue-queries';
 // «Настройки». The route gathers the values, because the allowance comes with the queue, which
 // belongs to `today`, and features/settings may not import it. The queue is only read here.
 // After a sign-out the root layout's gate sends the person to the auth screens.
+// `navigate`, not `push`: a double tap on the narrator row opens one screen.
 export default function Settings() {
+  const router = useRouter();
   const me = useMe();
   const voices = useVoices();
   const queue = useQueue();
@@ -20,5 +23,11 @@ export default function Settings() {
     generations: queue.data?.generations,
   });
 
-  return <SettingsScreen summary={summary} onSignOut={() => void signOutEverywhere()} />;
+  return (
+    <SettingsScreen
+      summary={summary}
+      onOpenNarrator={() => router.navigate('/narrator')}
+      onSignOut={() => void signOutEverywhere()}
+    />
+  );
 }

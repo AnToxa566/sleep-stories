@@ -38,7 +38,7 @@ const PATHS = {
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   // «i» next to the allowance on «Настройки» (frame 4b).
   info: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 11v5.5M12 7.6v.1',
-  // The «!» of an error snackbar (frame 2e·6).
+  // The «!» of an error snackbar (frames 2e·6 and 4f).
   alert: 'M12 7v6M12 16.5v.5',
 } as const;
 

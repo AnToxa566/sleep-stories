@@ -18,6 +18,8 @@ const ICONS: Record<Exclude<ToastKind, 'plain'>, { icon: IconName; color: string
     suggestStarted: { icon: 'circleDashed', color: colors.accent, fill: colors.toastIconAccent },
     suggestDone: { icon: 'check', color: colors.accent, fill: colors.toastIconAccent },
     suggestFailed: { icon: 'alert', color: colors.accent, fill: colors.toastIconAccent },
+    success: { icon: 'check', color: colors.accent, fill: colors.toastIconAccent },
+    alert: { icon: 'alert', color: colors.accent, fill: colors.toastIconAccent },
   };
 
 // Mount once, as the last child of a full-screen container (the screen root). Shows the

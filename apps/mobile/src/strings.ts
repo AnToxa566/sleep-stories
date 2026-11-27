@@ -123,6 +123,21 @@ export const strings = {
     allowance: (left: number, limit: number): string => `${left} из ${limit}`,
     // A value that is still loading or failed to load.
     unknown: '—',
+    // The screen «Рассказчик» (design frame 4c).
+    narratorScreen: {
+      back: 'Настройки',
+      title: 'Рассказчик',
+      subtitle: 'Нажмите ▶, чтобы послушать голос',
+      save: 'Сохранить изменения',
+    },
+    // The toasts after a save (design frame 4f).
+    saveToasts: {
+      doneLabel: 'Готово',
+      // The design names the narrator («… изменён на Михаила»). The owner chose the plain
+      // phrase: the names come from the server, and the app does not decline them.
+      narratorSaved: 'Рассказчик изменён',
+      failed: 'Не получилось сохранить изменения',
+    },
   },
 
   // The screen «Сегодня» (design frames 2a, 2a·1 to 2a·14). Number-dependent phrases are

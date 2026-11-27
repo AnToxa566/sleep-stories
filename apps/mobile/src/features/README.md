@@ -10,7 +10,7 @@ The parts of the app, one folder each. A route in `src/app` puts them on a scree
 | `today` | «Сегодня»: the night queue, the main button, its progress and sheets |
 | `topics` | «Темы» and the topic picker of «Замена»: the list, its filters, topics on request |
 | `player` | The night player |
-| `settings` | «Настройки»: the rows with the person's choices and account, sign-out |
+| `settings` | «Настройки»: the rows with the person's choices and account, sign-out; the screen «Рассказчик» (`narrator/`) |
 
 ## Inside a feature
 

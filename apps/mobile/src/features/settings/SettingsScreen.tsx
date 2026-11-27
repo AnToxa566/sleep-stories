@@ -1,22 +1,31 @@
+import { useIsFocused } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { strings } from '../../strings';
 import { colors, spacing, typeSizes } from '../../theme/tokens';
 import { NightBackground } from '../../ui/layout/NightBackground';
+import { ToastHost } from '../../ui/toast/ToastHost';
 import { Text } from '../../ui/typography/typography';
 import { DangerZone } from './danger-zone/DangerZone';
 import { SettingsRow, SettingsSection } from './rows/SettingsRow';
 import type { SettingsSummary } from './summary/settings-summary';
 
+// The space between a toast and the bottom bar, as on the other tabs.
+const TOAST_GAP = 16;
+
 type Props = {
   summary: SettingsSummary;
+  onOpenNarrator: () => void;
   onSignOut: () => void;
 };
 
-// «Настройки» (design frame 4b). It shows the person's choices; signing out is the only
-// thing it does. The other rows and «Удалить аккаунт» are drawn but take no taps yet.
-export function SettingsScreen({ summary, onSignOut }: Props) {
+// «Настройки» (design frame 4b). It shows the person's choices. The narrator row opens its
+// screen and «Выйти» signs out; the other rows and «Удалить аккаунт» are drawn but take no
+// taps yet.
+export function SettingsScreen({ summary, onOpenNarrator, onSignOut }: Props) {
   const copy = strings.settings;
+  // The other tabs stay mounted, so only the screen in front draws the toast.
+  const focused = useIsFocused();
   return (
     <View style={styles.root}>
       <NightBackground />
@@ -24,7 +33,12 @@ export function SettingsScreen({ summary, onSignOut }: Props) {
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.title}>{copy.title}</Text>
           <SettingsSection title={copy.voiceSection}>
-            <SettingsRow label={copy.narrator} value={summary.voiceName} accessory="chevron" />
+            <SettingsRow
+              label={copy.narrator}
+              value={summary.voiceName}
+              accessory="chevron"
+              onPress={onOpenNarrator}
+            />
           </SettingsSection>
           <SettingsSection title={copy.topicsSection}>
             <SettingsRow label={copy.interests} value={summary.interests} accessory="chevron" />
@@ -38,6 +52,7 @@ export function SettingsScreen({ summary, onSignOut }: Props) {
           <DangerZone />
         </ScrollView>
       </SafeAreaView>
+      {focused ? <ToastHost bottomOffset={TOAST_GAP} /> : null}
     </View>
   );
 }

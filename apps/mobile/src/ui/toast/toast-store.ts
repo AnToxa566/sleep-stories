@@ -4,7 +4,8 @@ import { create } from 'zustand';
 // so it is unit-tested; ToastHost renders it and owns the auto-dismiss timer.
 // Which icon the toast wears, as in the designs: «Создаётся» (dashed circle), «Заменили на»
 // (refresh) and «Убрали» (cross); the topic-suggestion snackbars of «Темы» (frames 2e·4 to
-// 2e·6) wear an accent dashed circle, a check and a «!». `plain` has no icon.
+// 2e·6) wear an accent dashed circle, a check and a «!». The save toasts of the settings
+// (frame 4f) are the general `success` (check) and `alert` («!»). `plain` has no icon.
 export type ToastKind =
   | 'create'
   | 'replace'
@@ -12,6 +13,8 @@ export type ToastKind =
   | 'suggestStarted'
   | 'suggestDone'
   | 'suggestFailed'
+  | 'success'
+  | 'alert'
   | 'plain';
 
 export type ToastInput = {

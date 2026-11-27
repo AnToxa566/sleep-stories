@@ -46,7 +46,8 @@ export function SettingsRow({ label, value, accessory, onPress }: RowProps) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      // The label replaces what is read inside the row, so it carries the value too.
+      accessibilityLabel={value === undefined ? label : `${label}, ${value}`}
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
