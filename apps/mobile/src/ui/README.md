@@ -21,6 +21,7 @@ Two choices that follow from this:
 | `inputs` | What a person types into or chooses with: fields, chips, selectable rows |
 | `voice` | The voice list with its loading and error states, and the playback of the voice samples |
 | `interests` | The interest picker (catalogue and typed chips, the field for an own topic, loading and error states) and the pure rules of its entries |
+| `story-styles` | The story styles as rows with checkboxes, for onboarding and «Настройки» |
 | `layout` | What a screen is built on: the screen frame, the background, the bottom sheet |
 | `status` | What shows a state and takes no taps: skeletons, marks |
 | `toast` | The toast: its store and its host |

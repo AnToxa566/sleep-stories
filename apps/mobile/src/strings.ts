@@ -141,6 +141,12 @@ export const strings = {
       title: 'Интересы',
       subtitle: 'Из этих тем собирается очередь на вечер',
     },
+    // The screen «Стили» (design frame 4e).
+    stylesScreen: {
+      title: 'Стили',
+      subtitle: 'Как будут рассказаны истории',
+      atLeastOne: 'Нужен хотя бы один стиль.',
+    },
     // The toasts after a save (design frame 4f).
     saveToasts: {
       doneLabel: 'Готово',
@@ -148,6 +154,7 @@ export const strings = {
       // phrase: the names come from the server, and the app does not decline them.
       narratorSaved: 'Рассказчик изменён',
       interestsSaved: 'Интересы обновлены',
+      stylesSaved: 'Стили обновлены',
       failed: 'Не получилось сохранить изменения',
     },
   },

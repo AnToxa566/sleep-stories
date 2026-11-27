@@ -55,12 +55,12 @@ Dependencies go one way and lint enforces them; the table of who may import whom
 
 | Folder | Responsible for |
 |---|---|
-| `app` | Expo Router routes (tabs «Сегодня», «Темы», «Настройки»; stack «Замена», «Рассказчик», «Интересы», player) |
+| `app` | Expo Router routes (tabs «Сегодня», «Темы», «Настройки»; stack «Замена», «Рассказчик», «Интересы», «Стили», player) |
 | `features/auth`, `features/gate` | Encrypted persistent session; where a person is sent after launch (§8) |
 | `features/onboarding` | Three steps: voice, interests, styles |
 | `features/today`, `features/topics` | The queue screen and the topic lists, filters, menus |
 | `features/player` | The night player: modes, listen reports, the lock-screen control (§7 "The stories player") |
-| `features/settings` | «Настройки»: shows the person's choices, email and allowance; only «Выйти» and the changes of the narrator («Рассказчик», `PUT /api/me/voice`) and the interests («Интересы», `PUT /api/me/interests`) work (§7) |
+| `features/settings` | «Настройки»: shows the person's choices, email and allowance; only «Выйти» and the changes of the narrator («Рассказчик», `PUT /api/me/voice`), the interests («Интересы», `PUT /api/me/interests`) and the styles («Стили», `PUT /api/me/styles`) work (§7) |
 | `api`, `config` | The API client and public config (Supabase URL and publishable key only) |
 | `ui`, `theme`, `strings.ts` | Dark-only look, no pure white; all Russian copy in one module (A-8, §9) |
 | `format` | Pure formatting of numbers for Russian copy |
@@ -102,4 +102,4 @@ Lint keeps two directions: `ui` knows no feature ([ui/README.md](apps/mobile/src
 
 ## 7. Not decided and not built
 
-Open problems are the owner's decisions; stop and ask (A-9, §11). Deferred and rejected ideas are in §10 (series of stories, mood filters, Sentry, Redis, SQLite, microphone). Not built yet: CI, password reset, email confirmation, Google sign-in, changing styles, account deletion, ratings, a history of listens, the typed-topics field. The production deployment (`infra/`: Cloud Run, the Cloud Tasks queue, the Scheduler job) exists since 2026-11-07, owner-reported (ARCHITECTURE.md section 12). The Cloud Tasks adapter in `apps/api` is built.
+Open problems are the owner's decisions; stop and ask (A-9, §11). Deferred and rejected ideas are in §10 (series of stories, mood filters, Sentry, Redis, SQLite, microphone). Not built yet: CI, password reset, email confirmation, Google sign-in, account deletion, ratings, a history of listens, the typed-topics field. The production deployment (`infra/`: Cloud Run, the Cloud Tasks queue, the Scheduler job) exists since 2026-11-07, owner-reported (ARCHITECTURE.md section 12). The Cloud Tasks adapter in `apps/api` is built.

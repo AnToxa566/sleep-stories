@@ -2,8 +2,8 @@ import { Stack } from 'expo-router';
 import { stackScreenOptions } from '../../ui/navigation/stack-options';
 
 // The main area: the tabs («Сегодня», «Темы») at the bottom of the stack, with the screens
-// that sit above them and have no bar («Замена», «Рассказчик», «Интересы», the player) pushed
-// on top. A cold start of a deep link to «Замена» still has the tabs below it.
+// that sit above them and have no bar («Замена», «Рассказчик», «Интересы», «Стили», the
+// player) pushed on top. A cold start of a deep link to «Замена» still has the tabs below it.
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
 export default function GroupLayout() {
@@ -13,6 +13,7 @@ export default function GroupLayout() {
       <Stack.Screen name="replace" />
       <Stack.Screen name="narrator" />
       <Stack.Screen name="edit-interests" />
+      <Stack.Screen name="edit-styles" />
       {/* The player: no swipe-back, so a stray swipe cannot end the night. Leaving is the arrow
           or the back key, both of which stop the audio and report the listen. */}
       <Stack.Screen name="player" options={{ gestureEnabled: false }} />

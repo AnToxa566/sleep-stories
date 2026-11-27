@@ -1,6 +1,5 @@
-import { StoryStyleSchema } from '@sleep-stories/contracts';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from '../../ui/typography/typography';
 import { useInterests } from '../../api/queries';
 import { OnboardingHeader } from '../../features/onboarding/steps/OnboardingHeader';
@@ -8,13 +7,13 @@ import {
   isInterestsStepValid,
   useOnboardingStore,
 } from '../../features/onboarding/onboarding-store';
-import { strings, styleCopy } from '../../strings';
+import { strings } from '../../strings';
 import { colors, spacing, typeSizes } from '../../theme/tokens';
-import { Icon } from '../../ui/icons/icons';
 import { resolveInterestEntry } from '../../ui/interests/catalogue-match';
 import { InterestPicker } from '../../ui/interests/InterestPicker';
 import { PrimaryButton } from '../../ui/buttons/PrimaryButton';
 import { Screen } from '../../ui/layout/Screen';
+import { StyleList } from '../../ui/story-styles/StyleList';
 import { StepHeading } from '../../features/onboarding/steps/StepHeading';
 
 // Step 2 of 3: interest chips (from GET /interests), own topics and story styles. "Дальше"
@@ -65,29 +64,7 @@ export default function InterestsStep() {
 
       <Text style={styles.sectionLabel}>{strings.onboarding.interests.stylesHeading}</Text>
       <View style={styles.styleList}>
-        {StoryStyleSchema.options.map((style) => {
-          const selected = selectedStyles.includes(style);
-          return (
-            <Pressable
-              key={style}
-              accessibilityRole="checkbox"
-              accessibilityLabel={`${styleCopy[style].label}, ${styleCopy[style].description}`}
-              accessibilityState={{ checked: selected }}
-              onPress={() => toggleStyle(style)}
-              style={styles.styleRow}
-            >
-              <View style={styles.styleTexts}>
-                <Text style={styles.styleLabel}>
-                  {styleCopy[style].label}
-                </Text>
-                <Text style={styles.styleDescription}>{styleCopy[style].description}</Text>
-              </View>
-              <View style={[styles.box, selected && styles.boxOn]}>
-                {selected ? <Icon name="check" size={14} color={colors.accent} /> : null}
-              </View>
-            </Pressable>
-          );
-        })}
+        <StyleList selected={selectedStyles} onToggle={toggleStyle} />
       </View>
 
       <View style={styles.bottom}>
@@ -111,26 +88,5 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxl - 4,
   },
   styleList: { marginTop: 6 },
-  styleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    minHeight: 56,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.hairline,
-  },
-  styleTexts: { flex: 1, flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 10 },
-  styleLabel: { color: colors.text, fontSize: typeSizes.input, fontWeight: '500' },
-  styleDescription: { color: colors.muted, fontSize: typeSizes.small },
-  box: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.radioBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  boxOn: { borderColor: colors.accent },
   bottom: { marginTop: 'auto', paddingTop: spacing.xxl },
 });

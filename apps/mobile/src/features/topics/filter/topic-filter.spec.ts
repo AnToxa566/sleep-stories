@@ -6,6 +6,7 @@ import {
   styleChips,
   filterFromParams,
   heardChipLabel,
+  keepOwnStyle,
   readyChipLabel,
   readyParamRequested,
   topicsPath,
@@ -122,5 +123,34 @@ describe('topic filter', () => {
     expect(readyParamRequested('')).toBe(false);
     expect(readyParamRequested('0')).toBe(false);
     expect(readyParamRequested([])).toBe(false);
+  });
+});
+
+describe('keepOwnStyle', () => {
+  const filtered = { style: 'history', ready: 'ready', heard: 'new' } as const;
+
+  it('keeps the same object while the styles are not loaded', () => {
+    expect(keepOwnStyle(filtered, undefined)).toBe(filtered);
+  });
+
+  it('keeps the same object while no style is chosen', () => {
+    expect(keepOwnStyle(DEFAULT_FILTER, ['facts'])).toBe(DEFAULT_FILTER);
+  });
+
+  it('keeps the same object while the chosen style is still the person\'s', () => {
+    expect(keepOwnStyle(filtered, ['facts', 'history'])).toBe(filtered);
+  });
+
+  it('goes back to «Все» when the chosen style is removed, keeping the other filters', () => {
+    expect(keepOwnStyle(filtered, ['facts'])).toEqual({
+      style: null,
+      ready: 'ready',
+      heard: 'new',
+    });
+  });
+
+  it('settles after one change', () => {
+    const next = keepOwnStyle(filtered, ['facts']);
+    expect(keepOwnStyle(next, ['facts'])).toBe(next);
   });
 });

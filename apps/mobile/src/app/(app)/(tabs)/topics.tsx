@@ -27,6 +27,7 @@ import { TopicQueueRow } from '../../../features/topics/topic-list/TopicRow';
 import {
   READY_PARAM,
   filterFromParams,
+  keepOwnStyle,
   readyParamRequested,
   withReady,
   type TopicFilter,
@@ -92,6 +93,13 @@ export default function Topics() {
   const [selection, setSelection] = useState<SheetSelection>(NOTHING);
 
   const preferences = useMe().data?.preferences ?? null;
+  // A style removed in «Настройки» stops filtering the list. The effect sets a filter only; the
+  // list is then read for it, which creates no job and costs nothing (AGENTS.md architecture
+  // rule 10). An unchanged filter is the same object, so it cannot loop.
+  const personStyles = preferences?.styles;
+  useEffect(() => {
+    setFilter((current) => keepOwnStyle(current, personStyles));
+  }, [personStyles]);
   const catalogue = useInterests().data?.interests;
   const options = useMemo(
     () =>
@@ -172,7 +180,7 @@ export default function Topics() {
     (key: string) => setSelection((current) => ({ ...current, styles: toggle(current.styles, key) })),
     [],
   );
-  // «Изменить»: the settings screen is not built yet, so the tab «Настройки» for now.
+  // «Изменить» opens the tab «Настройки», from which the screens «Интересы» and «Стили» open.
   const openSettings = useCallback(() => {
     setSheetOpen(false);
     router.navigate('/settings');

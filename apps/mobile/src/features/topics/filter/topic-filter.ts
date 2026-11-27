@@ -45,6 +45,19 @@ export function withStyle(filter: TopicFilter, style: StoryStyle | null): TopicF
   return { ...filter, style };
 }
 
+// The person can remove a style in «Настройки» while «Темы», a tab that stays mounted, still
+// filters by it: its chip is gone, so no chip would be selected over an empty list. Then the
+// style goes back to «Все» and the other two filters stay. While the styles are not loaded
+// (`undefined`) nothing changes. An unchanged filter is the same object, so a state setter that
+// gets it does nothing.
+export function keepOwnStyle(
+  filter: TopicFilter,
+  styles: readonly StoryStyle[] | undefined,
+): TopicFilter {
+  if (styles === undefined || filter.style === null || styles.includes(filter.style)) return filter;
+  return withStyle(filter, null);
+}
+
 export function withReady(filter: TopicFilter, ready: ReadyFilter): TopicFilter {
   return { ...filter, ready };
 }

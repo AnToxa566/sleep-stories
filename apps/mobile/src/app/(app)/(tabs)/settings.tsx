@@ -28,6 +28,7 @@ export default function Settings() {
       summary={summary}
       onOpenNarrator={() => router.navigate('/narrator')}
       onOpenInterests={() => router.navigate('/edit-interests')}
+      onOpenStyles={() => router.navigate('/edit-styles')}
       onSignOut={() => void signOutEverywhere()}
     />
   );
