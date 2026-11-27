@@ -310,16 +310,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  more: { height: 44, marginRight: -8, paddingHorizontal: 8, justifyContent: 'center' },
+  // The negative vertical margin keeps the 44 button from making the row taller than the
+  // title: a taller row centres the title and pushes it below the one on «Настройки».
+  more: {
+    height: 44,
+    marginVertical: -4,
+    marginRight: -8,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+  },
   moreLabel: { color: colors.accent, fontSize: typeSizes.body, fontWeight: '500' },
   inactive: { opacity: 0.4 },
   pressed: { opacity: 0.7 },
-  title: {
-    color: colors.text,
-    fontSize: typeSizes.display,
-    lineHeight: 36,
-    letterSpacing: -0.3,
-  },
+  title: { color: colors.text, fontSize: typeSizes.title, fontWeight: '400' },
   filters: { marginTop: spacing.md },
   rule: {
     height: 1,

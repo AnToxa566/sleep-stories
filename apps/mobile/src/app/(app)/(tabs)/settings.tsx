@@ -1,28 +1,24 @@
-import { StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { signOutEverywhere } from '../../../features/auth/session/session-store';
-import { strings } from '../../../strings';
-import { spacing } from '../../../theme/tokens';
-import { NightBackground } from '../../../ui/layout/NightBackground';
-import { SecondaryButton } from '../../../ui/buttons/SecondaryButton';
+import { useMe, useVoices } from '../../../api/queries';
+import { signOutEverywhere, useSessionStore } from '../../../features/auth/session/session-store';
+import { SettingsScreen } from '../../../features/settings/SettingsScreen';
+import { settingsSummary } from '../../../features/settings/summary/settings-summary';
+import { useQueue } from '../../../features/today/queue-data/queue-queries';
 
-// Temporary «Настройки»: one sign-out button, for testing on a phone. The root layout's gate
-// sends the signed-out person to the auth screens. The real settings screen replaces this.
+// «Настройки». The route gathers the values, because the allowance comes with the queue, which
+// belongs to `today`, and features/settings may not import it. The queue is only read here.
+// After a sign-out the root layout's gate sends the person to the auth screens.
 export default function Settings() {
-  return (
-    <View style={styles.root}>
-      <NightBackground />
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <View style={styles.body}>
-          <SecondaryButton label={strings.settings.logout} onPress={() => void signOutEverywhere()} />
-        </View>
-      </SafeAreaView>
-    </View>
-  );
-}
+  const me = useMe();
+  const voices = useVoices();
+  const queue = useQueue();
+  const email = useSessionStore((state) => state.email);
 
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  safe: { flex: 1 },
-  body: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.xxl },
-});
+  const summary = settingsSummary({
+    preferences: me.data?.preferences ?? null,
+    voices: voices.data?.voices,
+    email,
+    generations: queue.data?.generations,
+  });
+
+  return <SettingsScreen summary={summary} onSignOut={() => void signOutEverywhere()} />;
+}

@@ -9,7 +9,8 @@ const allowedFeatures = {
     onboarding: ["auth"],
     today: ["auth", "topics"],
     topics: ["auth"],
-    player: ["auth"]
+    player: ["auth"],
+    settings: ["auth"]
 };
 const features = Object.keys(allowedFeatures);
 

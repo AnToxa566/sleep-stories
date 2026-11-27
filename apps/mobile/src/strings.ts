@@ -100,9 +100,26 @@ export const strings = {
     settings: 'Настройки',
   },
 
-  // Temporary «Настройки» screen: a sign-out button for testing on a phone.
+  // The screen «Настройки» (design frame 4b).
   settings: {
+    title: 'Настройки',
+    voiceSection: 'Голос',
+    topicsSection: 'Темы и стили',
+    accountSection: 'Аккаунт',
+    narrator: 'Рассказчик',
+    interests: 'Интересы',
+    styles: 'Стили',
+    email: 'Почта',
+    generations: 'Генерации',
     logout: 'Выйти',
+    dangerZone: 'Опасная зона',
+    // Not the design's text, which also names a library the app does not have
+    // (ARCHITECTURE.md section 7).
+    dangerText: 'Аккаунт, история и все настройки будут удалены без возможности восстановления.',
+    deleteAccount: 'Удалить аккаунт',
+    allowance: (left: number, limit: number): string => `${left} из ${limit}`,
+    // A value that is still loading or failed to load.
+    unknown: '—',
   },
 
   // The screen «Сегодня» (design frames 2a, 2a·1 to 2a·14). Number-dependent phrases are

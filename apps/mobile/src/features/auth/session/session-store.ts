@@ -7,16 +7,26 @@ type SessionState = {
   // The id of the signed-in user, used only as a cache key. Never sent to the API: the API
   // reads the user from the token.
   userId: string | null;
+  // The address of the signed-in user, from the session on the device. For display only
+  // (the «Настройки» screen): it is held in memory and never sent anywhere or logged.
+  email: string | null;
 };
 
 export const useSessionStore = create<SessionState>(() => ({
   status: 'restoring',
   userId: null,
+  email: null,
 }));
 
 function apply(next: SessionState): void {
   const current = useSessionStore.getState();
-  if (current.status === next.status && current.userId === next.userId) return;
+  if (
+    current.status === next.status &&
+    current.userId === next.userId &&
+    current.email === next.email
+  ) {
+    return;
+  }
   useSessionStore.setState(next);
   // Whoever was signed in is gone or replaced: clear their data on every path (logout, a 401,
   // a revoked refresh token, a wiped session), not only the logout button. The cleanups call
@@ -30,8 +40,8 @@ function apply(next: SessionState): void {
 supabase.auth.onAuthStateChange((_event, session) => {
   apply(
     session
-      ? { status: 'signedIn', userId: session.user.id }
-      : { status: 'signedOut', userId: null },
+      ? { status: 'signedIn', userId: session.user.id, email: session.user.email ?? null }
+      : { status: 'signedOut', userId: null, email: null },
   );
 });
 
@@ -67,5 +77,5 @@ export async function signOutEverywhere(): Promise<void> {
   }
   // Belt and braces: whatever happened above, no session may stay on the device.
   await authStorage.removeItem(AUTH_STORAGE_KEY).catch(() => undefined);
-  apply({ status: 'signedOut', userId: null });
+  apply({ status: 'signedOut', userId: null, email: null });
 }

@@ -19,6 +19,13 @@ export const colors = {
   onAccent: '#1B0D1E',
   // Not in the designs, which show no errors: a soft rose, readable on the dark base.
   danger: '#FF8FA3',
+  // The danger zone of «Настройки» (design frame 4b): its label, the button text, the card
+  // border, and the border and tint of the button.
+  dangerZone: '#FF6B6B',
+  dangerZoneText: '#FF8A8A',
+  dangerZoneOutline: 'rgba(255,107,107,0.35)',
+  dangerZoneButtonOutline: 'rgba(255,107,107,0.6)',
+  dangerZoneButtonTint: 'rgba(255,107,107,0.08)',
   // Hairlines and outlines (lavender at low opacity).
   hairline: 'rgba(233,227,250,0.12)',
   outline: 'rgba(233,227,250,0.22)',
