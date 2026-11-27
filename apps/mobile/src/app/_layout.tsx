@@ -4,7 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { queryClient } from '../api/query-client';
-import { useMe } from '../api/queries';
+import { useMe } from '../api/me/use-me';
 import { registerSignOutCleanup, useSessionStore } from '../features/auth/session/session-store';
 import { resolveGate, toMeState } from '../features/gate/resolve-gate';
 import { useOnboardingStore } from '../features/onboarding/onboarding-store';

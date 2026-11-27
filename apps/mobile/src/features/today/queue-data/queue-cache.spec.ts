@@ -1,5 +1,5 @@
 import type { QueueItem, QueueResponse } from '@sleep-stories/contracts';
-import { ApiContractError, ApiError, ApiUnavailableError } from '../../../api/api-client';
+import { ApiContractError, ApiError, ApiUnavailableError } from '../../../api/http/api-client';
 import {
   QUEUE_POLL_MS,
   isNothingToCollect,

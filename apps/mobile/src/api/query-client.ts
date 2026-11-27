@@ -1,6 +1,6 @@
 import { QueryClient, focusManager } from '@tanstack/react-query';
 import { AppState } from 'react-native';
-import { ApiContractError, ApiError } from './api-client';
+import { ApiContractError, ApiError } from './http/api-client';
 
 // Refetch stale queries when the app returns to the foreground. React Native has no window
 // focus event, so AppState stands in. onlineManager is left at its default (always online):

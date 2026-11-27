@@ -1,6 +1,6 @@
 import type { QueueItem, TopicsResponse } from '@sleep-stories/contracts';
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
-import { ApiError } from '../../../api/api-client';
+import { ApiError } from '../../../api/http/api-client';
 import { topicsUserKey } from '../../../api/query-keys';
 import { strings } from '../../../strings';
 import { toastForError } from '../../../api/error-toast';

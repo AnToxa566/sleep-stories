@@ -61,7 +61,7 @@ Dependencies go one way and lint enforces them; the table of who may import whom
 | `features/today`, `features/topics` | The queue screen and the topic lists, filters, menus |
 | `features/player` | The night player: modes, listen reports, the lock-screen control (§7 "The stories player") |
 | `features/settings` | «Настройки»: shows the person's choices, email and allowance; only «Выйти» and the changes of the narrator («Рассказчик», `PUT /api/me/voice`), the interests («Интересы», `PUT /api/me/interests`) and the styles («Стили», `PUT /api/me/styles`) work (§7) |
-| `api`, `config` | The API client and public config (Supabase URL and publishable key only) |
+| `api`, `config` | The API client, the reads and cache keys several features share (what one feature alone uses lives in it), and public config (Supabase URL and publishable key only) |
 | `ui`, `theme`, `strings.ts` | Dark-only look, no pure white; all Russian copy in one module (A-8, §9) |
 | `format` | Pure formatting of numbers for Russian copy |
 

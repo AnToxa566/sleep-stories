@@ -14,7 +14,7 @@ import {
   type QueryKey,
 } from '@tanstack/react-query';
 import { z } from 'zod';
-import { apiFetch } from '../../../api/api-fetch';
+import { apiFetch } from '../../../api/http/api-fetch';
 import { useSessionStore } from '../../auth/session/session-store';
 import { topicsUserKey } from '../../../api/query-keys';
 import {

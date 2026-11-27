@@ -7,8 +7,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError } from '../../../api/api-client';
-import { apiFetch } from '../../../api/api-fetch';
+import { ApiError } from '../../../api/http/api-client';
+import { apiFetch } from '../../../api/http/api-fetch';
 import { strings } from '../../../strings';
 import { useSessionStore } from '../../auth/session/session-store';
 import { finishedSuggestion, isSuggesting } from './suggest-sheet';

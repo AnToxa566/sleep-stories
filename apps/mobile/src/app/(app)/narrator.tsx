@@ -1,13 +1,12 @@
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
+import { useVoices, voicesQueryKey } from '../../api/catalogue/use-voices';
+import { useMe } from '../../api/me/use-me';
 import {
   changeVoiceMutationKey,
   useChangeVoice,
-  useMe,
-  useVoices,
-  voicesQueryKey,
-} from '../../api/queries';
+} from '../../features/settings/narrator/use-change-voice';
 import { NarratorScreen } from '../../features/settings/narrator/NarratorScreen';
 import { narratorSelection } from '../../features/settings/narrator/narrator-selection';
 import { strings } from '../../strings';

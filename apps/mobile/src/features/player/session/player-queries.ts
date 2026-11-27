@@ -6,7 +6,7 @@ import {
   type ContinueResponse,
 } from '@sleep-stories/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '../../../api/api-fetch';
+import { apiFetch } from '../../../api/http/api-fetch';
 import { useSessionStore } from '../../auth/session/session-store';
 import { queueQueryKey, topicsUserKey } from '../../../api/query-keys';
 import { urlsByStoryId } from '../engine/player-stories';

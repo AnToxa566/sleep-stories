@@ -1,5 +1,5 @@
 import { strings } from '../strings';
-import { ApiError } from './api-client';
+import { ApiError } from './http/api-client';
 
 // The message for the toast after a failed request. Any code the screen does not know is
 // the generic one. Fixed Russian copy only; nothing from the error goes to the person.

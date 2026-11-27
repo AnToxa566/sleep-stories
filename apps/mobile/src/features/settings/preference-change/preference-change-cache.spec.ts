@@ -1,6 +1,6 @@
 import type { MeResponse } from '@sleep-stories/contracts';
 import { QueryClient, QueryObserver, type QueryKey } from '@tanstack/react-query';
-import { queueQueryKey, topicsUserKey } from '../query-keys';
+import { queueQueryKey, topicsUserKey } from '../../../api/query-keys';
 import { applyPreferenceSaved, applyPreferenceSaveFailed } from './preference-change-cache';
 
 // The keys of a change of the narrator.

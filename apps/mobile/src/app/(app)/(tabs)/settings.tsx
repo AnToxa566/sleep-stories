@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useMe, useVoices } from '../../../api/queries';
+import { useVoices } from '../../../api/catalogue/use-voices';
+import { useMe } from '../../../api/me/use-me';
 import { signOutEverywhere, useSessionStore } from '../../../features/auth/session/session-store';
 import { SettingsScreen } from '../../../features/settings/SettingsScreen';
 import { settingsSummary } from '../../../features/settings/summary/settings-summary';

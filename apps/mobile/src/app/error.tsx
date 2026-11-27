@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../ui/typography/typography';
-import { useMe } from '../api/queries';
+import { useMe } from '../api/me/use-me';
 import { strings } from '../strings';
 import { colors, spacing, typeSizes } from '../theme/tokens';
 import { PrimaryButton } from '../ui/buttons/PrimaryButton';

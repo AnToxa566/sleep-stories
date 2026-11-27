@@ -5,8 +5,9 @@ import { Keyboard } from 'react-native';
 import {
   changeInterestsMutationKey,
   useChangeInterests,
-} from '../../api/preference-change/use-change-interests';
-import { useInterests, useMe } from '../../api/queries';
+} from '../../features/settings/interests/use-change-interests';
+import { useInterests } from '../../api/catalogue/use-interests';
+import { useMe } from '../../api/me/use-me';
 import { InterestsScreen } from '../../features/settings/interests/InterestsScreen';
 import {
   addInterest,

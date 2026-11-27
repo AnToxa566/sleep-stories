@@ -1,5 +1,5 @@
 import type { QueueItem, TopicsResponse } from '@sleep-stories/contracts';
-import { ApiError, ApiUnavailableError } from '../../../api/api-client';
+import { ApiError, ApiUnavailableError } from '../../../api/http/api-client';
 import { QueryClient } from '@tanstack/react-query';
 import { DEFAULT_FILTER } from '../filter/topic-filter';
 import { topicsUserKey } from '../../../api/query-keys';

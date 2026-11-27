@@ -5,8 +5,8 @@ import { useCallback, useState } from 'react';
 import {
   changeStylesMutationKey,
   useChangeStyles,
-} from '../../api/preference-change/use-change-styles';
-import { useMe } from '../../api/queries';
+} from '../../features/settings/story-styles/use-change-styles';
+import { useMe } from '../../api/me/use-me';
 import { StoryStylesScreen } from '../../features/settings/story-styles/StoryStylesScreen';
 import {
   stylesToSave,

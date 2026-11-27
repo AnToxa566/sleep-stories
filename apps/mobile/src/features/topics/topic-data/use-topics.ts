@@ -2,7 +2,7 @@ import { TopicsResponseSchema } from '@sleep-stories/contracts';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
-import { apiFetch } from '../../../api/api-fetch';
+import { apiFetch } from '../../../api/http/api-fetch';
 import { useSessionStore } from '../../auth/session/session-store';
 import { topicsQueryKey } from './topic-cache';
 import { topicsPath, type TopicFilter } from '../filter/topic-filter';

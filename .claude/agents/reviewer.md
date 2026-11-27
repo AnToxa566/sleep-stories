@@ -38,7 +38,7 @@ The request gives you the exact files to review, the checks that apply (numbers 
 16. Idempotency and error paths for generation work: duplicate story on retry, partial rows after failure.
 17. RLS on every new table: `ENABLE ROW LEVEL SECURITY` in the same migration, and no `CREATE POLICY` anywhere.
 18. Slice shape: the reviewed change stays within the ceiling (10 to 12 significant files or about 400 lines of logic) and does not mix unrelated changes, so it can be reverted whole.
-19. Layout: applies to every review, listed or not. Find the new files with `git status --short` (or the commits named in the request). A new concept or use case lies in its own folder with its spec, not flat next to other logic (`apps/api/README.md` "Inside a folder", `apps/mobile/src/features/README.md`, AGENTS.md Conventions). A new file that breaks this is [BLOCKING]; older flat files are not a finding.
+19. Layout: applies to every review, listed or not. Find the new files with `git status --short` (or the commits named in the request). A new concept or use case lies in its own folder with its spec, not flat next to other logic (`apps/api/README.md` "Inside a folder", `apps/mobile/src/features/README.md`, `apps/mobile/src/api/README.md`, AGENTS.md Conventions). A new file that breaks this is [BLOCKING]; older flat files are not a finding.
 
 ## Severity
 

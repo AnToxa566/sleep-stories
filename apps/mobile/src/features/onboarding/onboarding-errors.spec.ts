@@ -1,4 +1,4 @@
-import { ApiContractError, ApiError, ApiUnavailableError } from '../../api/api-client';
+import { ApiContractError, ApiError, ApiUnavailableError } from '../../api/http/api-client';
 import { strings } from '../../strings';
 import { onboardingErrorMessage } from './onboarding-errors';
 

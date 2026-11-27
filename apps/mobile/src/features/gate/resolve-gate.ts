@@ -1,5 +1,5 @@
 import type { MeResponse } from '@sleep-stories/contracts';
-import { ApiError } from '../../api/api-client';
+import { ApiError } from '../../api/http/api-client';
 import type { SessionStatus } from '../auth/session/session-status';
 
 // Which part of the app the user may see. Pure, so every combination is unit-tested.

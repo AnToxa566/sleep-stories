@@ -1,4 +1,4 @@
-import { ApiUnavailableError } from '../../api/api-client';
+import { ApiUnavailableError } from '../../api/http/api-client';
 import { strings } from '../../strings';
 
 // Russian copy for a failed PUT /me/onboarding. An unreachable server (no network, timeout,

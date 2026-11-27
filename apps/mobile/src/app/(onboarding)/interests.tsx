@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../../ui/typography/typography';
-import { useInterests } from '../../api/queries';
+import { useInterests } from '../../api/catalogue/use-interests';
 import { OnboardingHeader } from '../../features/onboarding/steps/OnboardingHeader';
 import {
   isInterestsStepValid,

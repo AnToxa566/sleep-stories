@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { useVoices, voicesQueryKey } from '../../api/queries';
+import { useVoices, voicesQueryKey } from '../../api/catalogue/use-voices';
 import { OnboardingHeader } from '../../features/onboarding/steps/OnboardingHeader';
 import { useOnboardingStore } from '../../features/onboarding/onboarding-store';
 import { strings } from '../../strings';

@@ -5,15 +5,15 @@ import {
   type MeResponse,
 } from '@sleep-stories/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSessionStore } from '../../features/auth/session/session-store';
-import { apiFetch } from '../api-fetch';
-import { meQueryKey } from '../queries';
-import { topicsUserKey } from '../query-keys';
+import { useSessionStore } from '../../auth/session/session-store';
+import { apiFetch } from '../../../api/http/api-fetch';
+import { meQueryKey } from '../../../api/me/use-me';
+import { topicsUserKey } from '../../../api/query-keys';
 import {
   applyPreferenceSaved,
   applyPreferenceSaveFailed,
   type PreferenceChangeKeys,
-} from './preference-change-cache';
+} from '../preference-change/preference-change-cache';
 
 export const changeStylesMutationKey = ['change-styles'] as const;
 

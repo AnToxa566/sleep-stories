@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { useMe } from '../../../api/queries';
+import { useMe } from '../../../api/me/use-me';
 import { strings } from '../../../strings';
 import { colors, spacing } from '../../../theme/tokens';
 import { Chip } from '../../../ui/inputs/Chip';

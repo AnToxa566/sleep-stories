@@ -1,4 +1,4 @@
-import { ApiError, ApiUnavailableError } from '../../api/api-client';
+import { ApiError, ApiUnavailableError } from '../../api/http/api-client';
 import { resolveGate, toMeState, type MeState } from './resolve-gate';
 
 const loading: MeState = { kind: 'loading' };

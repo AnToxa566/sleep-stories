@@ -1,5 +1,5 @@
 import { strings } from '../strings';
-import { ApiContractError, ApiError, ApiUnavailableError } from './api-client';
+import { ApiContractError, ApiError, ApiUnavailableError } from './http/api-client';
 import { toastForError } from './error-toast';
 
 describe('toastForError', () => {

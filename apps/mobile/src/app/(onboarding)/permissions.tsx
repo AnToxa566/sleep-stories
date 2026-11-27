@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../../ui/typography/typography';
-import { useCompleteOnboarding } from '../../api/queries';
+import { useCompleteOnboarding } from '../../features/onboarding/completion/use-complete-onboarding';
 import { OnboardingHeader } from '../../features/onboarding/steps/OnboardingHeader';
 import { onboardingErrorMessage } from '../../features/onboarding/onboarding-errors';
 import { useOnboardingStore } from '../../features/onboarding/onboarding-store';
