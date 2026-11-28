@@ -10,7 +10,7 @@ The parts of the app, one folder each. A route in `src/app` puts them on a scree
 | `today` | «Сегодня»: the night queue, the main button, its progress and sheets |
 | `topics` | «Темы» and the topic picker of «Замена»: the list, its filters, topics on request |
 | `player` | The night player |
-| `settings` | «Настройки»: the rows with the person's choices and account, sign-out; the screens «Рассказчик» (`narrator/`), «Интересы» (`interests/`) and «Стили» (`story-styles/`), each with its save; what the three saves do to the cache (`preference-change/`) |
+| `settings` | «Настройки»: the rows with the person's choices and account, sign-out; the screens «Рассказчик» (`narrator/`), «Интересы» (`interests/`) and «Стили» (`story-styles/`), each with its save; what the three saves do to the cache (`preference-change/`); the sheet about the generation allowance (`allowance/`) |
 
 ## Inside a feature
 
@@ -33,7 +33,7 @@ The parts of the app, one folder each. A route in `src/app` puts them on a scree
 
 - `no-restricted-imports` in `apps/mobile/eslint.config.mjs` enforces the table (the `allowedFeatures` map) for relative imports. A change of the table changes the map in the same commit, and a new feature is added to both.
 - A query or a mutation that one feature alone uses lives in that feature, not in `src/api` (`src/api/README.md`).
-- What two features need and neither owns leaves the features: a cache key to `api/query-keys.ts`, the message for an API error to `api/error-toast.ts`, the formatting of numbers to `format`, a component without a feature to `ui` (`src/ui/README.md`).
+- What two features need and neither owns leaves the features: a cache key to `api/query-keys.ts`, the message for an API error to `api/error-toast.ts`, the formatting of numbers and clock times to `format`, a component without a feature to `ui` (`src/ui/README.md`).
 - One known exception below the features: `api` reads the session from `features/auth`. Moving the session out would move core-zone code, so it stays there for now.
 
 ## The generation guard

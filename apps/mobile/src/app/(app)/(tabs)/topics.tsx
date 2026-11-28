@@ -11,9 +11,9 @@ import { deriveHintText } from '../../../features/today/queue-list/rows';
 import { QUEUE_PLATE_HEIGHT, QueuePlate } from '../../../features/topics/topic-list/QueuePlate';
 import { SuggestEmpty, SuggestFooter } from '../../../features/topics/suggest/SuggestEntry';
 import { SuggestSheet } from '../../../features/topics/suggest/SuggestSheet';
+import { formatClock } from '../../../format/clock/clock';
 import { useTopicSuggestion } from '../../../features/topics/suggest/suggest-queries';
 import {
-  formatClock,
   hasChoice,
   initialSelection,
   sheetCaption,

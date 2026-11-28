@@ -126,6 +126,14 @@ export const strings = {
     allowance: (left: number, limit: number): string => `${left} из ${limit}`,
     // A value that is still loading or failed to load.
     unknown: '—',
+    // The sheet of the row «Генерации» (design frame 4b·1). A line is its lead, a space, the
+    // time and a full stop; the time is drawn apart because it is brighter.
+    allowanceSheet: {
+      title: (left: number, limit: number): string => `Доступно ${left} из ${limit} генераций`,
+      nextLead: 'Следующая генерация восстановится в',
+      fullLead: (limit: number): string => `Полное восстановление (${limit}/${limit}) — в`,
+      dismiss: 'Понятно',
+    },
     // The frame of the screens that edit one setting (settings/edit-screen).
     editScreen: {
       save: 'Сохранить изменения',

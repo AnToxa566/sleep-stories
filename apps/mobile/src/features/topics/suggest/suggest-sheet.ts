@@ -115,12 +115,6 @@ export function sheetCaption(
   return copy.left(suggestions.left, suggestions.limit);
 }
 
-// «02:14»: hours and minutes on the phone's clock.
-export function formatClock(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 // While a suggestion of the person runs (theirs from this sheet, or one the queue top-up
 // started) a new one cannot start, so the three entry points are inactive.
 export function isSuggesting(status: SuggestionStatusResponse | undefined): boolean {

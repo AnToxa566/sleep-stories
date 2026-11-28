@@ -1,4 +1,6 @@
+import type { QueueResponse } from '@sleep-stories/contracts';
 import { useIsFocused } from 'expo-router';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { strings } from '../../strings';
@@ -6,6 +8,7 @@ import { colors, spacing, typeSizes } from '../../theme/tokens';
 import { NightBackground } from '../../ui/layout/NightBackground';
 import { ToastHost } from '../../ui/toast/ToastHost';
 import { Text } from '../../ui/typography/typography';
+import { AllowanceSheet } from './allowance/AllowanceSheet';
 import { DangerZone } from './danger-zone/DangerZone';
 import { SettingsRow, SettingsSection } from './rows/SettingsRow';
 import type { SettingsSummary } from './summary/settings-summary';
@@ -15,6 +18,9 @@ const TOAST_GAP = 16;
 
 type Props = {
   summary: SettingsSummary;
+  // Undefined while loading, or when the queue could not be read.
+  generations: QueueResponse['generations'] | undefined;
+  onOpenAllowance: () => void;
   onOpenNarrator: () => void;
   onOpenInterests: () => void;
   onOpenStyles: () => void;
@@ -22,10 +28,13 @@ type Props = {
 };
 
 // «Настройки» (design frame 4b). It shows the person's choices. The narrator, interests and
-// styles rows open their screens and «Выйти» signs out. The mail and generations rows and
-// «Удалить аккаунт» are drawn but take no taps yet.
+// styles rows open their screens, the generations row opens the allowance sheet (once the
+// allowance is loaded) and «Выйти» signs out. The mail row and «Удалить аккаунт» are drawn but
+// take no taps yet.
 export function SettingsScreen({
   summary,
+  generations,
+  onOpenAllowance,
   onOpenNarrator,
   onOpenInterests,
   onOpenStyles,
@@ -34,6 +43,11 @@ export function SettingsScreen({
   const copy = strings.settings;
   // The other tabs stay mounted, so only the screen in front draws the toast.
   const focused = useIsFocused();
+  const [allowanceOpen, setAllowanceOpen] = useState(false);
+  const openAllowance = () => {
+    onOpenAllowance();
+    setAllowanceOpen(true);
+  };
   return (
     <View style={styles.root}>
       <NightBackground />
@@ -64,12 +78,22 @@ export function SettingsScreen({
           </SettingsSection>
           <SettingsSection title={copy.accountSection}>
             <SettingsRow label={copy.email} value={summary.email} />
-            <SettingsRow label={copy.generations} value={summary.generations} accessory="info" />
+            <SettingsRow
+              label={copy.generations}
+              value={summary.generations}
+              accessory="info"
+              onPress={generations ? openAllowance : undefined}
+            />
             <SettingsRow label={copy.logout} onPress={onSignOut} />
           </SettingsSection>
           <DangerZone />
         </ScrollView>
       </SafeAreaView>
+      <AllowanceSheet
+        visible={allowanceOpen}
+        generations={generations}
+        onClose={() => setAllowanceOpen(false)}
+      />
       {focused ? <ToastHost bottomOffset={TOAST_GAP} /> : null}
     </View>
   );

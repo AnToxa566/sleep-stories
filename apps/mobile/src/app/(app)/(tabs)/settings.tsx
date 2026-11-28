@@ -7,7 +7,8 @@ import { settingsSummary } from '../../../features/settings/summary/settings-sum
 import { useQueue } from '../../../features/today/queue-data/queue-queries';
 
 // «Настройки». The route gathers the values, because the allowance comes with the queue, which
-// belongs to `today`, and features/settings may not import it. The queue is only read here.
+// belongs to `today`, and features/settings may not import it. The queue is only read here, and
+// read again when the allowance sheet opens.
 // After a sign-out the root layout's gate sends the person to the auth screens.
 // `navigate`, not `push`: a double tap on a row opens one screen.
 export default function Settings() {
@@ -27,6 +28,9 @@ export default function Settings() {
   return (
     <SettingsScreen
       summary={summary}
+      generations={queue.data?.generations}
+      // The sheet shows the cached answer at once and changes when this read comes back.
+      onOpenAllowance={() => void queue.refetch()}
       onOpenNarrator={() => router.navigate('/narrator')}
       onOpenInterests={() => router.navigate('/edit-interests')}
       onOpenStyles={() => router.navigate('/edit-styles')}
