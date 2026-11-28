@@ -10,7 +10,7 @@ The parts of the app, one folder each. A route in `src/app` puts them on a scree
 | `today` | «Сегодня»: the night queue, the main button, its progress and sheets |
 | `topics` | «Темы» and the topic picker of «Замена»: the list, its filters, topics on request |
 | `player` | The night player |
-| `settings` | «Настройки»: the rows with the person's choices and account, sign-out; the screens «Рассказчик» (`narrator/`), «Интересы» (`interests/`) and «Стили» (`story-styles/`), each with its save; what the three saves do to the cache (`preference-change/`); the sheet about the generation allowance (`allowance/`) |
+| `settings` | «Настройки»: the rows with the person's choices and account, sign-out; the screens «Рассказчик» (`narrator/`), «Интересы» (`interests/`) and «Стили» (`story-styles/`), each with its save; what the three saves do to the cache (`preference-change/`); the sheet about the generation allowance (`allowance/`); account deletion: the sheet, the check of the typed email and the request (`account-deletion/`) |
 
 ## Inside a feature
 

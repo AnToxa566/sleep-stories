@@ -123,6 +123,17 @@ export const strings = {
     // (ARCHITECTURE.md section 7).
     dangerText: 'Аккаунт, история и все настройки будут удалены без возможности восстановления.',
     deleteAccount: 'Удалить аккаунт',
+    // The sheet that confirms the deletion (design frame 4b·2). Its text is `dangerText`,
+    // then `confirmLead`, a space, the address of the account and a full stop.
+    deleteSheet: {
+      title: 'Удалить аккаунт?',
+      confirmLead: 'Чтобы подтвердить, введите почту',
+      emailField: 'Почта аккаунта',
+      confirm: 'Удалить навсегда',
+      pending: 'Удаляем…',
+      cancel: 'Отмена',
+      failed: 'Не удалось удалить аккаунт. Проверьте соединение и попробуйте ещё раз.',
+    },
     allowance: (left: number, limit: number): string => `${left} из ${limit}`,
     // A value that is still loading or failed to load.
     unknown: '—',

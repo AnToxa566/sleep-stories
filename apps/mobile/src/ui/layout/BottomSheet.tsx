@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -10,6 +18,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { colors } from '../../theme/tokens';
 import { strings } from '../../strings';
@@ -18,6 +27,14 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
+  // False while the sheet must stay open: a tap outside, the Android back button and a drag do
+  // nothing. The drag has to be off here: one that passed the closing point only calls
+  // `onClose`, so a parent that ignored the call would leave the sheet where the finger left it.
+  dismissible?: boolean;
+  // For a sheet with a text field. The sheet moves up over the keyboard and its content
+  // scrolls when what is left is too short. Only the grabber area drags such a sheet: a drag
+  // on the whole surface would take the downward scroll.
+  avoidKeyboard?: boolean;
 };
 
 const OPEN_MS = 300;
@@ -32,13 +49,21 @@ const FLING_VELOCITY = 800;
 const DRAG_ACTIVATION = 10;
 
 // A bottom sheet on the core Modal: the dimming layer fades, the sheet slides up. Closes on a
-// tap outside, on the Android back button and on a drag down (grabber or surface).
+// tap outside, on the Android back button and on a drag down (grabber or surface), unless
+// `dismissible` is false.
 // One reanimated shared value (`translateY`: 0 open, SLIDE_DISTANCE closed) drives the open
 // and close animations, the drag and the backdrop, so nothing fights over the same transform.
 // A Modal is a separate native window on Android, so it needs its own GestureHandlerRootView.
 // The content brings its own buttons; the sheet only supplies the surface, the grabber and
 // the padding.
-export function BottomSheet({ visible, onClose, children }: Props) {
+export function BottomSheet({
+  visible,
+  onClose,
+  children,
+  dismissible = true,
+  avoidKeyboard = false,
+}: Props) {
+  const insets = useSafeAreaInsets();
   const translateY = useSharedValue(SLIDE_DISTANCE);
   const sheetHeight = useSharedValue(SLIDE_DISTANCE);
   // `visible` for the UI thread: a cancelled drag must not spring a closing sheet back open.
@@ -80,7 +105,7 @@ export function BottomSheet({ visible, onClose, children }: Props) {
     () =>
       Gesture.Pan()
         // Off while the sheet is closing: a drag then would spring it open with `visible` false.
-        .enabled(visible)
+        .enabled(visible && dismissible)
         // Downward only; an upward or sideways move leaves the touch to the content.
         .activeOffsetY(DRAG_ACTIVATION)
         .onStart(() => {
@@ -107,7 +132,7 @@ export function BottomSheet({ visible, onClose, children }: Props) {
             translateY.value = withSpring(0, { damping: 24, stiffness: 280 });
           }
         }),
-    [translateY, sheetHeight, onClose, visible, openSv],
+    [translateY, sheetHeight, onClose, visible, openSv, dismissible],
   );
 
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
@@ -119,6 +144,12 @@ export function BottomSheet({ visible, onClose, children }: Props) {
     sheetHeight.value = event.nativeEvent.layout.height;
   };
 
+  // The tap outside and the back button. The Modal keeps its handler either way, so Android
+  // does not close it by itself.
+  const requestClose = () => {
+    if (dismissible) onClose();
+  };
+
   return (
     <Modal
       transparent
@@ -126,23 +157,48 @@ export function BottomSheet({ visible, onClose, children }: Props) {
       animationType="none"
       statusBarTranslucent
       navigationBarTranslucent
-      onRequestClose={onClose}
+      onRequestClose={requestClose}
     >
       <GestureHandlerRootView style={styles.root}>
         <Animated.View style={[StyleSheet.absoluteFill, scrimStyle]}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={strings.today.a11y.closeSheet}
-            onPress={onClose}
+            onPress={requestClose}
             style={[StyleSheet.absoluteFill, styles.scrim]}
           />
         </Animated.View>
-        <GestureDetector gesture={drag}>
-          <Animated.View style={[styles.sheet, sheetStyle]} onLayout={measure}>
-            <View style={styles.grabber} />
-            {children}
-          </Animated.View>
-        </GestureDetector>
+        {avoidKeyboard ? (
+          // `padding`, as in Screen: Android runs edge-to-edge, where the system does not
+          // resize the window for the keyboard. Cost: not confirmed on a phone inside a Modal.
+          <KeyboardAvoidingView
+            behavior="padding"
+            pointerEvents="box-none"
+            style={[styles.avoider, { paddingTop: insets.top }]}
+          >
+            <Animated.View style={[styles.sheet, styles.shrinks, sheetStyle]} onLayout={measure}>
+              <GestureDetector gesture={drag}>
+                <View style={styles.handle}>
+                  <View style={styles.grabber} />
+                </View>
+              </GestureDetector>
+              <ScrollView
+                style={styles.scroll}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {children}
+              </ScrollView>
+            </Animated.View>
+          </KeyboardAvoidingView>
+        ) : (
+          <GestureDetector gesture={drag}>
+            <Animated.View style={[styles.sheet, sheetStyle]} onLayout={measure}>
+              <View style={styles.grabber} />
+              {children}
+            </Animated.View>
+          </GestureDetector>
+        )}
       </GestureHandlerRootView>
     </Modal>
   );
@@ -168,4 +224,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.grabber,
     alignSelf: 'center',
   },
+  avoider: { flex: 1, justifyContent: 'flex-end' },
+  shrinks: { flexShrink: 1 },
+  // A taller drag area around the grabber; the grabber stays where it is on other sheets.
+  handle: { marginTop: -10, paddingTop: 10, paddingBottom: 12 },
+  scroll: { flexGrow: 0 },
 });

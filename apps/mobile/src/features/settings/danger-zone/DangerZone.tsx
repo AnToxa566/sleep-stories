@@ -1,20 +1,32 @@
-import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { strings } from '../../../strings';
 import { colors, spacing, typeSizes } from '../../../theme/tokens';
 import { Text } from '../../../ui/typography/typography';
+import { useSessionStore } from '../../auth/session/session-store';
+import { DeleteAccountSheet } from '../account-deletion/DeleteAccountSheet';
 
-// The danger zone as drawn (design frame 4b). «Удалить аккаунт» only looks like a button:
-// account deletion is not decided (ARCHITECTURE.md section 11), so it is a plain view.
+// The danger zone (design frame 4b). «Удалить аккаунт» only opens the confirmation sheet.
+// Without a known address there is nothing to confirm against, so the button takes no taps.
 export function DangerZone() {
+  const email = useSessionStore((state) => state.email);
+  const [open, setOpen] = useState(false);
   return (
     <View>
       <Text style={styles.sectionLabel}>{strings.settings.dangerZone}</Text>
       <View style={styles.card}>
         <Text style={styles.body}>{strings.settings.dangerText}</Text>
-        <View style={styles.button}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !email }}
+          disabled={!email}
+          onPress={() => setOpen(true)}
+          style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+        >
           <Text style={styles.buttonLabel}>{strings.settings.deleteAccount}</Text>
-        </View>
+        </Pressable>
       </View>
+      <DeleteAccountSheet visible={open} email={email} onClose={() => setOpen(false)} />
     </View>
   );
 }
@@ -46,6 +58,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  pressed: { opacity: 0.7 },
   buttonLabel: {
     color: colors.dangerZoneText,
     fontSize: typeSizes.bodyLarge,

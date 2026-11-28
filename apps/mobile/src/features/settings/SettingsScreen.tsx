@@ -29,8 +29,8 @@ type Props = {
 
 // «Настройки» (design frame 4b). It shows the person's choices. The narrator, interests and
 // styles rows open their screens, the generations row opens the allowance sheet (once the
-// allowance is loaded) and «Выйти» signs out. The mail row and «Удалить аккаунт» are drawn but
-// take no taps yet.
+// allowance is loaded), «Выйти» signs out and «Удалить аккаунт» in the danger zone opens its
+// confirmation sheet. The mail row takes no taps.
 export function SettingsScreen({
   summary,
   generations,

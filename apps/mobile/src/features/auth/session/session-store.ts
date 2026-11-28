@@ -7,8 +7,9 @@ type SessionState = {
   // The id of the signed-in user, used only as a cache key. Never sent to the API: the API
   // reads the user from the token.
   userId: string | null;
-  // The address of the signed-in user, from the session on the device. For display only
-  // (the «Настройки» screen): it is held in memory and never sent anywhere or logged.
+  // The address of the signed-in user, from the session on the device. Only for «Настройки»:
+  // it is shown there, and the account deletion sheet compares what is typed with it. It is
+  // held in memory and never sent anywhere or logged.
   email: string | null;
 };
 
