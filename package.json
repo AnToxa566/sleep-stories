@@ -3,6 +3,8 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "check": "nx run-many -t lint typecheck test -p contracts api mobile --outputStyle=static",
+    "test:integration": "nx test-integration api --outputStyle=static",
     "db:up": "nx supabase-start api",
     "db:down": "nx supabase-stop api",
     "db:migrate-check": "npx nx prisma-migrate-status api --outputStyle=static",
