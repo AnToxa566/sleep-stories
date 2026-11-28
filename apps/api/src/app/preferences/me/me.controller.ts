@@ -1,7 +1,17 @@
-import { Body, Controller, Get, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Put,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { MeResponseSchema } from '@sleep-stories/contracts';
 import type { MeResponse } from '@sleep-stories/contracts';
 import { ZodSerializerDto } from 'nestjs-zod';
+import { AuthAdminError } from '../../providers/auth-admin/auth-admin.service';
+import { apiErrorBody } from '../../platform/errors/api-error-body';
 import { CurrentUserId } from '../../platform/auth/request/current-user-id.decorator';
 import {
   ChangeInterestsDto,
@@ -9,6 +19,7 @@ import {
   ChangeVoiceDto,
   CompleteOnboardingDto,
 } from './me.dto';
+import { AccountDeletionService } from './account-deletion/account-deletion.service';
 import { MeService } from './me.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import { PreferencesUpdateService } from './preferences-update/preferences-update.service';
@@ -22,6 +33,7 @@ export class MeController {
     private readonly me: MeService,
     private readonly onboarding: OnboardingService,
     private readonly preferencesUpdate: PreferencesUpdateService,
+    private readonly accountDeletion: AccountDeletionService,
   ) {}
 
   @Get()
@@ -66,5 +78,24 @@ export class MeController {
     @Body() body: ChangeStylesDto,
   ): Promise<MeResponse> {
     return this.preferencesUpdate.changeStyles(userId, body);
+  }
+
+  // Deletes the account. IRREVERSIBLE. No request or response body: the id comes from the
+  // token alone. The typed email that confirms it is a check of the app only and is never
+  // sent (owner, 2026-11-28). The code of the 503 is `auth_unavailable`: the one failure
+  // the app can be told about is that the auth service did not answer; nothing changed.
+  @Delete()
+  @HttpCode(204)
+  async deleteAccount(@CurrentUserId() userId: string): Promise<void> {
+    try {
+      await this.accountDeletion.deleteAccount(userId);
+    } catch (error) {
+      if (error instanceof AuthAdminError) {
+        throw new ServiceUnavailableException(
+          apiErrorBody(503, 'auth_unavailable', 'Account deletion is unavailable'),
+        );
+      }
+      throw error;
+    }
   }
 }

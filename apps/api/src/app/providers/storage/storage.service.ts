@@ -38,9 +38,10 @@ export function storyAudioPath(storyId: string, voiceId: string): string {
   return `stories/${storyId.toLowerCase()}/${voiceId.toLowerCase()}.mp3`;
 }
 
-// The only place in the API that holds the Supabase service-role client (AGENTS.md
-// architecture rule 2). The key bypasses RLS, so this class exposes narrow operations
-// instead of the client. Add operations here rather than passing the client out.
+// With the auth admin adapter, one of the two places in the API that hold a Supabase
+// service-role client (AGENTS.md architecture rule 2). The key bypasses RLS, so this class
+// exposes narrow operations instead of the client. Add storage operations here rather than
+// passing the client out.
 @Injectable()
 export class StorageService {
   private readonly client: SupabaseClient;

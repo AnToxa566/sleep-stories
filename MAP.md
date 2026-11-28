@@ -36,7 +36,7 @@ Dependencies go one way and lint enforces them; the table of who may import whom
 | `topics` | The «Темы» list, what a person may be offered, topics on request |
 | `queue` | The night queue: read, edit, reorder, add, replace, top-up, rebuild, continue, the explicit start of generation (§6 "The user-facing queue API") |
 | `internal` | `/internal/*`: Google OIDC only, the job runner, the sweeper and the three handlers (S-4, §6 "How jobs run") |
-| `providers` | The only place that touches paid or secret SDKs: LLM, TTS, storage, job queue (A-2, §4) |
+| `providers` | The only place that touches paid or secret SDKs: LLM, TTS, storage, auth admin, job queue (A-2, §4) |
 | `platform` | Technical base: the deny-by-default JWT guard, the user id only from the verified token (S-2, §8); Zod-checked env that fails at boot; the Prisma service, TLS pinning, `lockUserRow` (the one place that locks the `users` row); response validation that fails closed and one error body shape (S-5) |
 
 ## 3b. Deployment scripts (`infra/`, §12)
@@ -92,6 +92,7 @@ Lint keeps two directions: `ui` knows no feature ([ui/README.md](apps/mobile/src
 | Topics can be asked for, within the shared suggestion cap | «Подобрать темы» on «Темы» (owner, 2026-11-22); new topics join the list only, never the queue, and the person sees the cap | §6 "Topics on request" |
 | Provider adapters set `maxRetries: 0`, forward no error text | Cloud Tasks owns retries; an SDK error can echo the request | §4 |
 | Stories are reused across people only if system-proposed | Typed text is private by construction | §6, S-10 |
+| Account deletion keeps all content and the `failed` jobs | Nobody can reach the private content; a failed job keeps a broken topic from being offered again | §5 "Deleting an account" |
 | Dark-only UI, plain `StyleSheet` with a tokens file | No extra dependency; one place for the palette | §7, §9 |
 | No microphone; a touch continues the night, the screen stays on and dims | The background-audio spike showed the microphone path is not workable | §7, §10 |
 | Encrypted persistent session on the device | The session survives restarts without keeping a token in plain storage | §8 |
@@ -102,4 +103,4 @@ Lint keeps two directions: `ui` knows no feature ([ui/README.md](apps/mobile/src
 
 ## 7. Not decided and not built
 
-Open problems are the owner's decisions; stop and ask (A-9, §11). Deferred and rejected ideas are in §10 (series of stories, mood filters, Sentry, Redis, SQLite, microphone). Not built yet: CI, password reset, email confirmation, Google sign-in, account deletion, ratings, a history of listens, the typed-topics field. The production deployment (`infra/`: Cloud Run, the Cloud Tasks queue, the Scheduler job) exists since 2026-11-07, owner-reported (ARCHITECTURE.md section 12). The Cloud Tasks adapter in `apps/api` is built.
+Open problems are the owner's decisions; stop and ask (A-9, §11). Deferred and rejected ideas are in §10 (series of stories, mood filters, Sentry, Redis, SQLite, microphone). Not built yet: CI, password reset, email confirmation, Google sign-in, the account deletion screen (the API is built; open conditions in §11 item 15), ratings, a history of listens, the typed-topics field. The production deployment (`infra/`: Cloud Run, the Cloud Tasks queue, the Scheduler job) exists since 2026-11-07, owner-reported (ARCHITECTURE.md section 12). The Cloud Tasks adapter in `apps/api` is built.

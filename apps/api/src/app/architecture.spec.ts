@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
-// Two rules of AGENTS.md that used to be kept by agreement, now kept by a check:
+// Rules of AGENTS.md that used to be kept by agreement, now kept by a check:
 //
 // 1. Architecture rule 10: a `write_story` or `render_audio` job is created only by the
 //    person's explicit start (`generation-start-plan.ts`, used by `GenerationStartService`)
@@ -12,6 +12,9 @@ import { join, relative, sep } from 'node:path';
 // 3. The Cloud Tasks SDK (`@google-cloud/tasks`) is imported only by the Cloud Tasks adapter
 //    (AGENTS.md architecture rules 2 and 6). Only this SDK is scanned: no generic allow-list
 //    for every SDK (owner, 2026-11-06).
+// 4. The Supabase SDK, which is what holds the service-role key, is imported only by the two
+//    adapters that need it: the storage service and the auth admin adapter (AGENTS.md
+//    architecture rule 2).
 //
 // This is a text scan, not a proof: it catches the usual way to break the rules (copying the
 // payload or the lock query into a new file) and not an exotic one (building the string in
@@ -27,6 +30,7 @@ const USERS_ROW_LOCK = /FROM\s+users\b[\s\S]{0,200}?FOR\s+UPDATE/i;
 // The package name between quotes, whatever opens it: `from '...'`, `import('...')`,
 // `require('...')`, `import type ... from '...'`, or a sub-path of the package.
 const CLOUD_TASKS_SDK = /['"`]@google-cloud\/tasks(?:\/[^'"`]*)?['"`]/;
+const SUPABASE_SDK = /['"`]@supabase\/supabase-js(?:\/[^'"`]*)?['"`]/;
 
 const STORY_JOB_KIND_ALLOWED = [
   'app/generation/start-plan/generation-start-plan.ts',
@@ -34,6 +38,10 @@ const STORY_JOB_KIND_ALLOWED = [
 ];
 const USERS_ROW_LOCK_ALLOWED = ['app/platform/prisma/lock-user-row/lock-user-row.ts'];
 const CLOUD_TASKS_SDK_ALLOWED = ['app/providers/job-queue/cloud-tasks-job-queue.ts'];
+const SUPABASE_SDK_ALLOWED = [
+  'app/providers/storage/storage.service.ts',
+  'app/providers/auth-admin/auth-admin.service.ts',
+];
 
 function isSkipped(path: string): boolean {
   const parts = path.split('/');
@@ -70,7 +78,12 @@ describe('architecture rules kept by a scan of apps/api/src', () => {
   it('finds source files to scan (the scan is not empty)', () => {
     const scanned = listSources(SRC_ROOT).filter((full) => !isSkipped(relative(SRC_ROOT, full)));
     expect(scanned.length).toBeGreaterThan(20);
-    for (const path of [...STORY_JOB_KIND_ALLOWED, ...USERS_ROW_LOCK_ALLOWED, ...CLOUD_TASKS_SDK_ALLOWED]) {
+    for (const path of [
+      ...STORY_JOB_KIND_ALLOWED,
+      ...USERS_ROW_LOCK_ALLOWED,
+      ...CLOUD_TASKS_SDK_ALLOWED,
+      ...SUPABASE_SDK_ALLOWED,
+    ]) {
       expect(readFileSync(join(SRC_ROOT, path), 'utf8').length).toBeGreaterThan(0);
     }
   });
@@ -93,6 +106,13 @@ describe('architecture rules kept by a scan of apps/api/src', () => {
   it('imports @google-cloud/tasks only in the Cloud Tasks adapter', () => {
     expect(sourcesMatching(CLOUD_TASKS_SDK, CLOUD_TASKS_SDK_ALLOWED)).toEqual([]);
     expect(CLOUD_TASKS_SDK.test(readFileSync(join(SRC_ROOT, CLOUD_TASKS_SDK_ALLOWED[0]), 'utf8'))).toBe(true);
+  });
+
+  it('imports @supabase/supabase-js only in the storage service and the auth admin adapter', () => {
+    expect(sourcesMatching(SUPABASE_SDK, SUPABASE_SDK_ALLOWED)).toEqual([]);
+    for (const path of SUPABASE_SDK_ALLOWED) {
+      expect(SUPABASE_SDK.test(readFileSync(join(SRC_ROOT, path), 'utf8'))).toBe(true);
+    }
   });
 });
 
@@ -151,6 +171,23 @@ describe('the patterns of the scan', () => {
       "import { protos } from '@google-cloud/tasks/build/protos/protos';",
     ]) {
       expect(CLOUD_TASKS_SDK.test(sample)).toBe(true);
+    }
+  });
+
+  it('match every way of importing the Supabase SDK, and nothing else', () => {
+    for (const sample of [
+      "import { createClient } from '@supabase/supabase-js';",
+      'import type { SupabaseClient } from "@supabase/supabase-js"',
+      "const sdk = await import('@supabase/supabase-js');",
+      "const sdk = require(`@supabase/supabase-js/dist/index.cjs`);",
+    ]) {
+      expect(SUPABASE_SDK.test(sample)).toBe(true);
+    }
+    for (const sample of [
+      "import { x } from '@supabase/supabase-js-helpers';",
+      '// uses @supabase/supabase-js in the adapter',
+    ]) {
+      expect(SUPABASE_SDK.test(sample)).toBe(false);
     }
   });
 

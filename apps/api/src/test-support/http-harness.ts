@@ -7,15 +7,28 @@ import { AppModule } from '../app/app.module';
 import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../app/platform/auth/access-token/access-token-verifier';
 import type { Env } from '../app/platform/config/env';
 import { PrismaService } from '../app/platform/prisma/prisma.service';
+import { AuthAdminService } from '../app/providers/auth-admin/auth-admin.service';
 import { StorageService } from '../app/providers/storage/storage.service';
 import { assertLocalDatabase } from './assert-local-database';
 import { QueueTestData } from './queue-test-data';
 
 // Boots the real AppModule against the local database for an HTTP integration spec. Only the
-// key source of the access-token verifier is replaced (so a test signs its own tokens) and
-// StorageService is a mock that returns opaque URLs. Used by the specs of cycle 4b; older
+// key source of the access-token verifier is replaced (so a test signs its own tokens),
+// StorageService is a mock that returns opaque URLs, and AuthAdminService is a fake, so a
+// test can never delete a real sign-in record. Used by the specs of cycle 4b; older
 // specs carry their own copy and are not changed.
 const KID = 'int-test-key';
+
+// Records every id it was asked to delete. `behaviour` is what the next calls do.
+export class FakeAuthAdmin {
+  calls: string[] = [];
+  behaviour: (userId: string) => Promise<void> = async () => undefined;
+
+  async deleteUser(userId: string): Promise<void> {
+    this.calls.push(userId);
+    await this.behaviour(userId);
+  }
+}
 
 export interface HttpResult {
   status: number;
@@ -27,6 +40,7 @@ export interface Harness {
   app: INestApplication;
   prisma: PrismaService;
   data: QueueTestData;
+  authAdmin: FakeAuthAdmin;
   tokenFor(userId: string): Promise<string>;
   // `userId` undefined sends no token.
   call(method: string, path: string, userId?: string, body?: unknown): Promise<HttpResult>;
@@ -45,6 +59,7 @@ export async function startHarness(): Promise<Harness> {
     keys: [{ ...(await exportJWK(pair.publicKey)), kid: KID, alg: 'ES256', use: 'sig' }],
   });
   let issuer = '';
+  const authAdmin = new FakeAuthAdmin();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(AccessTokenVerifier)
     .useFactory({
@@ -54,6 +69,8 @@ export async function startHarness(): Promise<Harness> {
         return new JoseAccessTokenVerifier({ keys: jwks, issuer });
       },
     })
+    .overrideProvider(AuthAdminService)
+    .useValue(authAdmin)
     .overrideProvider(StorageService)
     .useValue({
       signMany: async (paths: readonly string[]) =>
@@ -88,7 +105,9 @@ export async function startHarness(): Promise<Harness> {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await response.text();
-    return { status: response.status, text, json: JSON.parse(text) as unknown };
+    // A 204 has no body.
+    const json: unknown = text === '' ? undefined : (JSON.parse(text) as unknown);
+    return { status: response.status, text, json };
   };
 
   // Proves a route takes the users-row lock. Holds `SELECT ... FOR UPDATE` on the person's
@@ -151,6 +170,7 @@ export async function startHarness(): Promise<Harness> {
     app,
     prisma,
     data,
+    authAdmin,
     tokenFor,
     call,
     requestWhileLockHeld,

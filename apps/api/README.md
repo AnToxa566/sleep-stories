@@ -9,7 +9,7 @@ The layout takes from domain-driven design the grouping by meaning and the one-w
 | Folder | What belongs there |
 |---|---|
 | `platform` | The technical base with no feature in it: auth, environment config, the Prisma service and `lockUserRow`, the error body, response validation |
-| `providers` | Adapters of paid or secret-bearing SDKs: LLM, TTS, storage, job queue |
+| `providers` | Adapters of paid or secret-bearing SDKs: LLM, TTS, storage, auth admin, job queue |
 | `preferences` | The person and their settings: `/me`, onboarding, the `users` row, interests, voices |
 | `listens` | The listening history: the listen report, the rule of a heard story, removing that mark |
 | `generation` | Making stories: limits, job records, the start plan, story state, the content services and the prompts |

@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpAdapterHost } from '@nestjs/core';
 import type { Env } from '../platform/config/env';
+import { AuthAdminService } from './auth-admin/auth-admin.service';
 import { JobQueue } from './job-queue/job-queue';
 import { createJobQueue } from './job-queue/job-queue.factory';
 import { LocalDispatchSecret } from './job-queue/local-dispatch-secret';
@@ -18,6 +19,7 @@ import { TtsProvider } from './tts/tts.provider';
 @Module({
   providers: [
     StorageService,
+    AuthAdminService,
     { provide: LlmProvider, useClass: AnthropicLlmProvider },
     { provide: TtsProvider, useClass: ElevenLabsTtsProvider },
     // One per process, shared by the local queue (which sends it) and the internal
@@ -45,6 +47,6 @@ import { TtsProvider } from './tts/tts.provider';
         ),
     },
   ],
-  exports: [StorageService, LlmProvider, TtsProvider, JobQueue, LocalDispatchSecret],
+  exports: [StorageService, AuthAdminService, LlmProvider, TtsProvider, JobQueue, LocalDispatchSecret],
 })
 export class ProvidersModule {}
