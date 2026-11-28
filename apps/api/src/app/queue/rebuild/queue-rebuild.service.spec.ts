@@ -12,7 +12,7 @@ jest.mock('../../topics/candidates/topic-candidates', () => ({
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const USER = id(1);
 const VOICE = id(2);
-const queueFromReader = { items: [], generations: { left: 5, limit: 5 }, collecting: false };
+const queueFromReader = { items: [], generations: { left: 5, limit: 5, nextAt: null, fullAt: null }, collecting: false };
 const found = (n: number) => ({ topicId: id(n), storyId: id(n + 100) });
 
 // The database part is proven in queue-rebuild.int-spec.ts. This spec pins the order of the

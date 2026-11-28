@@ -21,7 +21,7 @@ const all = {
   preferences,
   voices,
   email: 'someone@example.com',
-  generations: { left: 3, limit: 5 },
+  generations: { left: 3, limit: 5, nextAt: null, fullAt: null },
 };
 
 describe('settingsSummary', () => {
@@ -75,13 +75,13 @@ describe('settingsSummary', () => {
   });
 
   it('shows zero left as a number, not as a dash', () => {
-    expect(settingsSummary({ ...all, generations: { left: 0, limit: 5 } }).generations).toBe(
+    expect(settingsSummary({ ...all, generations: { left: 0, limit: 5, nextAt: null, fullAt: null } }).generations).toBe(
       '0 из 5',
     );
   });
 
   it('takes the limit from the server', () => {
-    expect(settingsSummary({ ...all, generations: { left: 7, limit: 12 } }).generations).toBe(
+    expect(settingsSummary({ ...all, generations: { left: 7, limit: 12, nextAt: null, fullAt: null } }).generations).toBe(
       '7 из 12',
     );
   });

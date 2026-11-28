@@ -17,7 +17,7 @@ function item(n: number, state: 'not_ready' | 'creating' | 'failed' = 'not_ready
 }
 
 function queue(items: QueueItem[], collecting = false): QueueResponse {
-  return { items, generations: { left: 3, limit: 5 }, collecting };
+  return { items, generations: { left: 3, limit: 5, nextAt: null, fullAt: null }, collecting };
 }
 
 describe('queueRefetchInterval', () => {
@@ -95,7 +95,7 @@ describe('rebuiltToast', () => {
   const answer = (count: number, collecting = false) => ({
     items: Array.from({ length: count }, (_, n) => item(n + 1)),
     collecting,
-    generations: { left: 5, limit: 5 },
+    generations: { left: 5, limit: 5, nextAt: null, fullAt: null },
   });
 
   it('declines the noun and the pronoun with the count', () => {

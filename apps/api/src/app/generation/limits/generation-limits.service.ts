@@ -17,10 +17,26 @@ export interface GenerationRemaining {
   suggestionsLeft: number;
 }
 
+// The generation allowance as the app shows it. `activeCount` is part of `generationsUsed`.
+// `firstBackAt` and `lastBackAt` are when the earliest and the latest counted success leave
+// the window; both are null when no success is counted.
+export interface GenerationRecovery {
+  generationsUsed: number;
+  activeCount: number;
+  firstBackAt: Date | null;
+  lastBackAt: Date | null;
+}
+
 // Postgres count() is bigint and the driver may hand it over as a bigint. The counts here
 // are tiny, so converting to number is exact.
 const CountSchema = z.union([z.number(), z.bigint()]).transform((value) => Number(value));
 const UsageRowSchema = z.object({ generations_used: CountSchema, suggestions_used: CountSchema });
+const RecoveryRowSchema = z.object({
+  succeeded_count: CountSchema,
+  active_count: CountSchema,
+  first_back_at: z.date().nullable(),
+  last_back_at: z.date().nullable(),
+});
 
 // How much of a person's rolling-window allowance is spent (ARCHITECTURE.md section 6,
 // "Generation is explicit", rule 4; owner 2026-10-30 and 2026-10-31).
@@ -64,6 +80,49 @@ export class GenerationLimitsService {
     `;
     const row = UsageRowSchema.parse(rows[0]);
     return { generationsUsed: row.generations_used, suggestionsUsed: row.suggestions_used };
+  }
+
+  // For display only: how many generations are spent and when they come back. It enforces
+  // nothing and takes no lock; a start is decided by `usage()` under the users-row lock.
+  //
+  // One statement, so the counts and the times share one snapshot and one now(): a job that
+  // finishes between two queries would otherwise be counted twice or not at all.
+  //
+  // The generation filters must stay equal to those of `usage()`, or the screen would show
+  // another number than the one a start is checked against. They are repeated here so that
+  // the enforcing query is not touched by a display change; queue.int-spec.ts compares the
+  // two on the same jobs and guards the drift.
+  async recovery(
+    db: Pick<Prisma.TransactionClient, '$queryRaw'>,
+    userId: string,
+  ): Promise<GenerationRecovery> {
+    const rows = await db.$queryRaw<unknown[]>`
+      SELECT
+        count(*) FILTER (
+          WHERE kind = 'render_audio' AND status = 'succeeded'
+            AND finished_at > now() - make_interval(hours => ${LIMIT_WINDOW_HOURS}::int)
+        )::bigint AS succeeded_count,
+        count(*) FILTER (
+          WHERE kind IN ('render_audio', 'write_story') AND status IN ('pending', 'running')
+        )::bigint AS active_count,
+        min(finished_at) FILTER (
+          WHERE kind = 'render_audio' AND status = 'succeeded'
+            AND finished_at > now() - make_interval(hours => ${LIMIT_WINDOW_HOURS}::int)
+        ) + make_interval(hours => ${LIMIT_WINDOW_HOURS}::int) AS first_back_at,
+        max(finished_at) FILTER (
+          WHERE kind = 'render_audio' AND status = 'succeeded'
+            AND finished_at > now() - make_interval(hours => ${LIMIT_WINDOW_HOURS}::int)
+        ) + make_interval(hours => ${LIMIT_WINDOW_HOURS}::int) AS last_back_at
+      FROM generation_jobs
+      WHERE requested_by_user_id = ${userId}::uuid
+    `;
+    const row = RecoveryRowSchema.parse(rows[0]);
+    return {
+      generationsUsed: row.succeeded_count + row.active_count,
+      activeCount: row.active_count,
+      firstBackAt: row.first_back_at,
+      lastBackAt: row.last_back_at,
+    };
   }
 }
 

@@ -63,7 +63,7 @@ describe('QueueItemSchema', () => {
 });
 
 describe('QueueResponseSchema', () => {
-  const generations = { left: 5, limit: 5 };
+  const generations = { left: 5, limit: 5, nextAt: null, fullAt: null };
 
   it('accepts a list, including an empty one', () => {
     expect(QueueResponseSchema.safeParse({ items: [ready], generations, collecting: false }).success).toBe(true);
@@ -71,11 +71,29 @@ describe('QueueResponseSchema', () => {
   });
 
   it('rejects a negative left, a zero limit, a missing block and an extra key', () => {
-    expect(QueueResponseSchema.safeParse({ items: [], generations: { left: -1, limit: 5 }, collecting: false }).success).toBe(false);
-    expect(QueueResponseSchema.safeParse({ items: [], generations: { left: 0, limit: 0 }, collecting: false }).success).toBe(false);
+    expect(QueueResponseSchema.safeParse({ items: [], generations: { ...generations, left: -1 }, collecting: false }).success).toBe(false);
+    expect(QueueResponseSchema.safeParse({ items: [], generations: { ...generations, left: 0, limit: 0 }, collecting: false }).success).toBe(false);
     expect(QueueResponseSchema.safeParse({ items: [], collecting: false }).success).toBe(false);
     expect(QueueResponseSchema.safeParse({ items: [], generations }).success).toBe(false);
     expect(QueueResponseSchema.safeParse({ items: [], generations, collecting: false, extra: 1 }).success).toBe(false);
+  });
+
+  const accepts = (value: Record<string, unknown>) =>
+    QueueResponseSchema.safeParse({ items: [], generations: value, collecting: false }).success;
+
+  it('accepts return times as UTC ISO strings, each of them nullable', () => {
+    const at = '2026-11-28T09:30:00.000Z';
+    expect(accepts({ ...generations, left: 3, nextAt: at, fullAt: at })).toBe(true);
+    expect(accepts({ ...generations, left: 3, nextAt: at, fullAt: null })).toBe(true);
+  });
+
+  it.each(['nextAt', 'fullAt'] as const)('requires %s and rejects anything but a UTC ISO string', (key) => {
+    const without: Record<string, unknown> = { ...generations };
+    delete without[key];
+    expect(accepts(without)).toBe(false);
+    for (const value of ['tomorrow', '2026-11-28', '2026-11-28T12:30:00+03:00', 1_800_000_000_000]) {
+      expect(accepts({ ...generations, [key]: value })).toBe(false);
+    }
   });
 });
 

@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import type { QueueItem, QueueResponse } from '@sleep-stories/contracts';
 import { PrismaService } from '../../platform/prisma/prisma.service';
 import { StorageService } from '../../providers/storage/storage.service';
-import { GenerationLimitsService, remaining } from '../../generation/limits/generation-limits.service';
+import { GenerationLimitsService } from '../../generation/limits/generation-limits.service';
 import { MAX_GENERATIONS_PER_WINDOW } from '../../generation/policy/generation-policy';
+import { queueAllowance } from '../allowance/queue-allowance';
 import { QUEUE_AUDIO_URL_TTL_SECONDS } from '../policy/queue-policy';
 import { readHeardTopicIds } from '../../listens/heard/heard';
 import { isCollecting } from '../../topics/suggest-topics/suggestion-state';
@@ -31,7 +32,12 @@ export class QueueReadService {
       // Onboarding is not finished: no voice, so no queue and nothing spent.
       return {
         items: [],
-        generations: { left: MAX_GENERATIONS_PER_WINDOW, limit: MAX_GENERATIONS_PER_WINDOW },
+        generations: {
+          left: MAX_GENERATIONS_PER_WINDOW,
+          limit: MAX_GENERATIONS_PER_WINDOW,
+          nextAt: null,
+          fullAt: null,
+        },
         collecting: false,
       };
     }
@@ -99,14 +105,10 @@ export class QueueReadService {
 
     // For display only. The limit is enforced when a generation starts, under the lock on
     // the person's `users` row (the explicit-start cycle); this unlocked count can be stale.
-    const { generationsLeft } = remaining(await this.limits.usage(this.prisma, userId));
+    const generations = queueAllowance(await this.limits.recovery(this.prisma, userId));
     // "Collecting" only means something for an empty queue: a person with items has something
     // to show, whatever a suggestion job is doing.
     const collecting = items.length === 0 && (await isCollecting(this.prisma, userId));
-    return {
-      items,
-      generations: { left: generationsLeft, limit: MAX_GENERATIONS_PER_WINDOW },
-      collecting,
-    };
+    return { items, generations, collecting };
   }
 }

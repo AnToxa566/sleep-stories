@@ -8,7 +8,7 @@ jest.mock('../../topics/candidates/topic-candidates', () => ({ findReady: jest.f
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const USER = id(1);
 const VOICE = id(2);
-const queueFromReader = { items: [], generations: { left: 5, limit: 5 }, collecting: false };
+const queueFromReader = { items: [], generations: { left: 5, limit: 5, nextAt: null, fullAt: null }, collecting: false };
 
 // The database part is proven in queue-continue.int-spec.ts. This spec pins what a black-box
 // test cannot see: the order of the steps, that every write names the person, and that the

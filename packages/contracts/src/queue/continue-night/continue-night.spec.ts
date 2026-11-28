@@ -15,7 +15,7 @@ const queue = {
       audioUrl: 'https://example.com/a.mp3',
     },
   ],
-  generations: { left: 5, limit: 5 },
+  generations: { left: 5, limit: 5, nextAt: null, fullAt: null },
   collecting: false,
 };
 

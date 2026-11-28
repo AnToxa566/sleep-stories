@@ -21,7 +21,12 @@ function item(state: QueueItem['state'], durationSec = 150): QueueItem {
   return { ...base, state };
 }
 
-const gens = (left: number, limit = 5): QueueResponse['generations'] => ({ left, limit });
+const gens = (left: number, limit = 5): QueueResponse['generations'] => ({
+  left,
+  limit,
+  nextAt: null,
+  fullAt: null,
+});
 
 describe('deriveMainButton', () => {
   it('returns null for an empty queue', () => {

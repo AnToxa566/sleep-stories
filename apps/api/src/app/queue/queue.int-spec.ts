@@ -9,6 +9,7 @@ import { assertLocalDatabase } from '../../test-support/assert-local-database';
 import { QueueTestData } from '../../test-support/queue-test-data';
 import { AccessTokenVerifier, JoseAccessTokenVerifier } from '../platform/auth/access-token/access-token-verifier';
 import { AppModule } from '../app.module';
+import { GenerationLimitsService, remaining } from '../generation/limits/generation-limits.service';
 import type { Env } from '../platform/config/env';
 import { PrismaService } from '../platform/prisma/prisma.service';
 import { JobQueue } from '../providers/job-queue/job-queue';
@@ -255,7 +256,7 @@ describe('GET /api/queue', () => {
       audioUrl: 'https://signed.example.test/opaque-0?token=fake',
     });
     // Another person's active job and a failed job hold none of this person's slots.
-    expect(body.generations).toEqual({ left: 5, limit: 5 });
+    expect(body.generations).toEqual({ left: 5, limit: 5, nextAt: null, fullAt: null });
   });
 
   it('lets the newest job of the key decide', async () => {
@@ -344,7 +345,7 @@ describe('GET /api/queue', () => {
     expect(result.status).toBe(200);
     expect(QueueResponseSchema.parse(result.json)).toEqual({
       items: [],
-      generations: { left: 5, limit: 5 },
+      generations: { left: 5, limit: 5, nextAt: null, fullAt: null },
       collecting: false,
     });
     expect(signMany).not.toHaveBeenCalled();
@@ -375,6 +376,96 @@ describe('GET /api/queue', () => {
     const stranger = await data.user({ voiceId: w.voiceId });
     await data.job({ userId: stranger, kind: 'render_audio', status: 'succeeded', hoursAgo: 1 });
     expect(QueueResponseSchema.parse((await getQueue(w.userId)).json).generations.left).toBe(5);
+  });
+
+  describe('when spent generations come back', () => {
+    const DAY_MS = 24 * 3_600_000;
+    const generationsOf = async (userId: string) =>
+      QueueResponseSchema.parse((await getQueue(userId)).json).generations;
+    // The return time of a finished job, from the finish time the database actually stored.
+    const backAt = async (jobId: string) => {
+      const row = await prisma.generationJob.findUniqueOrThrow({
+        where: { id: jobId },
+        select: { finishedAt: true },
+      });
+      return new Date((row.finishedAt as Date).getTime() + DAY_MS).toISOString();
+    };
+
+    it('gives the exact return times of the earliest and the latest success', async () => {
+      const w = await world();
+      const later = await data.job({ userId: w.userId, kind: 'render_audio', status: 'succeeded', hoursAgo: 2 });
+      const earlier = await data.job({ userId: w.userId, kind: 'render_audio', status: 'succeeded', hoursAgo: 20 });
+      expect(await generationsOf(w.userId)).toEqual({
+        left: 3,
+        limit: 5,
+        nextAt: await backAt(earlier),
+        fullAt: await backAt(later),
+      });
+    });
+
+    it('ignores other people, failed jobs, successes older than the window and suggestions', async () => {
+      const w = await world();
+      const stranger = await data.user({ voiceId: w.voiceId });
+      await data.job({ userId: stranger, kind: 'render_audio', status: 'succeeded', hoursAgo: 1 });
+      await data.job({ userId: stranger, kind: 'write_story', status: 'running' });
+      await data.job({ userId: w.userId, kind: 'render_audio', status: 'failed', hoursAgo: 1 });
+      await data.job({ userId: w.userId, kind: 'write_story', status: 'failed', hoursAgo: 1 });
+      await data.job({ userId: w.userId, kind: 'render_audio', status: 'succeeded', hoursAgo: 25 });
+      // A succeeded write is not a spent slot: the render that follows it is.
+      await data.job({ userId: w.userId, kind: 'write_story', status: 'succeeded', hoursAgo: 1 });
+      await data.job({ userId: w.userId, kind: 'suggest_topics', status: 'succeeded', hoursAgo: 1 });
+      await data.job({ userId: w.userId, kind: 'suggest_topics', status: 'running' });
+      expect(await generationsOf(w.userId)).toEqual({ left: 5, limit: 5, nextAt: null, fullAt: null });
+    });
+
+    it.each([
+      ['write_story', 'pending'],
+      ['write_story', 'running'],
+      ['render_audio', 'pending'],
+      ['render_audio', 'running'],
+    ] as const)('holds a slot with no return time for a %s job that is %s', async (kind, status) => {
+      const w = await world();
+      await data.job({ userId: w.userId, kind, status });
+      expect(await generationsOf(w.userId)).toEqual({ left: 4, limit: 5, nextAt: null, fullAt: null });
+    });
+
+    it('keeps nextAt and drops fullAt while something is in progress, and a failure frees its slot', async () => {
+      const w = await world();
+      const done = await data.job({ userId: w.userId, kind: 'render_audio', status: 'succeeded', hoursAgo: 3 });
+      const active = await data.job({ userId: w.userId, kind: 'render_audio', status: 'running' });
+      const nextAt = await backAt(done);
+      expect(await generationsOf(w.userId)).toEqual({ left: 3, limit: 5, nextAt, fullAt: null });
+
+      await prisma.generationJob.update({
+        where: { id: active },
+        data: { status: 'failed', finishedAt: new Date() },
+      });
+      expect(await generationsOf(w.userId)).toEqual({ left: 4, limit: 5, nextAt, fullAt: nextAt });
+    });
+
+    // Guards the drift between the display query and the enforcing one.
+    it('counts the same generations as the query that enforces the limit', async () => {
+      const w = await world();
+      const stranger = await data.user({ voiceId: w.voiceId });
+      const kinds = ['write_story', 'render_audio', 'suggest_topics'] as const;
+      for (const kind of kinds) {
+        for (const status of ['pending', 'running'] as const) {
+          await data.job({ userId: w.userId, kind, status });
+          await data.job({ userId: stranger, kind, status });
+        }
+        for (const status of ['succeeded', 'failed'] as const) {
+          for (const hoursAgo of [1, 23, 25]) await data.job({ userId: w.userId, kind, status, hoursAgo });
+        }
+      }
+      const limits = app.get(GenerationLimitsService);
+      const usage = await limits.usage(prisma, w.userId);
+      const recovery = await limits.recovery(prisma, w.userId);
+      // Two successful renders in the window, and two active jobs each of the two story kinds.
+      expect(usage.generationsUsed).toBe(6);
+      expect(recovery.generationsUsed).toBe(usage.generationsUsed);
+      expect(recovery.activeCount).toBe(4);
+      expect((await generationsOf(w.userId)).left).toBe(remaining(usage).generationsLeft);
+    });
   });
 
   it('signs all ready paths in one call for 30 minutes and leaks no storage path', async () => {

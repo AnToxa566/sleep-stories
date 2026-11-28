@@ -122,7 +122,7 @@ function readyItem(n: number): QueueItem {
 function continueResponse(outcome: 'ready' | 'none_ready', items: QueueItem[]): ContinueResponse {
   return {
     outcome,
-    queue: { items, generations: { left: 5, limit: 5 }, collecting: false },
+    queue: { items, generations: { left: 5, limit: 5, nextAt: null, fullAt: null }, collecting: false },
   };
 }
 

@@ -45,6 +45,14 @@ export const QueueItemStateSchema = z.enum([
 // window, so the number is not hardcoded in the app (ARCHITECTURE.md section 11, item 32).
 // It is for display; the server enforces the limit when a generation starts.
 //
+// `nextAt` and `fullAt` say when spent generations come back (ISO 8601, UTC). Only a succeeded
+// generation in the window has a known return time: its finish plus the window. One that is
+// pending or running holds a slot with no known time, because if it fails the slot is free at
+// once. `nextAt` is the earliest known return, null when there is none. `fullAt` is the moment
+// the whole allowance is back: the latest known return, null while anything is in progress
+// and when nothing is spent. Both fields are required, so an app and an API of different
+// versions reject each other's answers (ARCHITECTURE.md section 6).
+//
 // `collecting` is true only while the queue is empty and a topic-suggestion job of this person
 // is in progress and recent, so the app can show "collecting topics" instead of an empty list.
 export const QueueResponseSchema = z.strictObject({
@@ -52,6 +60,8 @@ export const QueueResponseSchema = z.strictObject({
   generations: z.strictObject({
     left: z.number().int().min(0),
     limit: z.number().int().min(1),
+    nextAt: z.iso.datetime().nullable(),
+    fullAt: z.iso.datetime().nullable(),
   }),
   collecting: z.boolean(),
 });

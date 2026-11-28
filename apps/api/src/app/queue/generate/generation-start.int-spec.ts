@@ -246,7 +246,7 @@ describe('POST /api/queue/items/:itemId/generate', () => {
 
     expect(reply.status).toBe(200);
     const body = parseQueue(reply);
-    expect(body.generations).toEqual({ left: 4, limit: 5 });
+    expect(body.generations).toEqual({ left: 4, limit: 5, nextAt: null, fullAt: null });
     expect(body.items.find((item) => item.id === items[0].itemId)?.state).toBe('creating');
     expect(body.items.find((item) => item.id === items[1].itemId)?.state).toBe('not_ready');
     const jobs = await storyJobs(w.userId);

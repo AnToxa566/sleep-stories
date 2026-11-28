@@ -44,7 +44,14 @@ function build(options: { preferences?: { voiceId: string } | null; rows?: Retur
     },
     queueItem: { findMany: jest.fn().mockResolvedValue(options.rows ?? []) },
   };
-  const limits = { usage: jest.fn().mockResolvedValue({ generationsUsed: 2, suggestionsUsed: 0 }) };
+  const limits = {
+    recovery: jest.fn().mockResolvedValue({
+      generationsUsed: 2,
+      activeCount: 0,
+      firstBackAt: new Date('2026-11-28T09:30:00.000Z'),
+      lastBackAt: new Date('2026-11-28T21:05:00.000Z'),
+    }),
+  };
   const signMany = jest
     .fn()
     .mockImplementation(async (paths: string[]) =>
@@ -67,12 +74,12 @@ describe('QueueReadService.read', () => {
     const { service, prisma, limits, signMany } = build({ preferences: null });
     await expect(service.read(id(1))).resolves.toEqual({
       items: [],
-      generations: { left: 5, limit: 5 },
+      generations: { left: 5, limit: 5, nextAt: null, fullAt: null },
       collecting: false,
     });
     expect(collectingMock).not.toHaveBeenCalled();
     expect(prisma.queueItem.findMany).not.toHaveBeenCalled();
-    expect(limits.usage).not.toHaveBeenCalled();
+    expect(limits.recovery).not.toHaveBeenCalled();
     expect(signMany).not.toHaveBeenCalled();
   });
 
@@ -159,11 +166,16 @@ describe('QueueReadService.read', () => {
     ]);
   });
 
-  it('reports the allowance left from the usage', async () => {
+  it('reports the allowance and its return times for this user', async () => {
     const { service, limits } = build({ rows: [] });
     const result = await service.read(id(1));
-    expect(limits.usage).toHaveBeenCalledWith(expect.anything(), id(1));
-    expect(result.generations).toEqual({ left: 3, limit: 5 });
+    expect(limits.recovery).toHaveBeenCalledWith(expect.anything(), id(1));
+    expect(result.generations).toEqual({
+      left: 3,
+      limit: 5,
+      nextAt: '2026-11-28T09:30:00.000Z',
+      fullAt: '2026-11-28T21:05:00.000Z',
+    });
   });
 
   it('fails when the storage returns a different number of URLs', async () => {

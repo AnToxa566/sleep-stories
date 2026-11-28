@@ -14,7 +14,7 @@ const ready: QueueItem = {
 const notReady: QueueItem = { ...base, state: 'not_ready' };
 const creating: QueueItem = { ...base, state: 'creating' };
 const failed: QueueItem = { ...base, state: 'failed' };
-const gens = (left: number, limit = 5) => ({ left, limit });
+const gens = (left: number, limit = 5) => ({ left, limit, nextAt: null, fullAt: null });
 
 describe('deriveRow', () => {
   it('shows style and duration for a ready item', () => {
