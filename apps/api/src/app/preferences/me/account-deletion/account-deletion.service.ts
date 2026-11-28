@@ -52,8 +52,11 @@ export class AccountDeletionService {
           // is what keeps a broken topic (or a story in one voice) from being offered again
           // to ANYONE (owner, 2026-10-30; `findWithoutAudio` and `topicFilters` in
           // topic-candidates.ts look it up by dedupe key). Deleting it would undo that.
-          // A kept row names nobody: the user deletion below sets `requested_by_user_id`
-          // to NULL, and a payload holds only ids and counts, never typed text.
+          // The user deletion below sets a kept row's `requested_by_user_id` to NULL, and a
+          // payload holds only ids and counts, never typed text. One trace stays: a failed
+          // `suggest_topics` row has the person's opaque id inside its `dedupe_key`. Kept as
+          // it is (owner, 2026-11-28): a plain string, not a foreign key, and once the account
+          // is gone the id leads to nobody.
           // This must run BEFORE the user is deleted: afterwards the rows cannot be found.
           await tx.generationJob.deleteMany({
             where: { requestedByUserId: userId, status: { not: 'failed' } },

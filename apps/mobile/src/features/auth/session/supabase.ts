@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { env } from '../../../config/env';
 import { createEncryptedStorage } from '../encrypted-storage/encrypted-storage';
 import { createExpoStorageDeps } from '../encrypted-storage/expo-storage-deps';
+import { AUTH_REQUEST_LIMIT_MS, limitedFetch } from '../request-limit/limited-fetch';
 
 // Explicit storage key. The default is derived from the Supabase URL host, so changing the
 // LAN IP during local testing would silently orphan the stored session. Also the name the
@@ -12,6 +13,8 @@ export const AUTH_STORAGE_KEY = 'sleep-stories.auth';
 export const authStorage = createEncryptedStorage(createExpoStorageDeps());
 
 export const supabase = createClient(env.supabaseUrl, env.supabasePublishableKey, {
+  // Every auth request ends, so sign-out cannot hang (request-limit/limited-fetch.ts).
+  global: { fetch: limitedFetch((input, init) => fetch(input, init), AUTH_REQUEST_LIMIT_MS) },
   auth: {
     storage: authStorage,
     storageKey: AUTH_STORAGE_KEY,

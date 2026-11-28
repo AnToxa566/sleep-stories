@@ -51,6 +51,7 @@ A folder groups by meaning, not by kind of code: there are no `services`, `contr
 
 - `queue_items` is written only by `queue`. Anything that adds to the end of a queue calls `appendToQueue`.
 - The `users` row is locked only through `lockUserRow`.
+- `generation_jobs` rows are written by `generation` (insert) and `internal` (state). One exception: the account deletion (`preferences/me/account-deletion`) deletes a person's rows itself, through `PrismaService`, inside its own transaction. `preferences` may not import `generation`, so that file also holds a rule of `generation`: `failed` rows stay, because a failed `write_story` or `render_audio` keeps its topic or story from being offered again (`topics/candidates`). Whoever changes what a `failed` row means checks that delete too. Why not a new dependency for one statement: the table of dependencies stays as it is. Cost: the table is kept in letter only here, and no tool notices a drift.
 - A `write_story` or `render_audio` payload is written only in `generation-start-plan.ts` and `write-story.handler.ts`. `architecture.spec.ts` checks this and the lock; its allow-lists hold file paths, so they move with the files.
 - Files of the core zone are listed by path in `AGENTS.md` ("Slices and reviewability"). Moving one of them changes that list in the same commit.
 
