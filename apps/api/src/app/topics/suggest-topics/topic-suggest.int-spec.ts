@@ -234,7 +234,18 @@ describe('TopicSuggestService (database)', () => {
 
     it('reports the newest suggestion, whoever started it, and a failed one as failed', async () => {
       const w = await world();
-      await data.job({ userId: w.userId, kind: 'suggest_topics', status: 'succeeded', hoursAgo: 3 });
+      const older = await data.job({
+        userId: w.userId,
+        kind: 'suggest_topics',
+        status: 'succeeded',
+        hoursAgo: 3,
+      });
+      // «Newest» is decided by created_at. Two rows inserted back to back can get the same
+      // millisecond, and then the random id decides, so the older one is created clearly earlier.
+      await prisma.generationJob.update({
+        where: { id: older },
+        data: { createdAt: new Date(Date.now() - 3 * 3_600_000) },
+      });
       const failed = await data.job({ userId: w.userId, kind: 'suggest_topics', status: 'failed' });
       const answer = await service.status(w.userId);
       expect(answer.latest).toEqual({ id: failed, state: 'failed' });
